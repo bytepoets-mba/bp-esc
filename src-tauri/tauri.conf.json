@@ -3,11 +3,12 @@
     "beforeBuildCommand": "",
     "beforeDevCommand": "",
     "devPath": "../src",
-    "distDir": "../dist"
+    "distDir": "../dist",
+    "withGlobalTauri": true
   },
   "package": {
-    "productName": "BP Employee Self-Care",
-    "version": "0.1.0"
+    "productName": "BYTEPOETS - ESC",
+    "version": "0.1.1"
   },
   "tauri": {
     "allowlist": {
@@ -56,10 +57,10 @@
     "windows": [
       {
         "fullscreen": false,
-        "height": 500,
+        "height": 650,
         "resizable": true,
-        "title": "BP Employee Self-Care",
-        "width": 600,
+        "title": "BYTEPOETS - ESC",
+        "width": 650,
         "center": true
       }
     ]
