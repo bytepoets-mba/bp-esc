@@ -5,16 +5,25 @@ window.addEventListener('DOMContentLoaded', () => {
   console.log('DOMContentLoaded fired');
   console.log('window.__TAURI__:', window.__TAURI__);
   
+  console.log('__TAURI__ structure:', JSON.stringify(Object.keys(window.__TAURI__ || {})));
+  
   if (!window.__TAURI__) {
     console.error('ERROR: Tauri API not available');
     document.body.innerHTML = '<div style="padding: 2rem; color: red; text-align: center;">Error: Tauri API not loaded.<br>Please restart the app.</div>';
     return;
   }
 
-  // Tauri APIs
-  const { invoke } = window.__TAURI__.tauri;
-  const { exit } = window.__TAURI__.process;
-  console.log('Tauri APIs loaded');
+  // Tauri APIs - check both possible structures
+  const invoke = window.__TAURI__.invoke || (window.__TAURI__.tauri && window.__TAURI__.tauri.invoke);
+  const exit = window.__TAURI__.process ? window.__TAURI__.process.exit : () => window.close();
+  
+  if (!invoke) {
+    console.error('invoke not found in:', window.__TAURI__);
+    document.body.innerHTML = '<div style="padding: 2rem; color: red;">Error: Tauri invoke API not found.</div>';
+    return;
+  }
+  
+  console.log('Tauri APIs loaded, invoke:', typeof invoke);
 
   // State
   let currentApiKey = null;
