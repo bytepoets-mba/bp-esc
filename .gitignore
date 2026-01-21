@@ -8,7 +8,7 @@ devenv.lock
 /target
 src-tauri/target/
 **/*.rs.bk
-Cargo.lock
+# Note: Cargo.lock should be committed for applications (not libraries)
 
 # Node
 node_modules/

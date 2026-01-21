@@ -1,21 +1,20 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
+// BP Employee Self-Care - OpenRouter Balance Checker
+// macOS only application
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
-
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::PermissionsExt; // macOS is Unix
 
 use serde::{Deserialize, Serialize};
 
 /// Get the config directory path: ~/.config/bpesc-balance/
 fn get_config_dir() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME")
-        .map_err(|_| "Could not determine home directory".to_string())?;
+    let home = dirs::home_dir()
+        .ok_or_else(|| "Could not determine home directory".to_string())?;
     
-    let config_dir = PathBuf::from(home)
+    let config_dir = home
         .join(".config")
         .join("bpesc-balance");
     
@@ -60,13 +59,30 @@ fn read_api_key() -> Result<Option<String>, String> {
     Ok(None)
 }
 
+/// Validate API key format
+fn validate_api_key(key: &str) -> Result<(), String> {
+    let key = key.trim();
+    
+    if key.is_empty() {
+        return Err("API key cannot be empty".to_string());
+    }
+    
+    if !key.starts_with("sk-") {
+        return Err("API key must start with 'sk-'".to_string());
+    }
+    
+    if key.len() < 20 {
+        return Err("API key is too short".to_string());
+    }
+    
+    Ok(())
+}
+
 /// Save API key to ~/.config/bpesc-balance/.env
 #[tauri::command]
 fn save_api_key(key: String) -> Result<(), String> {
-    // Validate key is not empty
-    if key.trim().is_empty() {
-        return Err("API key cannot be empty".to_string());
-    }
+    // Validate key format
+    validate_api_key(&key)?;
     
     let config_dir = get_config_dir()?;
     let env_path = get_env_file_path()?;
@@ -76,13 +92,10 @@ fn save_api_key(key: String) -> Result<(), String> {
         fs::create_dir_all(&config_dir)
             .map_err(|e| format!("Failed to create config directory: {}", e))?;
         
-        // Set directory permissions to 755 (rwxr-xr-x)
-        #[cfg(unix)]
-        {
-            let perms = fs::Permissions::from_mode(0o755);
-            fs::set_permissions(&config_dir, perms)
-                .map_err(|e| format!("Failed to set directory permissions: {}", e))?;
-        }
+        // Set directory permissions to 755 (rwxr-xr-x) - macOS
+        let perms = fs::Permissions::from_mode(0o755);
+        fs::set_permissions(&config_dir, perms)
+            .map_err(|e| format!("Failed to set directory permissions: {}", e))?;
     }
     
     // Write .env file
@@ -90,13 +103,10 @@ fn save_api_key(key: String) -> Result<(), String> {
     fs::write(&env_path, content)
         .map_err(|e| format!("Failed to write .env file: {}", e))?;
     
-    // Set file permissions to 600 (rw-------)
-    #[cfg(unix)]
-    {
-        let perms = fs::Permissions::from_mode(0o600);
-        fs::set_permissions(&env_path, perms)
-            .map_err(|e| format!("Failed to set file permissions: {}", e))?;
-    }
+    // Set file permissions to 600 (rw-------) - macOS
+    let perms = fs::Permissions::from_mode(0o600);
+    fs::set_permissions(&env_path, perms)
+        .map_err(|e| format!("Failed to set file permissions: {}", e))?;
     
     Ok(())
 }
@@ -128,16 +138,14 @@ struct OpenRouterData {
 /// Fetch balance from OpenRouter API
 #[tauri::command]
 async fn fetch_balance(api_key: String) -> Result<BalanceData, String> {
-    // Validate API key
-    if api_key.trim().is_empty() {
-        return Err("API key cannot be empty".to_string());
-    }
+    // Validate API key format
+    validate_api_key(&api_key)?;
     
     // Create HTTP client with timeout
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+        .map_err(|_| "Could not initialize network client. Please restart the app.".to_string())?;
     
     // Make request to OpenRouter API
     let response = client
