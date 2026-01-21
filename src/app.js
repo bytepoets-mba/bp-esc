@@ -1,9 +1,14 @@
-// Import Tauri APIs from global window object
-const { invoke } = window.__TAURI__.tauri;
-const { exit } = window.__TAURI__.process;
+console.log('app.js loaded');
+
+// Wait for Tauri to be ready
+if (!window.__TAURI__) {
+  console.error('ERROR: Tauri API not available!');
+  document.body.innerHTML = '<div style="padding: 2rem; color: red;">Error: Tauri API not loaded. This should not happen.</div>';
+}
 
 // State management
 let currentApiKey = null;
+let invoke, exit;
 
 // DOM elements
 const loadingState = document.getElementById('loadingState');
@@ -222,4 +227,21 @@ apiKeyInput.addEventListener('input', () => {
 });
 
 // Initialize on load
-window.addEventListener('DOMContentLoaded', init);
+window.addEventListener('DOMContentLoaded', () => {
+  console.log('DOMContentLoaded fired');
+  console.log('window.__TAURI__ available?', !!window.__TAURI__);
+  
+  if (!window.__TAURI__) {
+    console.error('Tauri API not ready on DOMContentLoaded');
+    showState('noKey');
+    showError('Tauri API not loaded. Please restart the app.');
+    return;
+  }
+  
+  // Load Tauri APIs
+  invoke = window.__TAURI__.tauri.invoke;
+  exit = window.__TAURI__.process.exit;
+  
+  console.log('Starting init()...');
+  init();
+});

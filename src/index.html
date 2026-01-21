@@ -64,6 +64,10 @@
     <div id="errorDisplay" class="error-message hidden"></div>
   </div>
 
+  <script>
+    console.log('Script tag loading...');
+    console.log('Tauri available?', typeof window.__TAURI__ !== 'undefined');
+  </script>
   <script src="app.js"></script>
 </body>
 </html>
