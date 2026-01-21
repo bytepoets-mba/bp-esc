@@ -1,0 +1,40 @@
+# Nix/devenv
+.devenv/
+.devenv.flake.nix
+devenv.lock
+.direnv/
+
+# Rust
+/target
+src-tauri/target/
+**/*.rs.bk
+Cargo.lock
+
+# Node
+node_modules/
+dist/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Tauri
+src-tauri/target/
+src-tauri/WixTools/
+
+# Environment
+.env
+.env.local
+
+# Build outputs
+*.dmg
+*.app
