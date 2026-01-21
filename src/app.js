@@ -47,6 +47,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const remainingValue = document.getElementById('remainingValue');
   const lastUpdated = document.getElementById('lastUpdated');
   const autocheckToggle = document.getElementById('autocheckToggle');
+  const appVersion = document.getElementById('appVersion');
 
   // State management
   function showState(state) {
@@ -227,10 +228,24 @@ window.addEventListener('DOMContentLoaded', () => {
     await exit(0);
   }
 
+  // Load and display app version
+  async function loadVersion() {
+    try {
+      const version = await invoke('get_app_version');
+      appVersion.textContent = `v${version}`;
+    } catch (error) {
+      console.error('Failed to get version:', error);
+      appVersion.textContent = '';
+    }
+  }
+
   // Initialize
   async function init() {
     console.log('Initializing app...');
     showState('loading');
+    
+    // Load version first
+    await loadVersion();
     
     try {
       const savedKey = await invoke('read_api_key');

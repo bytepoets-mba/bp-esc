@@ -217,12 +217,19 @@ async fn fetch_balance(api_key: String) -> Result<BalanceData, String> {
     })
 }
 
+/// Get app version from Cargo.toml
+#[tauri::command]
+fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 fn main() {
   tauri::Builder::default()
     .invoke_handler(tauri::generate_handler![
         read_api_key, 
         save_api_key,
-        fetch_balance
+        fetch_balance,
+        get_app_version
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
