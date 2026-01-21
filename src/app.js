@@ -1,5 +1,8 @@
 console.log('app.js loading...');
 
+// Auto-refresh configuration
+const AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
 // Wait for DOM and Tauri to be ready
 window.addEventListener('DOMContentLoaded', () => {
   console.log('DOMContentLoaded fired');
@@ -13,9 +16,9 @@ window.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  // Tauri APIs - check both possible structures
-  const invoke = window.__TAURI__.invoke || (window.__TAURI__.tauri && window.__TAURI__.tauri.invoke);
-  const exit = window.__TAURI__.process ? window.__TAURI__.process.exit : () => window.close();
+  // Tauri v1 APIs - invoke is under __TAURI__.tauri.invoke
+  const invoke = window.__TAURI__.tauri?.invoke || window.__TAURI__.invoke;
+  const exit = window.__TAURI__.process?.exit || (() => window.close());
   
   if (!invoke) {
     console.error('invoke not found in:', window.__TAURI__);
@@ -27,6 +30,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // State
   let currentApiKey = null;
+  let autoRefreshTimer = null;
 
   // DOM elements
   const loadingState = document.getElementById('loadingState');
@@ -42,6 +46,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const usageValue = document.getElementById('usageValue');
   const remainingValue = document.getElementById('remainingValue');
   const lastUpdated = document.getElementById('lastUpdated');
+  const autocheckToggle = document.getElementById('autocheckToggle');
 
   // State management
   function showState(state) {
@@ -68,6 +73,30 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function hideError() {
     errorDisplay.classList.add('hidden');
+  }
+
+  // Auto-refresh management
+  function stopAutoRefresh() {
+    if (autoRefreshTimer) {
+      console.log('Stopping auto-refresh timer');
+      clearTimeout(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+  }
+
+  function startAutoRefresh() {
+    stopAutoRefresh();
+    
+    if (!autocheckToggle.checked) {
+      console.log('Auto-refresh disabled by user');
+      return;
+    }
+    
+    console.log(`Starting auto-refresh timer (${AUTO_REFRESH_INTERVAL_MS / 1000}s)`);
+    autoRefreshTimer = setTimeout(() => {
+      console.log('Auto-refresh triggered');
+      loadBalance();
+    }, AUTO_REFRESH_INTERVAL_MS);
   }
 
   // Format currency
@@ -140,10 +169,16 @@ window.addEventListener('DOMContentLoaded', () => {
       const balance = await invoke('fetch_balance', { apiKey: currentApiKey });
       console.log('Balance received:', balance);
       displayBalance(balance);
+      
+      // Start auto-refresh timer after successful load
+      startAutoRefresh();
     } catch (error) {
       console.error('Failed to fetch balance:', error);
       showState('balance');
       showError(error);
+      
+      // Still start timer even on error (will retry later)
+      startAutoRefresh();
     }
   }
 
@@ -184,6 +219,7 @@ window.addEventListener('DOMContentLoaded', () => {
   function showSettings() {
     apiKeyInput.value = currentApiKey || '';
     showState('noKey');
+    stopAutoRefresh();
   }
 
   // Quit
@@ -233,6 +269,17 @@ window.addEventListener('DOMContentLoaded', () => {
   apiKeyInput.addEventListener('input', () => {
     apiKeyInput.classList.remove('error');
     hideError();
+  });
+
+  // Auto-check toggle handler
+  autocheckToggle.addEventListener('change', () => {
+    if (autocheckToggle.checked) {
+      console.log('Auto-refresh enabled');
+      startAutoRefresh();
+    } else {
+      console.log('Auto-refresh disabled');
+      stopAutoRefresh();
+    }
   });
 
   // Global error handler
