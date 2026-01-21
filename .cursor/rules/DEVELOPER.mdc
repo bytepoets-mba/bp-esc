@@ -79,6 +79,33 @@ Before making changes, understand the project architecture:
 3. **Work through acceptance criteria** - Complete requirements systematically
 4. **Mark as done** - Update task status when complete
 
+### Creating Backlog Items (for +pm/ projects)
+
+**ALWAYS use the project scripts** - never manually create files or generate hashes.
+
+```bash
+# Create new backlog item (run from repo root)
+./scripts/create-backlog-item.sh [priority] [description]
+
+# Examples:
+./scripts/create-backlog-item.sh 0100 implement-oauth
+./scripts/create-backlog-item.sh 5000 refactor-auth-module
+
+# Just generate a hash (if needed)
+./scripts/lib/generate-hash.sh
+```
+
+**Why use scripts?**
+- Collision-free hash generation
+- Consistent file naming (PPPP.hhhhhhh.description.md)
+- Validation and error handling
+- Standard templates
+
+**Never**:
+- ❌ Create files manually in +pm/backlog/
+- ❌ Generate random hashes yourself
+- ❌ Skip validation or collision checking
+
 ### The Prime Directive
 
 > **Keep code, docs, and tests in sync.**

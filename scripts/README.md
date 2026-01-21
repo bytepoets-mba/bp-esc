@@ -1,139 +1,280 @@
 # Scripts
 
-This folder contains utility scripts for the project.
+Utility scripts for project management and development workflows.
 
-## Problem Statement
+---
 
-When creating backlog items, we need unique identifiers that:
-1. **Are truly unique** - No collisions across the entire project
-2. **Are cryptographically secure** - Generated using proper UUID generation
-3. **Are filesystem-friendly** - Lowercase, no special characters that could cause issues
-4. **Are meaningful** - Not just random strings, but proper UUIDs
-5. **Don't require external dependencies** - Use built-in macOS tools
+## Overview
 
-## Why Full UUIDs (Not Shortened)?
+This directory contains scripts for managing backlog items with unique, collision-free identifiers.
 
-**❌ Bad Approach: Shortened UUIDs (8 characters)**
-- Cutting off a UUID reduces entropy and increases collision risk
-- While 8 hex chars (32 bits) is usually fine for small projects, it's not guaranteed unique
-- We lose the cryptographic guarantees of UUIDs
-- Not following UUID standards
+**Design Philosophy**: Keep it simple, DRY, and dependency-free (bash built-ins only).
 
-**✅ Good Approach: Full UUIDs (36 characters)**
-- Full UUIDs provide 128 bits of entropy - virtually impossible to collide
-- Maintains cryptographic security guarantees
-- Follows UUID standards (RFC 4122)
-- Lowercase for filesystem compatibility
+---
 
 ## Available Scripts
 
-### generate-backlog-hash.sh
+### `lib/generate-hash.sh`
 
-Generates a unique full UUID for backlog items using macOS's built-in `uuidgen`.
+Generates unique 7-character hex hash for backlog items.
 
-**Usage:**
+**Usage (standalone)**:
 ```bash
-./scripts/generate-backlog-hash.sh
+./scripts/lib/generate-hash.sh
+# Output: a1b2c3d
 ```
 
-**Output:**
-- Returns a full UUID in lowercase (e.g., `32257bf5-1234-5678-9abc-def012345678`)
-- Ensures the UUID doesn't conflict with existing files in the `+pm` folder
-- Searches for files matching pattern `*.uuid.*.md`
-- Uses cryptographically secure UUID generation (RFC 4122)
-
-**Example:**
+**Usage (sourced)**:
 ```bash
-$ ./scripts/generate-backlog-hash.sh
-Generating unique backlog UUID...
-✓ Unique UUID generated: 32257bf5-1234-5678-9abc-def012345678
-32257bf5-1234-5678-9abc-def012345678
+source scripts/lib/generate-hash.sh
+hash=$(generate_unique_hash)
+echo "Generated: $hash"
 ```
 
-### create-backlog-item.sh
+**Features**:
+- 7-character hex identifier (0-9, a-f)
+- Collision-checked against existing files in `+pm/`
+- Uses bash `$RANDOM` (no external dependencies)
+- 28 bits entropy (~268 million possible values)
 
-Creates a new backlog item with a unique UUID and standardized template.
+---
 
-**Usage:**
+### `create-backlog-item.sh`
+
+Creates new backlog item with template and unique hash.
+
+**Usage**:
 ```bash
-./scripts/create-backlog-item.sh "Your backlog item title"
+# Run from repository root
+./scripts/create-backlog-item.sh [priority] [description]
+
+# Examples:
+./scripts/create-backlog-item.sh 0100 implement-oauth
+./scripts/create-backlog-item.sh 5000 refactor-auth-module
+./scripts/create-backlog-item.sh  # Uses defaults
 ```
 
-**Features:**
-- Generates unique UUID automatically using macOS's built-in `uuidgen`
-- Creates filename in format: `YYYYMMDD.uuid.slugified-title.md`
-- Populates with PRD-style template
-- Includes metadata (Document ID, Version, Status, Date, Author)
-- Uses full UUID for maximum uniqueness guarantee
+**Arguments**:
+- `priority`: 4-digit number (default: 5000)
+  - Must be numeric
+  - Auto-padded to 4 digits
+- `description`: Kebab-case slug (default: timestamp YYYY-MM-DD-HH-MM-SS)
+  - Only a-z, 0-9, hyphens allowed
+  - Validation enforced
 
-**Example:**
-```bash
-$ ./scripts/create-backlog-item.sh "Implement user authentication"
-✓ Created backlog item: 20260121.32257bf5-1234-5678-9abc-def012345678.implement-user-authentication.md
-  Location: /Users/markus/Code/bpesc/+pm/backlog/20260121.32257bf5-1234-5678-9abc-def012345678.implement-user-authentication.md
-
-Next steps:
-  1. Edit the file to add details
-  2. Update status when ready
-  3. Move to 'done' folder when complete
+**Output**:
 ```
+Created file: +pm/0100.a7f3e9c.implement-oauth.md
+```
+
+**Template**:
+```markdown
+# Title: {description}
+
+## Description
+[Detailed description of the backlog item goes here.]
+
+## Priority
+{priority}
+
+## Additional Requirements
+[Add any other details, such as dependencies, estimates, or acceptance criteria.]
+```
+
+**Validation**:
+- Checks for `+pm/` directory (must run from repo root)
+- Validates priority is numeric
+- Validates description matches `[a-z0-9-]+` pattern
+- Auto-generates collision-free hash
+
+---
 
 ## File Naming Convention
 
-Backlog items follow this pattern:
+Format: `PPPP.hhhhhhh.description.md`
+
+**Components**:
+- **PPPP**: Priority (0000-9999, padded to 4 digits)
+- **hhhhhhh**: Hash (7-char hex, collision-checked)
+- **description**: Slug (a-z, 0-9, hyphens)
+
+**Examples**:
 ```
-YYYYMMDD.uuid.slugified-title.md
+0000.a1b2c3d.document-pm-structure.md
+0100.f3e8a91.implement-user-auth.md
+5000.c7d2b4a.refactor-legacy-code.md
 ```
 
-Where:
-- `YYYYMMDD`: Date of creation
-- `uuid`: Full UUID in lowercase (e.g., `32257bf5-1234-5678-9abc-def012345678`)
-- `slugified-title`: Title converted to lowercase, spaces to hyphens, special chars removed
+---
 
 ## Technical Details
 
-### UUID Generation
-- Uses macOS's built-in `uuidgen` command
-- Generates RFC 4122 compliant UUIDs
-- Converts to lowercase for filesystem compatibility
-- Full 36-character format (including hyphens)
+### Hash Generation Algorithm
 
-### Uniqueness Guarantee
-- Each UUID has 128 bits of entropy
-- Collision probability: ~1 in 2^128 (effectively zero)
-- Script checks entire `+pm` folder for conflicts
-- Retries up to 100 times if needed (extremely unlikely)
+```bash
+# Generate 8-char hex from two $RANDOM values
+full_hash=$(printf "%04x%04x" $RANDOM $RANDOM)
+hash=${full_hash:0:7}  # Take first 7 chars
 
-### Filesystem Safety
-- Lowercase only (no uppercase letters)
-- Hyphens are safe in Unix filesystems
-- No spaces or special characters that could cause issues
-- Compatible with all modern operating systems
+# Check collision
+if ! ls +pm/*."${hash}".*.md > /dev/null 2>&1; then
+  # Unique - use it
+fi
+```
+
+**Why 7 characters?**
+- Balance between brevity and collision resistance
+- 28 bits entropy = ~268 million possible values
+- Git uses 7 chars for short SHAs (good precedent)
+- Short enough for filenames, long enough for uniqueness
+
+**Why not cryptographic?**
+- Don't need cryptographic security for task IDs
+- `$RANDOM` is sufficient for project-scale uniqueness
+- Keeps scripts dependency-free (no external tools)
+- Collision check provides safety net
+
+### Collision Handling
+
+Script checks existing files before accepting a hash:
+```bash
+ls +pm/*."${hash}".*.md > /dev/null 2>&1
+```
+
+If collision detected (extremely rare), generates new hash and retries.
+
+---
 
 ## Workflow
 
-1. **Create new item:**
-   ```bash
-   ./scripts/create-backlog-item.sh "Your task title"
-   ```
+### 1. Create Backlog Item
+```bash
+./scripts/create-backlog-item.sh 0100 add-user-settings
+```
 
-2. **Edit the created file** to add requirements, acceptance criteria, etc.
+### 2. Edit the File
+```bash
+# File created: +pm/backlog/0100.a7f3e9c.add-user-settings.md
+# Edit to add details, acceptance criteria, etc.
+```
 
-3. **Update status** as work progresses:
-   - `Draft` → `In Progress` → `Review` → `Done`
+### 3. Track Progress
+Update the `## Status` field as work progresses.
 
-4. **Move completed items** to the `done/` folder
+### 4. Complete
+```bash
+mkdir -p +pm/done
+mv +pm/backlog/0100.a7f3e9c.add-user-settings.md +pm/done/
+```
 
-5. **Archive canceled items** to the `canceled/` folder
+---
 
-## Why Not Use Short IDs?
+## Priority Guidelines
 
-While shorter IDs (like Git's 7-character hashes) are convenient, they come with trade-offs:
+| Range | Use Case |
+|-------|----------|
+| 0000-0999 | Critical, blocking, infrastructure |
+| 1000-2999 | High priority features |
+| 3000-4999 | Standard features |
+| 5000-6999 | Medium priority (default) |
+| 7000-8999 | Nice-to-have, improvements |
+| 9000-9999 | Low priority, future ideas |
 
-| Approach | Uniqueness | Collision Risk | Length | Standard |
-|----------|------------|----------------|--------|----------|
-| **Short UUID (8 chars)** | 32 bits | ~1 in 4 billion | 8 chars | Non-standard |
-| **Full UUID (36 chars)** | 128 bits | ~1 in 3.4×10^38 | 36 chars | RFC 4122 |
-| **Git SHA (7 chars)** | 28 bits | ~1 in 268 million | 7 chars | Git-specific |
+---
 
-For an internal tool where we want guaranteed uniqueness without any collision risk, full UUIDs are the safest choice. The extra characters in filenames are a small price to pay for cryptographic guarantees.
+## LLM/Agent Usage
+
+**Important**: When using Cursor or other AI agents, always use these scripts for creating backlog items.
+
+**Never**:
+- Manually create hash values
+- Create files without using the scripts
+- Generate hashes with other methods
+
+**Always**:
+- Use `./scripts/create-backlog-item.sh` for new items
+- Use `./scripts/lib/generate-hash.sh` if you need just a hash
+- Run from repository root
+
+This ensures:
+- Collision-free hashes
+- Consistent file naming
+- Proper validation
+- Standard templates
+
+---
+
+## Error Handling
+
+### "Error: +pm/ directory not found"
+**Solution**: Run script from repository root (where `+pm/` exists)
+
+### Invalid priority
+**Result**: Defaults to 5000, continues with warning
+
+### Invalid description
+**Result**: Uses timestamp (YYYY-MM-DD-HH-MM-SS) as fallback
+
+---
+
+## Examples
+
+### High Priority Feature
+```bash
+./scripts/create-backlog-item.sh 0100 implement-oauth
+# Creates: +pm/backlog/0100.a7f3e9c.implement-oauth.md
+```
+
+### Default Priority
+```bash
+./scripts/create-backlog-item.sh "" refactor-auth
+# Creates: +pm/backlog/5000.c7d2b4a.refactor-auth.md
+```
+
+### Generate Hash Only
+```bash
+hash=$(./scripts/lib/generate-hash.sh)
+echo "Use this hash: $hash"
+# Output: Use this hash: f3e8a91
+```
+
+### Sourced Hash Generation
+```bash
+source scripts/lib/generate-hash.sh
+hash=$(generate_unique_hash)
+filename="+pm/backlog/5000.${hash}.my-task.md"
+```
+
+---
+
+## Design Decisions
+
+### Why Bash?
+- Available everywhere (macOS, Linux)
+- No external dependencies
+- Simple, transparent logic
+- Easy to audit and modify
+
+### Why Not UUIDs?
+- Too long for filenames (36 chars)
+- Overkill for project-scale task tracking
+- 7-char hex is industry standard (Git)
+- Collision check adds safety
+
+### Why Separate Hash Script?
+- **DRY**: Reusable hash generation
+- **Flexibility**: Use standalone or sourced
+- **Testing**: Easy to verify collision checking
+- **Composability**: Use in other scripts
+
+---
+
+## Future Enhancements
+
+Possible additions (only if needed):
+- Move completed items script
+- Bulk priority update script
+- Backlog stats/reporting
+- Integration with git hooks
+
+Current scripts are intentionally minimal - add features only when clear need emerges.

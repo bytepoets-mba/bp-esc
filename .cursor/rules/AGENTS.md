@@ -36,6 +36,27 @@ Work style: telegraph; noun-phrases ok; minimal grammar; min tokens.
 | Secrets / credentials            | 1Password (no agent access) — ping Markus for creds |
 | Task/project mgmt                | `+pm/` per repo                                     |
 
+### Creating +pm Backlog Items
+
+**ALWAYS use scripts** for backlog items. Never manual file creation.
+
+```bash
+# From repo root
+./scripts/create-backlog-item.sh [priority] [description]
+
+# Examples
+./scripts/create-backlog-item.sh 0100 implement-feature-x
+./scripts/create-backlog-item.sh 5000 refactor-auth
+
+# Just hash
+./scripts/lib/generate-hash.sh
+```
+
+**Rules**:
+- ✅ Use scripts (collision-free hashes, validation)
+- ❌ Never create +pm files manually
+- ❌ Never generate hashes yourself
+
 ## Docs
 
 - Follow links until domain makes sense; honor existing patterns.
