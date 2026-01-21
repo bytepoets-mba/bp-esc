@@ -1,4 +1,4 @@
-{ pkgs, lib, ... }:
+{ pkgs, ... }:
 
 {
   packages = with pkgs; [
@@ -9,18 +9,12 @@
     # Node.js for frontend
     nodejs
     
-    # Tauri dependencies (macOS)
+    # Tauri dependencies
     pkg-config
     openssl
-  ] ++ lib.optionals stdenv.isDarwin [
-    # macOS SDK frameworks (needed for Tauri)
-    darwin.apple_sdk.frameworks.AppKit
-    darwin.apple_sdk.frameworks.WebKit
-    darwin.apple_sdk.frameworks.Security
-    darwin.apple_sdk.frameworks.CoreServices
   ];
   
-  # Environment variables for portable builds
+  # Environment variables
   env = {
     PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
   };
