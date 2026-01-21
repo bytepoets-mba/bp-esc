@@ -12,6 +12,7 @@ src-tauri/target/
 
 # Node
 node_modules/
+package-lock.json
 dist/
 *.log
 

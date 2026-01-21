@@ -8,15 +8,60 @@
 </head>
 <body>
   <div class="container">
-    <h1>BP Employee Self-Care</h1>
-    <p>OpenRouter Balance Checker</p>
-    
-    <!-- Placeholder for now -->
-    <div id="app">
-      <p>Tauri app initialized successfully!</p>
+    <header class="header">
+      <h1>BP Employee Self-Care</h1>
+      <p class="subtitle">OpenRouter Balance Checker</p>
+    </header>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="state hidden">
+      <div class="loader"></div>
+      <p>Loading...</p>
     </div>
+
+    <!-- No API Key State -->
+    <div id="noKeyState" class="state hidden">
+      <div class="input-section">
+        <label for="apiKeyInput">Enter your OpenRouter API Key:</label>
+        <input 
+          type="password" 
+          id="apiKeyInput" 
+          placeholder="sk-or-v1-..."
+          autocomplete="off"
+        >
+        <button id="saveKeyBtn" class="btn-primary">Save & Check Balance</button>
+        <p class="help-text">Your API key is stored locally in ~/.config/bpesc-balance/.env</p>
+      </div>
+    </div>
+
+    <!-- Balance Display State -->
+    <div id="balanceState" class="state hidden">
+      <div class="balance-card">
+        <div class="balance-item">
+          <span class="label">Credit Limit:</span>
+          <span class="value" id="limitValue">-</span>
+        </div>
+        <div class="balance-item">
+          <span class="label">Used:</span>
+          <span class="value" id="usageValue">-</span>
+        </div>
+        <div class="balance-item highlight">
+          <span class="label">Remaining:</span>
+          <span class="value" id="remainingValue">-</span>
+        </div>
+      </div>
+
+      <div class="button-row">
+        <button id="refreshBtn" class="btn-secondary">Refresh</button>
+        <button id="settingsBtn" class="btn-secondary">Settings</button>
+        <button id="quitBtn" class="btn-secondary">Quit</button>
+      </div>
+    </div>
+
+    <!-- Error Display -->
+    <div id="errorDisplay" class="error-message hidden"></div>
   </div>
-  
+
   <script type="module" src="app.js"></script>
 </body>
 </html>
