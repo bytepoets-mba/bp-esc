@@ -19,41 +19,6 @@
     PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
   };
   
-  # Build release and relink to system libraries for portability
-  scripts.build-release.exec = ''
-    set -e
-    echo "Building portable release..."
-    
-    npm run build:frontend
-    cargo tauri build
-    
-    # Relink Nix libraries to system equivalents for portability
-    APP="src-tauri/target/release/bundle/macos/BYTEPOETS - ESC.app/Contents/MacOS/BYTEPOETS - ESC"
-    echo "Relinking to system libraries..."
-    
-    otool -L "$APP" | grep '/nix/' | awk '{print $1}' | while read nix_lib; do
-      lib_name=$(basename "$nix_lib")
-      case "$lib_name" in
-        libiconv*) system_lib="/usr/lib/libiconv.2.dylib" ;;
-        libz*)     system_lib="/usr/lib/libz.1.dylib" ;;
-        libc++*)   system_lib="/usr/lib/libc++.1.dylib" ;;
-        *)         echo "Warning: Unknown lib $lib_name"; continue ;;
-      esac
-      echo "  $lib_name -> $system_lib"
-      install_name_tool -change "$nix_lib" "$system_lib" "$APP"
-    done
-    
-    # Verify
-    if otool -L "$APP" | grep -q '/nix/'; then
-      echo "ERROR: Nix dependencies remain:"
-      otool -L "$APP" | grep '/nix/'
-      exit 1
-    fi
-    
-    echo ""
-    echo "✅ Build complete - portable app ready!"
-    echo "App: src-tauri/target/release/bundle/macos/BYTEPOETS - ESC.app"
-  '';
   
   # Auto-run on entering directory
   enterShell = ''
@@ -63,7 +28,7 @@
     echo "Node: $(node --version)"
     echo ""
     echo "Commands:"
-    echo "  cargo tauri dev     - Start development"
-    echo "  build-release       - Build portable release"
+    echo "  cargo tauri dev  - Start development"
+    echo "  npm run build    - Build portable release"
   '';
 }

@@ -1,11 +1,11 @@
 {
   "name": "bp-esc",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "BYTEPOETS Employee Self-Care - OpenRouter Balance Checker",
   "private": true,
   "scripts": {
     "dev": "cargo tauri dev",
-    "build": "npm run build:frontend && cargo tauri build",
+    "build": "npm run build:frontend && cargo tauri build && ./scripts/fix-dylib.sh",
     "build:frontend": "mkdir -p dist && cp -r src/index.html src/app.js src/style.css src/assets dist/"
   },
   "dependencies": {
