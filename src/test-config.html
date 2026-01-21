@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Config Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 2rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      margin: 0.5rem;
+      cursor: pointer;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 1rem;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    input {
+      width: 100%;
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Config File I/O Test</h1>
+  
+  <h2>Save API Key</h2>
+  <input type="text" id="apiKeyInput" placeholder="Enter API key (e.g., sk-or-v1-...)">
+  <button onclick="testSave()">Save</button>
+  
+  <h2>Read API Key</h2>
+  <button onclick="testRead()">Read</button>
+  
+  <h2>Results</h2>
+  <pre id="output">No results yet...</pre>
+
+  <script type="module">
+    const { invoke } = window.__TAURI__.tauri;
+    
+    window.testSave = async function() {
+      const key = document.getElementById('apiKeyInput').value;
+      const output = document.getElementById('output');
+      
+      try {
+        await invoke('save_api_key', { key });
+        output.textContent = `✅ API key saved successfully!\nPath: ~/.config/bpesc-balance/.env`;
+      } catch (error) {
+        output.textContent = `❌ Error saving: ${error}`;
+      }
+    };
+    
+    window.testRead = async function() {
+      const output = document.getElementById('output');
+      
+      try {
+        const result = await invoke('read_api_key');
+        if (result) {
+          // Mask the key for security
+          const masked = result.substring(0, 10) + '...' + result.substring(result.length - 4);
+          output.textContent = `✅ API key found!\nMasked: ${masked}\n\nFull key:\n${result}`;
+        } else {
+          output.textContent = `ℹ️ No API key found in ~/.config/bpesc-balance/.env`;
+        }
+      } catch (error) {
+        output.textContent = `❌ Error reading: ${error}`;
+      }
+    };
+  </script>
+</body>
+</html>
