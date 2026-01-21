@@ -1,6 +1,6 @@
 {
   "build": {
-    "beforeBuildCommand": "",
+    "beforeBuildCommand": "npm run build:frontend",
     "beforeDevCommand": "",
     "devPath": "../src",
     "distDir": "../dist",
