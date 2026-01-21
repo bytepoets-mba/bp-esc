@@ -1,5 +1,6 @@
-import { invoke } from '@tauri-apps/api/tauri';
-import { exit } from '@tauri-apps/api/process';
+// Import Tauri APIs from global window object
+const { invoke } = window.__TAURI__.tauri;
+const { exit } = window.__TAURI__.process;
 
 // State management
 let currentApiKey = null;
