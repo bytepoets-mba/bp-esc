@@ -11,7 +11,11 @@
   },
   "tauri": {
     "allowlist": {
-      "all": false
+      "all": false,
+      "process": {
+        "all": false,
+        "exit": true
+      }
     },
     "bundle": {
       "active": true,
