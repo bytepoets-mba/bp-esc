@@ -10,16 +10,33 @@
 ### Initial Setup
 
 1. Clone the repository
-2. Allow direnv:
+2. Enter the devenv shell:
    ```bash
    cd /path/to/bp-esc
-   direnv allow
+   devenv shell
    ```
+   
+   **Note**: If you have `nix-direnv` configured, you can use `direnv allow` instead for automatic loading.
+   
 3. Wait for environment to load (first time takes a few minutes)
 4. Install Tauri CLI:
    ```bash
    cargo install tauri-cli --version 1.6.2
    ```
+
+### Optional: Auto-load with direnv
+
+If you want automatic environment loading when entering the directory:
+
+1. Ensure `nix-direnv` is enabled in your home-manager config:
+   ```nix
+   programs.direnv = {
+     enable = true;
+     nix-direnv.enable = true;
+   };
+   ```
+
+2. Run `direnv allow` in the project directory
 
 ## Development Workflow
 
