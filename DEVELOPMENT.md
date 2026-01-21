@@ -56,6 +56,16 @@ To test the config file read/write functionality:
    # -rw-------  .env
    ```
 
+### Testing OpenRouter API Client
+
+To test the balance fetching:
+
+1. Ensure you have an API key saved (use `src/test-config.html`)
+2. Open `src/test-api.html` in the app
+3. Click "Load from Config" to load your saved key
+4. Click "Fetch Balance" to test the API call
+5. View the balance information returned
+
 ### Building for Production
 
 ```bash
@@ -124,6 +134,43 @@ try {
   console.log('API key saved successfully');
 } catch (error) {
   console.error('Failed to save:', error);
+}
+```
+
+### `fetch_balance(api_key: String)`
+
+Fetches balance information from OpenRouter API.
+
+**Returns**: `Result<BalanceData, String>`
+- `Ok(BalanceData)` with balance info on success
+- `Err(String)` with user-friendly error message on failure
+
+**BalanceData structure**:
+```typescript
+{
+  limit: number | null,      // Total credit limit
+  usage: number | null,      // Amount used
+  remaining: number | null,  // Calculated: limit - usage
+  label: string | null       // Optional account label
+}
+```
+
+**Error handling**:
+- Empty API key: "API key cannot be empty"
+- Invalid key (401): "Invalid API key. Please check your key and try again."
+- Timeout: "Request timed out. Check your internet connection."
+- Network: "Could not connect to OpenRouter. Check your internet connection."
+
+**Usage**:
+```javascript
+try {
+  const balance = await invoke('fetch_balance', { 
+    apiKey: 'sk-or-v1-...' 
+  });
+  console.log('Balance:', balance);
+  console.log('Remaining:', balance.remaining);
+} catch (error) {
+  console.error('Failed to fetch:', error);
 }
 ```
 

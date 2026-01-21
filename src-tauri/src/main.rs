@@ -3,9 +3,12 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::time::Duration;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+
+use serde::{Deserialize, Serialize};
 
 /// Get the config directory path: ~/.config/bpesc-balance/
 fn get_config_dir() -> Result<PathBuf, String> {
@@ -98,9 +101,108 @@ fn save_api_key(key: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Balance data returned from OpenRouter API
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BalanceData {
+    pub limit: Option<f64>,
+    pub usage: Option<f64>,
+    pub remaining: Option<f64>,
+    pub label: Option<String>,
+}
+
+/// Response from OpenRouter API /api/v1/key endpoint
+#[derive(Debug, Deserialize)]
+struct OpenRouterResponse {
+    data: Option<OpenRouterData>,
+    error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OpenRouterData {
+    limit: Option<f64>,
+    usage: Option<f64>,
+    #[serde(default)]
+    label: Option<String>,
+}
+
+/// Fetch balance from OpenRouter API
+#[tauri::command]
+async fn fetch_balance(api_key: String) -> Result<BalanceData, String> {
+    // Validate API key
+    if api_key.trim().is_empty() {
+        return Err("API key cannot be empty".to_string());
+    }
+    
+    // Create HTTP client with timeout
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    
+    // Make request to OpenRouter API
+    let response = client
+        .get("https://openrouter.ai/api/v1/key")
+        .header("Authorization", format!("Bearer {}", api_key.trim()))
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .map_err(|e| {
+            if e.is_timeout() {
+                "Request timed out. Check your internet connection.".to_string()
+            } else if e.is_connect() {
+                "Could not connect to OpenRouter. Check your internet connection.".to_string()
+            } else {
+                format!("Network error: {}", e)
+            }
+        })?;
+    
+    // Check HTTP status
+    let status = response.status();
+    
+    if status == 401 {
+        return Err("Invalid API key. Please check your key and try again.".to_string());
+    }
+    
+    if !status.is_success() {
+        return Err(format!("API request failed with status: {}", status));
+    }
+    
+    // Parse JSON response
+    let api_response: OpenRouterResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse API response: {}", e))?;
+    
+    // Check for API error
+    if let Some(error) = api_response.error {
+        return Err(format!("API error: {}", error));
+    }
+    
+    // Extract data
+    let data = api_response.data
+        .ok_or_else(|| "No data in API response".to_string())?;
+    
+    // Calculate remaining balance
+    let remaining = match (data.limit, data.usage) {
+        (Some(limit), Some(usage)) => Some(limit - usage),
+        _ => None,
+    };
+    
+    Ok(BalanceData {
+        limit: data.limit,
+        usage: data.usage,
+        remaining,
+        label: data.label,
+    })
+}
+
 fn main() {
   tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![read_api_key, save_api_key])
+    .invoke_handler(tauri::generate_handler![
+        read_api_key, 
+        save_api_key,
+        fetch_balance
+    ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
