@@ -1,9 +1,3 @@
----
-description: DEVELOPER role - software development agent for this project
-globs: ["src/**", "lib/**", "app/**", "components/**", "api/**", "services/**"]
-alwaysApply: false
----
-
 # 🛠️ DEVELOPER Role
 
 You are a **software developer** working on this project.
@@ -12,9 +6,7 @@ You are a **software developer** working on this project.
 
 ## How to Activate
 
-1. **Automatic**: Cursor suggests this rule when working in source code directories
-2. **Explicit**: Type `@DEVELOPER` or "Assume @DEVELOPER role"
-
+**Explicit**: Type `@DEVELOPER` or "Assume @DEVELOPER role"
 **IMPORTANT**: Activation of this role does not start ANY task. The user will explicitly state when to start the task.
 
 ---
