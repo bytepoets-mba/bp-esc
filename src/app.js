@@ -19,6 +19,7 @@ const quitBtn = document.getElementById('quitBtn');
 const limitValue = document.getElementById('limitValue');
 const usageValue = document.getElementById('usageValue');
 const remainingValue = document.getElementById('remainingValue');
+const lastUpdated = document.getElementById('lastUpdated');
 
 // State management functions
 function showState(state) {
@@ -72,12 +73,20 @@ function displayBalance(balance) {
     }
   }
   
+  // Update timestamp
+  const now = new Date().toLocaleTimeString('en-US', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
+  lastUpdated.textContent = `Last updated: ${now}`;
+  
   showState('balance');
 }
 
 // Load and display balance
 async function loadBalance() {
   if (!currentApiKey) {
+    console.warn('loadBalance called without API key');
     showError('No API key loaded');
     return;
   }
@@ -86,20 +95,47 @@ async function loadBalance() {
   hideError();
   
   try {
+    console.log('Fetching balance from OpenRouter...');
     const balance = await invoke('fetch_balance', { apiKey: currentApiKey });
+    console.log('Balance received:', balance);
     displayBalance(balance);
   } catch (error) {
+    console.error('Failed to fetch balance:', error);
     showState('balance');
     showError(error);
   }
+}
+
+// Validate API key format (client-side)
+function validateApiKeyFormat(key) {
+  const trimmedKey = key.trim();
+  
+  if (!trimmedKey) {
+    return { valid: false, error: 'API key cannot be empty' };
+  }
+  
+  if (!trimmedKey.startsWith('sk-')) {
+    return { valid: false, error: 'API key must start with "sk-"' };
+  }
+  
+  if (trimmedKey.length < 20) {
+    return { valid: false, error: 'API key appears too short (minimum 20 characters)' };
+  }
+  
+  return { valid: true };
 }
 
 // Save API key and load balance
 async function saveAndLoad() {
   const key = apiKeyInput.value.trim();
   
-  if (!key) {
-    showError('Please enter an API key');
+  // Client-side validation
+  const validation = validateApiKeyFormat(key);
+  if (!validation.valid) {
+    showError(validation.error);
+    apiKeyInput.classList.add('error');
+    apiKeyInput.focus();
+    setTimeout(() => apiKeyInput.classList.remove('error'), 500);
     return;
   }
   
@@ -108,10 +144,13 @@ async function saveAndLoad() {
   saveKeyBtn.disabled = true;
   
   try {
+    console.log('Saving API key...');
     await invoke('save_api_key', { key });
+    console.log('API key saved successfully');
     currentApiKey = key;
     await loadBalance();
   } catch (error) {
+    console.error('Failed to save API key:', error);
     showState('noKey');
     showError(error);
   } finally {
@@ -145,14 +184,27 @@ async function init() {
       showState('noKey');
     }
   } catch (error) {
+    console.error('Initialization error:', error);
     showState('noKey');
     showError(`Failed to initialize: ${error}`);
   }
 }
 
+// Global error handler
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+  showError('An unexpected error occurred. Please try again.');
+  event.preventDefault();
+});
+
 // Event listeners
 saveKeyBtn.addEventListener('click', saveAndLoad);
-refreshBtn.addEventListener('click', loadBalance);
+refreshBtn.addEventListener('click', () => {
+  refreshBtn.disabled = true;
+  loadBalance().finally(() => {
+    refreshBtn.disabled = false;
+  });
+});
 settingsBtn.addEventListener('click', showSettings);
 quitBtn.addEventListener('click', quitApp);
 
@@ -160,6 +212,12 @@ apiKeyInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') {
     saveAndLoad();
   }
+});
+
+// Remove error class on input change
+apiKeyInput.addEventListener('input', () => {
+  apiKeyInput.classList.remove('error');
+  hideError();
 });
 
 // Initialize on load

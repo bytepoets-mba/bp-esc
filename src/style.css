@@ -110,6 +110,11 @@ input:focus {
   border-color: #667eea;
 }
 
+input.error {
+  border-color: #dc2626;
+  animation: shake 0.5s;
+}
+
 .help-text {
   font-size: 0.85rem;
   color: #9ca3af;
@@ -221,4 +226,32 @@ button:disabled {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-10px); }
   75% { transform: translateX(10px); }
+}
+
+/* Additional styles */
+.btn-quit {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.btn-quit:hover:not(:disabled) {
+  background: #fecaca;
+}
+
+.last-updated {
+  text-align: center;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 1rem;
+}
+
+/* Success message */
+.success-message {
+  background: #d1fae5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-top: 1rem;
+  animation: fadeIn 0.3s;
 }

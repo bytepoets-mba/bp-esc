@@ -44,6 +44,12 @@ fn read_api_key() -> Result<Option<String>, String> {
     // Parse OPENROUTER_API_KEY=value
     for line in contents.lines() {
         let line = line.trim();
+        
+        // Skip empty lines and comments
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        
         if line.starts_with("OPENROUTER_API_KEY=") {
             let key = line.strip_prefix("OPENROUTER_API_KEY=")
                 .unwrap_or("")
@@ -179,16 +185,23 @@ async fn fetch_balance(api_key: String) -> Result<BalanceData, String> {
     let api_response: OpenRouterResponse = response
         .json()
         .await
-        .map_err(|e| format!("Failed to parse API response: {}", e))?;
+        .map_err(|e| {
+            eprintln!("JSON parse error: {}", e);
+            "Failed to parse API response. The service may be temporarily unavailable.".to_string()
+        })?;
     
     // Check for API error
     if let Some(error) = api_response.error {
+        eprintln!("OpenRouter API error: {}", error);
         return Err(format!("API error: {}", error));
     }
     
     // Extract data
     let data = api_response.data
-        .ok_or_else(|| "No data in API response".to_string())?;
+        .ok_or_else(|| {
+            eprintln!("No data field in API response");
+            "API response missing data. Please try again.".to_string()
+        })?;
     
     // Calculate remaining balance
     let remaining = match (data.limit, data.usage) {
