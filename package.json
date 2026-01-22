@@ -9,6 +9,6 @@
     "build:frontend": "mkdir -p dist && cp -r src/index.html src/app.js src/style.css src/assets dist/"
   },
   "dependencies": {
-    "@tauri-apps/api": "^1.5.0"
+    "@tauri-apps/api": "^1.6.0"
   }
 }
