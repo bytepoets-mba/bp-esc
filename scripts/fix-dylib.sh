@@ -16,11 +16,11 @@ fi
 relink_binary() {
   local binary="$1"
 
-  # Check if there are any Nix dependencies
+# Check if there are any Nix dependencies
   if ! otool -L "$binary" | grep -q '/nix/'; then
     echo "No Nix dependencies found for: $binary"
     return 0
-  fi
+fi
 
   echo "Relinking Nix libraries to system equivalents for:"
   echo "  $binary"
@@ -28,25 +28,25 @@ relink_binary() {
   otool -L "$binary" | grep '/nix/' | awk '{print $1}' | while read -r nix_lib; do
     local lib_name
     local system_lib
-    lib_name=$(basename "$nix_lib")
-    case "$lib_name" in
-      libiconv*) system_lib="/usr/lib/libiconv.2.dylib" ;;
-      libz*)     system_lib="/usr/lib/libz.1.dylib" ;;
-      libc++*)   system_lib="/usr/lib/libc++.1.dylib" ;;
-      *)         echo "  Warning: Unknown lib $lib_name - skipping"; continue ;;
-    esac
-    echo "  $lib_name -> $system_lib"
+  lib_name=$(basename "$nix_lib")
+  case "$lib_name" in
+    libiconv*) system_lib="/usr/lib/libiconv.2.dylib" ;;
+    libz*)     system_lib="/usr/lib/libz.1.dylib" ;;
+    libc++*)   system_lib="/usr/lib/libc++.1.dylib" ;;
+    *)         echo "  Warning: Unknown lib $lib_name - skipping"; continue ;;
+  esac
+  echo "  $lib_name -> $system_lib"
     install_name_tool -change "$nix_lib" "$system_lib" "$binary"
-  done
+done
 
-  # Verify
+# Verify
   if otool -L "$binary" | grep -q '/nix/'; then
     echo "ERROR: Nix dependencies remain for: $binary"
     otool -L "$binary" | grep '/nix/'
-    exit 1
-  fi
+  exit 1
+fi
 
-  echo "Done - binary is now portable"
+echo "Done - binary is now portable"
 }
 
 process_app_binaries() {
