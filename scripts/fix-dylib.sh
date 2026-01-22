@@ -50,11 +50,10 @@ relink_binary() {
 }
 
 process_app_binaries() {
-  find "$TARGET_DIR" -path "*/bundle/macos/*.app/Contents/MacOS/*" -type f -perm -111 -print0 \
-    | while IFS= read -r -d '' binary; do
-      BINARIES_FOUND=1
-      relink_binary "$binary"
-    done
+  while IFS= read -r -d '' binary; do
+    BINARIES_FOUND=1
+    relink_binary "$binary"
+  done < <(find "$TARGET_DIR" -path "*/bundle/macos/*.app/Contents/MacOS/*" -type f -perm -111 -print0)
 }
 
 process_dmg() {
@@ -104,11 +103,10 @@ process_dmg() {
 
 process_app_binaries
 
-find "$TARGET_DIR" -path "*/bundle/dmg/*.dmg" -type f -print0 \
-  | while IFS= read -r -d '' dmg; do
-    DMGS_FOUND=1
-    process_dmg "$dmg"
-  done
+while IFS= read -r -d '' dmg; do
+  DMGS_FOUND=1
+  process_dmg "$dmg"
+done < <(find "$TARGET_DIR" -path "*/bundle/dmg/*.dmg" -type f -print0)
 
 if [ "$BINARIES_FOUND" -eq 0 ] && [ "$DMGS_FOUND" -eq 0 ]; then
   echo "No app bundles or dmgs found under $TARGET_DIR"

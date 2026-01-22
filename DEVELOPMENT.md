@@ -75,6 +75,24 @@ devenv shell npm run build
 # Output: src-tauri/target/**/bundle/macos/BYTEPOETS - ESC.app
 ```
 
+### Verifying Dylib Links (No Nix on Target)
+
+Check the app bundle binary for any `/nix` references:
+
+```bash
+otool -L "src-tauri/target/release/bundle/macos/BYTEPOETS - ESC.app/Contents/MacOS/BYTEPOETS - ESC" | grep -i nix
+```
+
+If the command prints nothing, the app is clean.
+
+Check the DMG by mounting and inspecting the bundled app:
+
+```bash
+hdiutil attach "src-tauri/target/release/bundle/dmg/BYTEPOETS - ESC_0.1.5_x64.dmg" -nobrowse -noverify -noautoopen
+otool -L "/Volumes/BYTEPOETS - ESC/BYTEPOETS - ESC.app/Contents/MacOS/BYTEPOETS - ESC" | grep -i nix
+hdiutil detach "/Volumes/BYTEPOETS - ESC"
+```
+
 ## Project Structure
 
 ```
