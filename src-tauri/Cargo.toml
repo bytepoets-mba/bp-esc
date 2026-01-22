@@ -1,10 +1,10 @@
 [package]
-name = "bp-esc"
-version = "0.2.0"
-description = "BYTEPOETS Employee Self-Care - OpenRouter Balance Checker"
-authors = ["BYTEPOETS GmbH"]
-license = "Proprietary"
-repository = "https://github.com/bytepoets-mba/bp-esc"
+name.workspace = true
+version.workspace = true
+description.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 default-run = "bp-esc"
 edition = "2021"
 rust-version = "1.60"

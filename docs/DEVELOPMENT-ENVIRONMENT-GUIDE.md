@@ -68,12 +68,20 @@ To test the balance fetching:
 
 ### Building for Production
 
+**Development Builds:**
 ```bash
-# Build release .app bundle (includes Nix dylib fix for portability)
 devenv shell npm run build
-
-# Output: src-tauri/target/**/bundle/macos/BYTEPOETS - ESC.app
 ```
+
+**Release Builds (with version substitution):**
+```bash
+export TAURI_VERSION=$(awk '/version/ {gsub(/["]/, "", $3); print $3}' Cargo.toml)
+devenv shell npm run build
+```
+
+**Output:** `src-tauri/target/release/bundle/macos/BYTEPOETS - ESC.app`
+
+**Verify bundle version:** Check Info.plist or DMG filename reflects `$TAURI_VERSION`.
 
 ### Verifying Dylib Links (No Nix on Target)
 
