@@ -11,6 +11,7 @@
     "version": "0.2.0"
   },
   "tauri": {
+    "macOSPrivateApi": true,
     "allowlist": {
       "all": true
     },
@@ -37,9 +38,6 @@
       "identifier": "com.bytepoets.bp-esc",
       "longDescription": "",
 "macOS": {
-    "infoPlist": {
-      "LSUIElement": true
-    },
     "entitlements": null,
     "exceptionDomain": "",
     "frameworks": [],
@@ -67,16 +65,14 @@
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
-"skipTaskbar": true,
-  "visible": true,
+        "skipTaskbar": true,
+        "visible": true,
         "resizable": false,
         "fullscreen": false,
         "height": 650,
-        "width": 650,
+        "width": 600,
         "title": "BYTEPOETS - ESC",
-        "center": false,
-        "x": 0,
-        "y": 30
+        "center": false
       }
     ]
   }

@@ -4,41 +4,31 @@
   box-sizing: border-box;
 }
 
+html {
+  background: transparent !important;
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: transparent;
+  background: transparent !important;
   min-height: 100vh;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 1rem;
-  -webkit-app-region: drag;
+  padding: 0;
+  margin: 0;
   overflow: hidden;
-}
-
-.drag-handle {
-  height: 20px;
-  background: linear-gradient(90deg, #f8fafc, #e2e8f0);
-  border-radius: 8px 8px 0 0;
-  cursor: grab;
-  -webkit-app-region: drag;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-  font-size: 12px;
-  color: #94a3b8;
 }
 
 .container {
   background: white;
   padding: 2.5rem;
-  border-radius: 0 0 16px 16px;
+  border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
-  max-width: 500px;
-  width: 100%;
+  max-width: 600px;
+  width: 600px;
   min-height: 300px;
-  -webkit-app-region: no-drag;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-app-region: drag;
 }
 
 .header {
@@ -120,6 +110,7 @@ input[type="text"] {
   font-size: 0.95rem;
   transition: border-color 0.2s;
   margin-bottom: 1rem;
+  -webkit-app-region: no-drag;
 }
 
 input:focus {
@@ -147,6 +138,7 @@ button {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  -webkit-app-region: no-drag;
 }
 
 button:disabled {
@@ -285,6 +277,7 @@ button:disabled {
   height: 18px;
   cursor: pointer;
   margin: 0;
+  -webkit-app-region: no-drag;
 }
 
 .checkbox-label span {

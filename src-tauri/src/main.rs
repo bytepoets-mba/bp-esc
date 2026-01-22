@@ -10,7 +10,7 @@ use std::os::unix::fs::PermissionsExt; // macOS is Unix
 use serde::{Deserialize, Serialize};
 use tauri::{
     CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu,
-    Manager, WindowEvent, PhysicalPosition, ActivationPolicy
+    Manager, WindowEvent, ActivationPolicy, PhysicalPosition
 };
 
 /// Get the config directory path: ~/.config/bpesc-balance/
@@ -227,6 +227,28 @@ fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Position window centered on the current monitor
+fn position_window_below_menubar(window: &tauri::Window) -> Result<(), String> {
+    // Get the monitor the window is on (or primary monitor)
+    let monitor = window.current_monitor()
+        .map_err(|e| format!("Failed to get monitor: {}", e))?
+        .ok_or_else(|| "No monitor available".to_string())?;
+    
+    let monitor_pos = monitor.position();
+    let monitor_size = monitor.size();
+    let window_size = window.outer_size()
+        .map_err(|e| format!("Failed to get window size: {}", e))?;
+    
+    // Center both horizontally and vertically on the monitor
+    let x = monitor_pos.x + (monitor_size.width as i32 / 2) - (window_size.width as i32 / 2);
+    let y = monitor_pos.y + (monitor_size.height as i32 / 2) - (window_size.height as i32 / 2);
+    
+    window.set_position(PhysicalPosition::new(x, y))
+        .map_err(|e| format!("Failed to set position: {}", e))?;
+    
+    Ok(())
+}
+
 fn main() {
   // Create system tray menu
   let quit = CustomMenuItem::new("quit".to_string(), "Quit");
@@ -242,8 +264,14 @@ fn main() {
     .setup(|app| {
       #[cfg(target_os = "macos")]
       {
-        app.set_activation_policy(ActivationPolicy::Accessory).unwrap();
+        app.set_activation_policy(ActivationPolicy::Accessory);
       }
+      
+      // Position window below menubar on initial launch
+      if let Some(window) = app.get_window("main") {
+        let _ = position_window_below_menubar(&window);
+      }
+      
       Ok(())
     })
     .system_tray(system_tray)
@@ -254,6 +282,8 @@ fn main() {
           if window.is_visible().unwrap_or(false) {
             let _ = window.hide();
           } else {
+            // Reposition before showing
+            let _ = position_window_below_menubar(&window);
             let _ = window.show();
             let _ = window.set_focus();
             // Refresh balance on show
@@ -271,6 +301,8 @@ fn main() {
               if window.is_visible().unwrap_or(false) {
                 let _ = window.hide();
               } else {
+                // Reposition before showing
+                let _ = position_window_below_menubar(&window);
                 let _ = window.show();
                 let _ = window.set_focus();
                 // Refresh balance on show
@@ -289,14 +321,6 @@ fn main() {
         event.window().hide().unwrap();
         api.prevent_close();
       }
-    })
-    .setup(|app| {
-      #[cfg(target_os = "macos")]
-      {
-        use tauri::ActivationPolicy;
-        app.set_activation_policy(ActivationPolicy::Accessory).unwrap();
-      }
-      Ok(())
     })
     .invoke_handler(tauri::generate_handler![
         read_api_key, 
