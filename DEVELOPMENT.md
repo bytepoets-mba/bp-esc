@@ -69,10 +69,10 @@ To test the balance fetching:
 ### Building for Production
 
 ```bash
-# Build release .app bundle
-devenv shell cargo tauri build
+# Build release .app bundle (includes Nix dylib fix for portability)
+devenv shell npm run build
 
-# Output: src-tauri/target/release/bundle/macos/BP Employee Self-Care.app
+# Output: src-tauri/target/**/bundle/macos/BYTEPOETS - ESC.app
 ```
 
 ## Project Structure
