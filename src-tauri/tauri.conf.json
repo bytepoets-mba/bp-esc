@@ -36,14 +36,17 @@
       ],
       "identifier": "com.bytepoets.bp-esc",
       "longDescription": "",
-      "macOS": {
-        "entitlements": null,
-        "exceptionDomain": "",
-        "frameworks": [],
-        "providerShortName": null,
-        "signingIdentity": null,
-        "minimumSystemVersion": "11.0"
-      },
+"macOS": {
+    "infoPlist": {
+      "LSUIElement": true
+    },
+    "entitlements": null,
+    "exceptionDomain": "",
+    "frameworks": [],
+    "providerShortName": null,
+    "signingIdentity": null,
+    "minimumSystemVersion": "11.0"
+  },
       "resources": [],
       "shortDescription": "",
       "targets": "all",
@@ -64,8 +67,8 @@
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "visible": false,
+"skipTaskbar": true,
+  "visible": true,
         "resizable": false,
         "fullscreen": false,
         "height": 650,

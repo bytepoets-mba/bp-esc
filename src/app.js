@@ -297,16 +297,21 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Global error handler
-  window.addEventListener('unhandledrejection', (event) => {
-    console.error('Unhandled rejection:', event.reason);
-    showError('An unexpected error occurred. Please try again.');
-    event.preventDefault();
-  });
+// Listen for refresh-balance event from Rust
+window.__TAURI__.event.listen('refresh-balance', () => {
+  loadBalance();
+});
 
-  // Start the app
-  console.log('Starting init...');
-  init();
+// Global error handler
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled rejection:', event.reason);
+  showError('An unexpected error occurred. Please try again.');
+  event.preventDefault();
+});
+
+// Start the app
+console.log('Starting init...');
+init();
 });
 
 console.log('app.js setup complete');

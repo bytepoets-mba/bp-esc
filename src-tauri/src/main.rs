@@ -10,7 +10,7 @@ use std::os::unix::fs::PermissionsExt; // macOS is Unix
 use serde::{Deserialize, Serialize};
 use tauri::{
     CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu,
-    Manager, WindowEvent
+    Manager, WindowEvent, PhysicalPosition, ActivationPolicy
 };
 
 /// Get the config directory path: ~/.config/bpesc-balance/
@@ -239,6 +239,13 @@ fn main() {
     .with_menu(tray_menu);
 
   tauri::Builder::default()
+    .setup(|app| {
+      #[cfg(target_os = "macos")]
+      {
+        app.set_activation_policy(ActivationPolicy::Accessory).unwrap();
+      }
+      Ok(())
+    })
     .system_tray(system_tray)
     .on_system_tray_event(|app, event| match event {
       SystemTrayEvent::LeftClick { .. } => {
@@ -249,6 +256,8 @@ fn main() {
           } else {
             let _ = window.show();
             let _ = window.set_focus();
+            // Refresh balance on show
+            let _ = window.emit("refresh-balance", ());
           }
         }
       }
@@ -264,6 +273,8 @@ fn main() {
               } else {
                 let _ = window.show();
                 let _ = window.set_focus();
+                // Refresh balance on show
+                let _ = window.emit("refresh-balance", ());
               }
             }
           }
@@ -278,6 +289,14 @@ fn main() {
         event.window().hide().unwrap();
         api.prevent_close();
       }
+    })
+    .setup(|app| {
+      #[cfg(target_os = "macos")]
+      {
+        use tauri::ActivationPolicy;
+        app.set_activation_policy(ActivationPolicy::Accessory).unwrap();
+      }
+      Ok(())
     })
     .invoke_handler(tauri::generate_handler![
         read_api_key, 
