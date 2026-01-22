@@ -14,6 +14,11 @@
     "allowlist": {
       "all": true
     },
+    "systemTray": {
+      "iconPath": "icons/32x32.png",
+      "iconAsTemplate": true,
+      "menuOnLeftClick": false
+    },
     "bundle": {
       "active": true,
       "category": "DeveloperTool",
@@ -56,12 +61,19 @@
     },
     "windows": [
       {
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "resizable": false,
         "fullscreen": false,
         "height": 650,
-        "resizable": true,
-        "title": "BYTEPOETS - ESC",
         "width": 650,
-        "center": true
+        "title": "BYTEPOETS - ESC",
+        "center": false,
+        "x": 0,
+        "y": 30
       }
     ]
   }

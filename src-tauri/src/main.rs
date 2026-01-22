@@ -8,6 +8,10 @@ use std::time::Duration;
 use std::os::unix::fs::PermissionsExt; // macOS is Unix
 
 use serde::{Deserialize, Serialize};
+use tauri::{
+    CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu,
+    Manager, WindowEvent
+};
 
 /// Get the config directory path: ~/.config/bpesc-balance/
 fn get_config_dir() -> Result<PathBuf, String> {
@@ -224,7 +228,57 @@ fn get_app_version() -> String {
 }
 
 fn main() {
+  // Create system tray menu
+  let quit = CustomMenuItem::new("quit".to_string(), "Quit");
+  let show_hide = CustomMenuItem::new("show_hide".to_string(), "Show/Hide");
+  let tray_menu = SystemTrayMenu::new()
+    .add_item(show_hide)
+    .add_item(quit);
+  
+  let system_tray = SystemTray::new()
+    .with_menu(tray_menu);
+
   tauri::Builder::default()
+    .system_tray(system_tray)
+    .on_system_tray_event(|app, event| match event {
+      SystemTrayEvent::LeftClick { .. } => {
+        // Toggle window visibility on left click
+        if let Some(window) = app.get_window("main") {
+          if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+          } else {
+            let _ = window.show();
+            let _ = window.set_focus();
+          }
+        }
+      }
+      SystemTrayEvent::MenuItemClick { id, .. } => {
+        match id.as_str() {
+          "quit" => {
+            std::process::exit(0);
+          }
+          "show_hide" => {
+            if let Some(window) = app.get_window("main") {
+              if window.is_visible().unwrap_or(false) {
+                let _ = window.hide();
+              } else {
+                let _ = window.show();
+                let _ = window.set_focus();
+              }
+            }
+          }
+          _ => {}
+        }
+      }
+      _ => {}
+    })
+    .on_window_event(|event| {
+      // Hide window instead of closing when user clicks X
+      if let WindowEvent::CloseRequested { api, .. } = event.event() {
+        event.window().hide().unwrap();
+        api.prevent_close();
+      }
+    })
     .invoke_handler(tauri::generate_handler![
         read_api_key, 
         save_api_key,
