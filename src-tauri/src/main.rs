@@ -16,6 +16,52 @@ use image::Rgba;
 use imageproc::drawing::draw_text_mut;
 use ab_glyph::{FontVec, PxScale};
 
+// ============================================================================
+// MENUBAR ICON CONFIGURATION
+// ============================================================================
+// Adjust these constants to fine-tune the percentage text appearance in the menubar icon
+
+// --- VALUE CONFIGURATION (the number, e.g., "75") ---
+
+/// Font for the percentage value (the number)
+/// Examples: "Klavika-Medium", "Klavika-Bold", "Helvetica", "Avenir Next"
+const MENUBAR_VALUE_FONT: &str = "Klavika-Medium";
+
+/// Font size for the value in pixels (try 10-14)
+const MENUBAR_VALUE_SIZE: f32 = 13.0;
+
+/// Horizontal offset for value from center (-10 to +10)
+const MENUBAR_VALUE_OFFSET_X: i32 = 0;
+
+/// Vertical offset for value from center (-10 to +10)
+/// Negative = up, Positive = down
+const MENUBAR_VALUE_OFFSET_Y: i32 = -2;
+
+// --- UNIT CONFIGURATION (the "%" symbol) ---
+
+/// Font for the unit symbol (the "%")
+/// Examples: "Klavika-Light", "Klavika-Regular", "Helvetica"
+const MENUBAR_UNIT_FONT: &str = "Klavika-Medium";
+
+/// Font size for the unit in pixels (try 6-10, usually smaller than value)
+const MENUBAR_UNIT_SIZE: f32 = 8.0;
+
+/// Horizontal offset for unit from center (-10 to +10)
+const MENUBAR_UNIT_OFFSET_X: i32 = 0;
+
+/// Vertical offset for unit from center (-10 to +10)
+/// This is positioned relative to icon center, not relative to value
+const MENUBAR_UNIT_OFFSET_Y: i32 = 6;
+
+// --- ADVANCED OPTIONS ---
+
+/// Enable auto-centering: text is measured and centered precisely
+/// When true: "7%", "55%", "100%" all center the same way
+/// When false: uses character-width estimation (may shift slightly)
+const MENUBAR_AUTO_CENTER: bool = true;
+
+// ============================================================================
+
 /// Get the config directory path: ~/.config/bpesc-balance/
 fn get_config_dir() -> Result<PathBuf, String> {
     let home = dirs::home_dir()
@@ -236,6 +282,85 @@ fn update_menubar_percentage(app_handle: tauri::AppHandle, percentage: f64) -> R
     update_tray_icon(&app_handle, percentage)
 }
 
+/// Try to load a font from the filesystem
+fn try_load_font(font_name: &str) -> Option<(FontVec, String)> {
+    // Determine if font name already includes weight (e.g., "Klavika-Bold")
+    let has_weight = font_name.contains("-Bold") 
+        || font_name.contains("-Light")
+        || font_name.contains("-Medium")
+        || font_name.contains("-Regular")
+        || font_name.contains(" Bold")
+        || font_name.ends_with("_Bd");
+    
+    // Font directories to search (in order of preference)
+    let font_dirs = vec![
+        dirs::home_dir().map(|h| h.join("Library/Fonts")),
+        Some(PathBuf::from("/Library/Fonts")),
+        Some(PathBuf::from("/System/Library/Fonts")),
+        Some(PathBuf::from("/System/Library/Fonts/Supplemental")),
+    ];
+    
+    // Build candidate filenames to try
+    let mut candidates = Vec::new();
+    
+    // If name already has weight, use it directly
+    if has_weight {
+        candidates.push(format!("{}.otf", font_name));
+        candidates.push(format!("{}.ttf", font_name));
+        candidates.push(format!("{}.ttc", font_name));
+    } else {
+        // Try various common patterns
+        candidates.push(format!("{}-Regular.otf", font_name));
+        candidates.push(format!("{}-Regular.ttf", font_name));
+        candidates.push(format!("{}.otf", font_name));
+        candidates.push(format!("{}.ttf", font_name));
+        candidates.push(format!("{}.ttc", font_name));
+    }
+    
+    // Add Helvetica as ultimate fallback
+    if font_name != "Helvetica" {
+        candidates.push("Helvetica.ttc".to_string());
+        candidates.push("Arial.ttf".to_string());
+    }
+    
+    // Try each combination of directory + filename
+    for dir in &font_dirs {
+        if let Some(dir_path) = dir {
+            for filename in &candidates {
+                let font_path = dir_path.join(filename);
+                if let Ok(font_data) = std::fs::read(&font_path) {
+                    if let Ok(font) = FontVec::try_from_vec(font_data) {
+                        return Some((font, font_path.display().to_string()));
+                    }
+                }
+            }
+        }
+    }
+    
+    None
+}
+
+/// Calculate the visual width of text for centering
+fn calculate_text_width(text: &str, font: &FontVec, scale: PxScale) -> i32 {
+    use ab_glyph::{Font, ScaleFont};
+    
+    if !MENUBAR_AUTO_CENTER {
+        // Fallback: estimate based on character count
+        return (text.len() as f32 * scale.x * 0.5) as i32;
+    }
+    
+    // Measure actual glyph widths for precise centering
+    let scaled_font = font.as_scaled(scale);
+    let mut width = 0.0;
+    
+    for c in text.chars() {
+        let glyph_id = font.glyph_id(c);
+        width += scaled_font.h_advance(glyph_id);
+    }
+    
+    width as i32
+}
+
 /// Generate menubar icon with percentage overlay (transparent cutout for macOS template)
 fn generate_icon_with_percentage(percentage: f64) -> Result<Icon, String> {
     // Load the base icon (32x32 for menubar)
@@ -245,40 +370,46 @@ fn generate_icon_with_percentage(percentage: f64) -> Result<Icon, String> {
     
     let mut img = base_img.to_rgba8();
     
-    // Format percentage text
-    let text = format!("{}%", percentage.round() as i32);
+    // Separate value and unit
+    let value_text = format!("{}", percentage.round() as i32);
+    let unit_text = "%";
     
-    // Try to load system font - macOS Helvetica
-    let font_paths = vec![
-        "/System/Library/Fonts/Helvetica.ttc",
-        "/System/Library/Fonts/Supplemental/Arial.ttf",
-        "/Library/Fonts/Arial.ttf",
-    ];
-    
-    let mut font_loaded = false;
-    for font_path in font_paths {
-        if let Ok(font_data) = std::fs::read(font_path) {
-            if let Ok(font) = FontVec::try_from_vec(font_data) {
-                // Font size: small for menubar (10px)
-                let scale = PxScale::from(10.0);
-                
-                // Calculate text position (centered horizontally and vertically)
-                let text_width = text.len() as i32 * 5;
-                let x = (32 - text_width) / 2;
-                let y = 11; // Centered vertically (32px height, ~10px font = center around 11-12)
-                
-                // Draw text as TRANSPARENT cutout (alpha = 0) for macOS template rendering
-                // This creates a "hole" that macOS fills with the appropriate menubar color
-                draw_text_mut(&mut img, Rgba([0u8, 0u8, 0u8, 0u8]), x, y, scale, &font, &text);
-                
-                font_loaded = true;
-                break;
-            }
-        }
+    // --- RENDER VALUE (the number) ---
+    if let Some((value_font, font_path)) = try_load_font(MENUBAR_VALUE_FONT) {
+        eprintln!("✓ Loaded value font: {}", font_path);
+        
+        let scale = PxScale::from(MENUBAR_VALUE_SIZE);
+        
+        // Calculate precise centering
+        let text_width = calculate_text_width(&value_text, &value_font, scale);
+        
+        // Center position with configurable offsets
+        let x = ((32 - text_width) / 2) + MENUBAR_VALUE_OFFSET_X;
+        let y = ((32 - MENUBAR_VALUE_SIZE as i32) / 2) + MENUBAR_VALUE_OFFSET_Y;
+        
+        // Draw text as TRANSPARENT cutout (alpha = 0) for macOS template rendering
+        draw_text_mut(&mut img, Rgba([0u8, 0u8, 0u8, 0u8]), x, y, scale, &value_font, &value_text);
+    } else {
+        eprintln!("✗ Warning: Could not load value font '{}'", MENUBAR_VALUE_FONT);
     }
     
-    if !font_loaded {
-        eprintln!("Warning: Could not load any system font for percentage overlay");
+    // --- RENDER UNIT (the "%" symbol) ---
+    if let Some((unit_font, font_path)) = try_load_font(MENUBAR_UNIT_FONT) {
+        eprintln!("✓ Loaded unit font: {}", font_path);
+        
+        let scale = PxScale::from(MENUBAR_UNIT_SIZE);
+        
+        // Calculate precise centering
+        let text_width = calculate_text_width(unit_text, &unit_font, scale);
+        
+        // Center position with configurable offsets
+        let x = ((32 - text_width) / 2) + MENUBAR_UNIT_OFFSET_X;
+        let y = ((32 - MENUBAR_UNIT_SIZE as i32) / 2) + MENUBAR_UNIT_OFFSET_Y;
+        
+        // Draw text as TRANSPARENT cutout
+        draw_text_mut(&mut img, Rgba([0u8, 0u8, 0u8, 0u8]), x, y, scale, &unit_font, unit_text);
+    } else {
+        eprintln!("✗ Warning: Could not load unit font '{}'", MENUBAR_UNIT_FONT);
     }
     
     // Convert to Icon
