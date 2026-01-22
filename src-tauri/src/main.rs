@@ -10,8 +10,11 @@ use std::os::unix::fs::PermissionsExt; // macOS is Unix
 use serde::{Deserialize, Serialize};
 use tauri::{
     CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu,
-    Manager, WindowEvent, ActivationPolicy, PhysicalPosition
+    Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Icon
 };
+use image::Rgba;
+use imageproc::drawing::draw_text_mut;
+use ab_glyph::{FontVec, PxScale};
 
 /// Get the config directory path: ~/.config/bpesc-balance/
 fn get_config_dir() -> Result<PathBuf, String> {
@@ -227,6 +230,71 @@ fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Update menubar icon with balance percentage
+#[tauri::command]
+fn update_menubar_percentage(app_handle: tauri::AppHandle, percentage: f64) -> Result<(), String> {
+    update_tray_icon(&app_handle, percentage)
+}
+
+/// Generate menubar icon with percentage overlay (transparent cutout for macOS template)
+fn generate_icon_with_percentage(percentage: f64) -> Result<Icon, String> {
+    // Load the base icon (32x32 for menubar)
+    let icon_path = concat!(env!("CARGO_MANIFEST_DIR"), "/icons/32x32.png");
+    let base_img = image::open(icon_path)
+        .map_err(|e| format!("Failed to load icon: {}", e))?;
+    
+    let mut img = base_img.to_rgba8();
+    
+    // Format percentage text
+    let text = format!("{}%", percentage.round() as i32);
+    
+    // Try to load system font - macOS Helvetica
+    let font_paths = vec![
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/Library/Fonts/Arial.ttf",
+    ];
+    
+    let mut font_loaded = false;
+    for font_path in font_paths {
+        if let Ok(font_data) = std::fs::read(font_path) {
+            if let Ok(font) = FontVec::try_from_vec(font_data) {
+                // Font size: small for menubar (10px)
+                let scale = PxScale::from(10.0);
+                
+                // Calculate text position (centered horizontally and vertically)
+                let text_width = text.len() as i32 * 5;
+                let x = (32 - text_width) / 2;
+                let y = 11; // Centered vertically (32px height, ~10px font = center around 11-12)
+                
+                // Draw text as TRANSPARENT cutout (alpha = 0) for macOS template rendering
+                // This creates a "hole" that macOS fills with the appropriate menubar color
+                draw_text_mut(&mut img, Rgba([0u8, 0u8, 0u8, 0u8]), x, y, scale, &font, &text);
+                
+                font_loaded = true;
+                break;
+            }
+        }
+    }
+    
+    if !font_loaded {
+        eprintln!("Warning: Could not load any system font for percentage overlay");
+    }
+    
+    // Convert to Icon
+    let rgba = img.into_raw();
+    Ok(Icon::Rgba { rgba, width: 32, height: 32 })
+}
+
+/// Update system tray icon with current balance percentage
+fn update_tray_icon(app_handle: &tauri::AppHandle, percentage: f64) -> Result<(), String> {
+    let icon = generate_icon_with_percentage(percentage)?;
+    app_handle.tray_handle()
+        .set_icon(icon)
+        .map_err(|e| format!("Failed to update tray icon: {}", e))?;
+    Ok(())
+}
+
 /// Position window centered on the current monitor
 fn position_window_below_menubar(window: &tauri::Window) -> Result<(), String> {
     // Get the monitor the window is on (or primary monitor)
@@ -326,7 +394,8 @@ fn main() {
         read_api_key, 
         save_api_key,
         fetch_balance,
-        get_app_version
+        get_app_version,
+        update_menubar_percentage
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

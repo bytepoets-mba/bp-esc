@@ -109,7 +109,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   // Display balance
-  function displayBalance(balance) {
+  async function displayBalance(balance) {
     limitValue.textContent = formatCurrency(balance.limit);
     usageValue.textContent = formatCurrency(balance.usage);
     remainingValue.textContent = formatCurrency(balance.remaining);
@@ -122,6 +122,17 @@ window.addEventListener('DOMContentLoaded', () => {
         remainingValue.style.color = '#ea580c';
       } else {
         remainingValue.style.color = '#667eea';
+      }
+    }
+    
+    // Update menubar icon with percentage
+    if (balance.limit !== null && balance.remaining !== null) {
+      const percentage = (balance.remaining / balance.limit) * 100;
+      try {
+        await invoke('update_menubar_percentage', { percentage });
+        console.log(`Updated menubar icon with ${percentage.toFixed(1)}%`);
+      } catch (error) {
+        console.error('Failed to update menubar icon:', error);
       }
     }
     
