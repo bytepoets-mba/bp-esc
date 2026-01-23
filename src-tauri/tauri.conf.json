@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/v2/schema/v2.json",
-  "productName": "BYTEPOETS - ESC",
+  "productName": "BP-ESC",
   "version": "0.2.3",
   "identifier": "com.bytepoets.bp-esc",
   "build": {
