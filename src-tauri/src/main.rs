@@ -99,53 +99,32 @@ use ab_glyph::{FontVec, PxScale};
 // ============================================================================
 // Adjust these constants to fine-tune the percentage text appearance in the menubar icon
 
-/// Logical size of the menubar icon in points (macOS standard is ~22)
-const MENUBAR_LOGICAL_SIZE: u32 = 28;
+/// Logical size of the logo in points (square)
+const MENUBAR_LOGO_SIZE: u32 = 18;
 
 /// Scaling factor for Retina displays (2.0 for @2x)
 const MENUBAR_RENDER_SCALE: f32 = 2.0;
 
-/// Padding around the logo within the icon canvas (physical pixels)
-const MENUBAR_LOGO_PADDING: i32 = 0;
+// --- VALUE CONFIGURATION (the number, e.g., "42") ---
 
-// --- VALUE CONFIGURATION (the number, e.g., "75") ---
+/// Font for the value
+const MENUBAR_VALUE_FONT: &str = "SF-Pro-Rounded-Semibold";
 
-/// Font for the percentage value (the number)
-/// Examples: "Klavika-Medium", "Klavika-Bold", "Helvetica", "Avenir Next"
-const MENUBAR_VALUE_FONT: &str = "SF-Pro-Rounded-Bold";
+/// Font size for the value in points
+const MENUBAR_VALUE_SIZE: f32 = 16.0;
 
-/// Font size for the value in pixels (try 10-14)
-const MENUBAR_VALUE_SIZE: f32 = 13.0;
+// --- UNIT CONFIGURATION (the "$" or "%" symbol) ---
 
-/// Horizontal offset for value from center (-10 to +10)
-const MENUBAR_VALUE_OFFSET_X: i32 = 0;
-
-/// Vertical offset for value from center (-10 to +10)
-/// Negative = up, Positive = down
-const MENUBAR_VALUE_OFFSET_Y: i32 = -2;
-
-// --- UNIT CONFIGURATION (the "%" symbol) ---
-
-/// Font for the unit symbol (the "%")
-/// Examples: "Klavika-Light", "Klavika-Regular", "Helvetica"
+/// Font for the unit symbol
 const MENUBAR_UNIT_FONT: &str = "SF-Pro-Rounded-Medium";
 
-/// Font size for the unit in pixels (try 6-10, usually smaller than value)
-const MENUBAR_UNIT_SIZE: f32 = 11.0;
+/// Font size for the unit in points
+const MENUBAR_UNIT_SIZE: f32 = 14.0;
 
-/// Horizontal offset for unit from center (-10 to +10)
-const MENUBAR_UNIT_OFFSET_X: i32 = 0;
-
-/// Vertical offset for unit from center (-10 to +10)
-/// This is positioned relative to icon center, not relative to value
-const MENUBAR_UNIT_OFFSET_Y: i32 = 6;
-
-// --- ADVANCED OPTIONS ---
-
-/// Enable auto-centering: text is measured and centered precisely
-/// When true: "7%", "55%", "100%" all center the same way
-/// When false: uses character-width estimation (may shift slightly)
-const MENUBAR_AUTO_CENTER: bool = true;
+// --- SPACING (logical points) ---
+const LOGO_TEXT_GAP: f32 = 6.0;
+const UNIT_VALUE_GAP: f32 = 2.0;
+const END_PADDING: f32 = 4.0;
 
 // ============================================================================
 
@@ -431,11 +410,6 @@ fn try_load_font(font_name: &str) -> Option<(FontVec, String)> {
 fn calculate_text_width(text: &str, font: &FontVec, scale: PxScale) -> i32 {
     use ab_glyph::{Font, ScaleFont};
     
-    if !MENUBAR_AUTO_CENTER {
-        // Fallback: estimate based on character count
-        return (text.len() as f32 * scale.x * 0.5) as i32;
-    }
-    
     // Measure actual glyph widths for precise centering
     let scaled_font = font.as_scaled(scale);
     let mut width = 0.0;
@@ -474,115 +448,117 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
     // floor to int as requested
     let final_value = display_value.floor();
     
-    let icon = generate_icon_with_percentage(final_value, settings.show_percentage, settings.show_unit)?;
+    // Check if we have valid data (remaining balance exists if we fetched successfully)
+    let has_data = balance.remaining.is_some();
+    
+    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit)?;
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
         tray.set_icon(Some(icon))
             .map_err(|e| format!("Failed to update tray icon: {}", e))?;
         
         #[cfg(target_os = "macos")]
-        tray.set_icon_as_template(true)
-            .map_err(|e| format!("Failed to set icon as template: {}", e))?;
+        {
+            // If unit is hidden, we want full color logo (non-template)
+            // If unit is shown, it's a cutout (template)
+            tray.set_icon_as_template(settings.show_unit)
+                .map_err(|e| format!("Failed to set icon template mode: {}", e))?;
+        }
     }
     Ok(())
 }
 
-/// Generate menubar icon with optional overlay (transparent cutout for macOS template)
-fn generate_icon_with_percentage(value: f64, is_percentage: bool, show_unit: bool) -> Result<Image<'static>, String> {
-    // --- LOCAL CONFIGURATION ---
-    // Physical pixel calculations based on global logical constants
-    let physical_size = (MENUBAR_LOGICAL_SIZE as f32 * MENUBAR_RENDER_SCALE) as u32;
-    let logo_padding = (MENUBAR_LOGO_PADDING as f32 * MENUBAR_RENDER_SCALE) as i32;
-    let logo_target_size = (physical_size as i32 - (logo_padding * 2)).max(1) as u32;
+/// Generate hybrid menubar icon with logo and normal white text
+fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool) -> Result<Image<'static>, String> {
+    let scale = MENUBAR_RENDER_SCALE;
     
-    // Scale font sizes by the render scale
-    let value_font_size = MENUBAR_VALUE_SIZE * MENUBAR_RENDER_SCALE;
-    let unit_font_size = MENUBAR_UNIT_SIZE * MENUBAR_RENDER_SCALE;
-    
-    // Physical offsets for text
-    let val_off_x = (MENUBAR_VALUE_OFFSET_X as f32 * MENUBAR_RENDER_SCALE) as i32;
-    // Overwrite vertical offset to 0 if unit is hidden to center the number
-    let val_off_y_logical = if show_unit { MENUBAR_VALUE_OFFSET_Y } else { 0 };
-    let val_off_y = (val_off_y_logical as f32 * MENUBAR_RENDER_SCALE) as i32;
-    
-    let unt_off_x = (MENUBAR_UNIT_OFFSET_X as f32 * MENUBAR_RENDER_SCALE) as i32;
-    let unt_off_y = (MENUBAR_UNIT_OFFSET_Y as f32 * MENUBAR_RENDER_SCALE) as i32;
-    // ---------------------------
-
-    // Create a base canvas (fully opaque black for the "template")
+    // Load Logo
     let logo_data = include_bytes!("../icons/32x32.png");
     let logo_img = image::load_from_memory(logo_data)
         .map_err(|e| format!("Failed to load logo: {}", e))?
         .to_rgba8();
     
-    // Create final canvas
-    let mut img = image::RgbaImage::from_pixel(physical_size, physical_size, Rgba([0u8, 0u8, 0u8, 0u8]));
-    
-    // Scale logo to the target size
+    let logo_physical_size = (MENUBAR_LOGO_SIZE as f32 * scale) as u32;
     let logo_scaled = image::imageops::resize(
-        &logo_img, 
-        logo_target_size, 
-        logo_target_size, 
+        &logo_img,
+        logo_physical_size,
+        logo_physical_size,
         image::imageops::FilterType::Lanczos3
     );
-    
-    // Center logo on the canvas
-    let logo_x = (physical_size - logo_target_size) / 2;
-    let logo_y = (physical_size - logo_target_size) / 2;
-    image::imageops::overlay(&mut img, &logo_scaled, logo_x as i64, logo_y as i64);
-    
-    // If value is 0.0 or less, we might just want the logo without text 
-    if value <= 0.0 {
+
+    // If no data, show logo only (centered in a standard 22pt-equivalent box for consistency)
+    if !has_data {
+        let canvas_size = (22.0 * scale) as u32;
+        let mut img = image::RgbaImage::new(canvas_size, canvas_size);
+        let x = (canvas_size - logo_physical_size) / 2;
+        let y = (canvas_size - logo_physical_size) / 2;
+        image::imageops::overlay(&mut img, &logo_scaled, x as i64, y as i64);
         let rgba = img.into_raw();
-        return Ok(Image::new_owned(rgba, physical_size, physical_size));
+        return Ok(Image::new_owned(rgba, canvas_size, canvas_size));
     }
-    
-    // Separate value and unit
+
+    // Prepare text
     let value_text = format!("{}", value.round() as i32);
     let unit_text = if is_percentage { "%" } else { "$" };
     
-    // --- RENDER TEXT AS CUTOUT (Transparent) ---
-    // We use alpha=0 to "cut through" the logo
-    let cutout_color = Rgba([0u8, 0u8, 0u8, 0u8]);
+    let (val_font, _) = try_load_font(MENUBAR_VALUE_FONT).ok_or("Value font not found")?;
+    let (unt_font, _) = try_load_font(MENUBAR_UNIT_FONT).ok_or("Unit font not found")?;
     
-    if let Some((value_font, _)) = try_load_font(MENUBAR_VALUE_FONT) {
-        let scale = PxScale::from(value_font_size);
-        let text_width = calculate_text_width(&value_text, &value_font, scale);
-        
-        let x = ((physical_size as i32 - text_width) / 2) + val_off_x;
-        let y = ((physical_size as i32 - value_font_size as i32) / 2) + val_off_y;
-        
-        let mut text_mask = image::RgbaImage::new(physical_size, physical_size);
-        draw_text_mut(&mut text_mask, Rgba([255, 255, 255, 255]), x, y, scale, &value_font, &value_text);
-        
-        for (x, y, pixel) in text_mask.enumerate_pixels() {
-            if pixel[3] > 128 {
-                img.put_pixel(x, y, cutout_color);
-            }
-        }
+    let val_scale = PxScale::from(MENUBAR_VALUE_SIZE * scale);
+    let unt_scale = PxScale::from(MENUBAR_UNIT_SIZE * scale);
+    
+    let val_width = calculate_text_width(&value_text, &val_font, val_scale);
+    let unt_width = calculate_text_width(unit_text, &unt_font, unt_scale);
+    
+    // Calculate total width (logical points then scale)
+    // Layout: [logo (w/ unit)] [gap] [val] [padding]
+    let mut total_width_pts = MENUBAR_LOGO_SIZE as f32;
+    
+    if has_data {
+        total_width_pts += LOGO_TEXT_GAP + (val_width as f32 / scale) + END_PADDING;
     }
+        
+    let canvas_width = (total_width_pts * scale) as u32;
+    let canvas_height = (22.0 * scale) as u32; // Standard macOS height
     
+    let mut img = image::RgbaImage::new(canvas_width, canvas_height);
+    
+    // 1. Draw Logo
+    let logo_x = 0;
+    let logo_y = (canvas_height - logo_physical_size) / 2;
+    
+    // Create logo with unit cutout if enabled
+    let mut logo_with_cutout = logo_scaled.clone();
     if show_unit {
-        if let Some((unit_font, _)) = try_load_font(MENUBAR_UNIT_FONT) {
-            let scale = PxScale::from(unit_font_size);
-            let text_width = calculate_text_width(unit_text, &unit_font, scale);
-            
-            let x = ((physical_size as i32 - text_width) / 2) + unt_off_x;
-            let y = ((physical_size as i32 - unit_font_size as i32) / 2) + unt_off_y;
-            
-            let mut text_mask = image::RgbaImage::new(physical_size, physical_size);
-            draw_text_mut(&mut text_mask, Rgba([255, 255, 255, 255]), x, y, scale, &unit_font, unit_text);
-            
-            for (x, y, pixel) in text_mask.enumerate_pixels() {
-                if pixel[3] > 128 {
-                    img.put_pixel(x, y, cutout_color);
-                }
+        let cutout_color = Rgba([0u8, 0u8, 0u8, 0u8]);
+        let x = (logo_physical_size as i32 - unt_width) / 2;
+        let y = (logo_physical_size as i32 - (MENUBAR_UNIT_SIZE * scale) as i32) / 2;
+        
+        let mut unit_mask = image::RgbaImage::new(logo_physical_size, logo_physical_size);
+        draw_text_mut(&mut unit_mask, Rgba([255, 255, 255, 255]), x, y, unt_scale, &unt_font, unit_text);
+        
+        for (ux, uy, pixel) in unit_mask.enumerate_pixels() {
+            if pixel[3] > 128 {
+                logo_with_cutout.put_pixel(ux, uy, cutout_color);
             }
         }
     }
     
-    // Convert to Image
+    image::imageops::overlay(&mut img, &logo_with_cutout, logo_x as i64, logo_y as i64);
+    
+    if !has_data {
+        let rgba = img.into_raw();
+        return Ok(Image::new_owned(rgba, canvas_width, canvas_height));
+    }
+
+    // 2. Draw Value Text (White)
+    let text_color = Rgba([255, 255, 255, 255]);
+    let current_x = (MENUBAR_LOGO_SIZE as f32 + LOGO_TEXT_GAP) * scale;
+    let val_y = (canvas_height as f32 - (MENUBAR_VALUE_SIZE * scale)) / 2.0;
+    
+    draw_text_mut(&mut img, text_color, current_x as i32, val_y as i32, val_scale, &val_font, &value_text);
+    
     let rgba = img.into_raw();
-    Ok(Image::new_owned(rgba, physical_size, physical_size))
+    Ok(Image::new_owned(rgba, canvas_width, canvas_height))
 }
 
 /// Position window centered on the current monitor
@@ -621,7 +597,7 @@ fn main() {
       let menu = Menu::with_items(app, &[&show_hide, &quit])?;
       
       // Create tray icon
-      let initial_icon = generate_icon_with_percentage(0.0, true, true).ok();
+      let initial_icon = generate_hybrid_menubar_icon(0.0, true, false, true).ok();
       let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(initial_icon.unwrap_or_else(|| Image::from_bytes(include_bytes!("../icons/32x32.png")).unwrap()))
         .menu(&menu)

@@ -1,6 +1,6 @@
 [package]
 name = "bp-esc"
-version = "0.2.2"
+version = "0.2.3"
 description = "BYTEPOETS Employee Self-Care - OpenRouter Balance Checker"
 authors = ["BYTEPOETS GmbH"]
 license = "Proprietary"
