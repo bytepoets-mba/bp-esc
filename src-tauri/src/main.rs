@@ -365,12 +365,8 @@ fn calculate_text_width(text: &str, font: &FontVec, scale: PxScale) -> i32 {
 
 /// Generate menubar icon with percentage overlay (transparent cutout for macOS template)
 fn generate_icon_with_percentage(percentage: f64) -> Result<Image<'static>, String> {
-    // Load the base icon (32x32 for menubar)
-    let icon_path = concat!(env!("CARGO_MANIFEST_DIR"), "/icons/32x32.png");
-    let base_img = image::open(icon_path)
-        .map_err(|e| format!("Failed to load icon: {}", e))?;
-    
-    let mut img = base_img.to_rgba8();
+    // Create a transparent 34x34 canvas (increased from 32x32)
+    let mut img = image::RgbaImage::from_pixel(34, 34, Rgba([0u8, 0u8, 0u8, 0u8]));
     
     // Separate value and unit
     let value_text = format!("{}", percentage.round() as i32);
@@ -382,15 +378,15 @@ fn generate_icon_with_percentage(percentage: f64) -> Result<Image<'static>, Stri
         
         let scale = PxScale::from(MENUBAR_VALUE_SIZE);
         
-        // Calculate precise centering
+        // Calculate precise centering (adjusted for 34x34 canvas)
         let text_width = calculate_text_width(&value_text, &value_font, scale);
         
         // Center position with configurable offsets
-        let x = ((32 - text_width) / 2) + MENUBAR_VALUE_OFFSET_X;
-        let y = ((32 - MENUBAR_VALUE_SIZE as i32) / 2) + MENUBAR_VALUE_OFFSET_Y;
+        let x = ((34 - text_width) / 2) + MENUBAR_VALUE_OFFSET_X;
+        let y = ((34 - MENUBAR_VALUE_SIZE as i32) / 2) + MENUBAR_VALUE_OFFSET_Y;
         
-        // Draw text as TRANSPARENT cutout (alpha = 0) for macOS template rendering
-        draw_text_mut(&mut img, Rgba([0u8, 0u8, 0u8, 0u8]), x, y, scale, &value_font, &value_text);
+        // Draw text as OPAQUE BLACK (alpha = 255) for visibility
+        draw_text_mut(&mut img, Rgba([0u8, 0u8, 0u8, 255u8]), x, y, scale, &value_font, &value_text);
     } else {
         eprintln!("✗ Warning: Could not load value font '{}'", MENUBAR_VALUE_FONT);
     }
@@ -401,15 +397,15 @@ fn generate_icon_with_percentage(percentage: f64) -> Result<Image<'static>, Stri
         
         let scale = PxScale::from(MENUBAR_UNIT_SIZE);
         
-        // Calculate precise centering
+        // Calculate precise centering (adjusted for 34x34 canvas)
         let text_width = calculate_text_width(unit_text, &unit_font, scale);
         
         // Center position with configurable offsets
-        let x = ((32 - text_width) / 2) + MENUBAR_UNIT_OFFSET_X;
-        let y = ((32 - MENUBAR_UNIT_SIZE as i32) / 2) + MENUBAR_UNIT_OFFSET_Y;
+        let x = ((34 - text_width) / 2) + MENUBAR_UNIT_OFFSET_X;
+        let y = ((34 - MENUBAR_UNIT_SIZE as i32) / 2) + MENUBAR_UNIT_OFFSET_Y;
         
-        // Draw text as TRANSPARENT cutout
-        draw_text_mut(&mut img, Rgba([0u8, 0u8, 0u8, 0u8]), x, y, scale, &unit_font, unit_text);
+        // Draw text as OPAQUE BLACK
+        draw_text_mut(&mut img, Rgba([0u8, 0u8, 0u8, 255u8]), x, y, scale, &unit_font, unit_text);
     } else {
         eprintln!("✗ Warning: Could not load unit font '{}'", MENUBAR_UNIT_FONT);
     }
@@ -474,7 +470,8 @@ fn main() {
             }
             "show_hide" => {
               if let Some(window) = app.get_webview_window("main") {
-                if window.is_visible().unwrap_or(false) {
+                // Only hide if window is visible AND focused
+                if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
                   let _ = window.hide();
                 } else {
                   let _ = position_window_below_menubar(&window);
@@ -496,9 +493,11 @@ fn main() {
           {
             let app = tray.app_handle();
             if let Some(window) = app.get_webview_window("main") {
-              if window.is_visible().unwrap_or(false) {
+              // Only hide if window is visible AND focused
+              if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
                 let _ = window.hide();
               } else {
+                // Show and focus the window
                 let _ = position_window_below_menubar(&window);
                 let _ = window.show();
                 let _ = window.set_focus();
