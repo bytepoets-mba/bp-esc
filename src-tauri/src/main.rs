@@ -111,23 +111,23 @@ const MENUBAR_RENDER_SCALE: f32 = 2.0;
 const MENUBAR_VALUE_FONT: &str = "SF-Pro-Rounded-Semibold";
 
 /// Font size for the value in points
-const MENUBAR_VALUE_SIZE: f32 = 16.0;
+const MENUBAR_VALUE_SIZE: f32 = 18.0;
 
-// --- INDICATOR CONFIGURATION (+/-) ---
+// --- HEXAGON CONFIGURATION ---
 
-/// Font for the indicator (+ or -)
-const MENUBAR_INDICATOR_FONT: &str = "SF-Pro-Rounded-Semibold";
+/// Size of the hexagon in logical points (width)
+const HEX_SIZE_PTS: f32 = 18.0;
 
-/// Font size for the indicator in points
-const MENUBAR_INDICATOR_SIZE: f32 = 14.0;
+/// Border thickness of the hexagon in logical points
+const HEX_BORDER_PTS: f32 = 1.5;
 
-// --- UNIT CONFIGURATION (the "$" or "%" symbol) ---
+// --- VALUE CONFIGURATION (the number, e.g., "42") ---
 
 /// Font for the unit symbol
 const MENUBAR_UNIT_FONT: &str = "SF-Pro-Rounded-Heavy";
 
 /// Font size for the unit in points
-const MENUBAR_UNIT_SIZE: f32 = 16.0;
+const MENUBAR_UNIT_SIZE: f32 = MENUBAR_VALUE_SIZE;
 
 // --- SPACING (logical points) ---
 const LOGO_TEXT_GAP: f32 = 6.0;
@@ -464,7 +464,7 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
     // Check if we have valid data (remaining balance exists if we fetched successfully)
     let has_data = balance.remaining.is_some();
     
-    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings)?;
+    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance)?;
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
         tray.set_icon(Some(icon))
             .map_err(|e| format!("Failed to update tray icon: {}", e))?;
@@ -481,7 +481,7 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
 }
 
 /// Generate hybrid menubar icon with logo and normal white text
-fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings) -> Result<Image<'static>, String> {
+fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings, balance: &BalanceData) -> Result<Image<'static>, String> {
     let scale = MENUBAR_RENDER_SCALE;
     
     // Load Logo
@@ -511,30 +511,26 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
 
     // Prepare text
     let value_text = format!("{}", value.round() as i32);
-    let indicator_text = if settings.show_remaining { "+" } else { "-" };
     let unit_text = if is_percentage { "%" } else { "$" };
     
     let (val_font, _) = try_load_font(MENUBAR_VALUE_FONT).ok_or("Value font not found")?;
-    let (ind_font, _) = try_load_font(MENUBAR_INDICATOR_FONT).ok_or("Indicator font not found")?;
     let (unt_font, _) = try_load_font(MENUBAR_UNIT_FONT).ok_or("Unit font not found")?;
     
     let val_scale = PxScale::from(MENUBAR_VALUE_SIZE * scale);
-    let ind_scale = PxScale::from(MENUBAR_INDICATOR_SIZE * scale);
     let unt_scale = PxScale::from(MENUBAR_UNIT_SIZE * scale);
     
     let val_width = calculate_text_width(&value_text, &val_font, val_scale);
-    let ind_width = calculate_text_width(indicator_text, &ind_font, ind_scale);
     let unt_width = calculate_text_width(unit_text, &unt_font, unt_scale);
     
     // Calculate total width (logical points then scale)
-    // Layout: [logo (w/ indicator)] [gap] [unit/val] [val/unit] [padding]
-    let mut total_width_pts = MENUBAR_LOGO_SIZE as f32;
+    // Layout: [hexagon] [gap] [unit/val] [val/unit] [padding]
+    let mut total_width_pts = HEX_SIZE_PTS;
     
     if has_data {
         let text_part_width = if show_unit {
             (val_width as f32 / scale) + UNIT_VALUE_GAP + (unt_width as f32 / scale)
         } else {
-            (val_width as f32 / scale)
+            val_width as f32 / scale
         };
         total_width_pts += LOGO_TEXT_GAP + text_part_width + END_PADDING;
     }
@@ -544,28 +540,77 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     
     let mut img = image::RgbaImage::new(canvas_width, canvas_height);
     
-    // 1. Draw Logo
-    let logo_x = 0;
-    let logo_y = (canvas_height - logo_physical_size) / 2;
-    
-    // Create logo with indicator cutout
-    let mut logo_with_cutout = logo_scaled.clone();
-    let cutout_color = Rgba([0u8, 0u8, 0u8, 0u8]);
-    
-    // Center indicator inside logo
-    let ind_x = (logo_physical_size as i32 - ind_width) / 2;
-    let ind_y = (logo_physical_size as i32 - (MENUBAR_INDICATOR_SIZE * scale) as i32) / 2;
-    
-    let mut ind_mask = image::RgbaImage::new(logo_physical_size, logo_physical_size);
-    draw_text_mut(&mut ind_mask, Rgba([255, 255, 255, 255]), ind_x, ind_y, ind_scale, &ind_font, indicator_text);
-    
-    for (ux, uy, pixel) in ind_mask.enumerate_pixels() {
-        if pixel[3] > 128 {
-            logo_with_cutout.put_pixel(ux, uy, cutout_color);
+    // 1. Draw Programmatic Hexagon
+    let hex_width = (HEX_SIZE_PTS * scale) as f32;
+    // For a pointy-top hexagon with straight vertical sides:
+    // height = width / cos(30) = width / 0.866
+    let hex_height = hex_width / 0.866;
+    let hex_x_offset = 0.0;
+    let hex_y_offset = (canvas_height as f32 - hex_height) / 2.0;
+
+    // We calculate the 6 points of the hexagon
+    // Pointy top: [width/2, 0], [width, height/4], [width, 3height/4], [width/2, height], [0, 3height/4], [0, height/4]
+    let points = [
+        (hex_x_offset + hex_width / 2.0, hex_y_offset),
+        (hex_x_offset + hex_width, hex_y_offset + hex_height * 0.25),
+        (hex_x_offset + hex_width, hex_y_offset + hex_height * 0.75),
+        (hex_x_offset + hex_width / 2.0, hex_y_offset + hex_height),
+        (hex_x_offset, hex_y_offset + hex_height * 0.75),
+        (hex_x_offset, hex_y_offset + hex_height * 0.25),
+    ];
+
+    // Calculate fill level (rising from bottom)
+    // Percentage used for the fill should be the remaining balance %
+    let fill_pct = if has_data {
+        if settings.show_percentage {
+            (value as f32 / 100.0).clamp(0.0, 1.0)
+        } else {
+            // For absolute $, we calculate fill based on the current balance vs limit
+            if let Some(limit) = balance.limit {
+                if limit > 0.0 {
+                    let fill_val = if settings.show_remaining {
+                        balance.remaining.unwrap_or(0.0)
+                    } else {
+                        balance.usage.unwrap_or(0.0)
+                    };
+                    (fill_val as f32 / limit as f32).clamp(0.0, 1.0)
+                } else {
+                    1.0f32
+                }
+            } else {
+                1.0f32
+            }
+        }
+    } else {
+        0.0f32
+    };
+
+    let border_thickness = (HEX_BORDER_PTS * scale) as i32;
+    let white = Rgba([255, 255, 255, 255]);
+    let transparent = Rgba([0, 0, 0, 0]);
+
+    // Rasterize Hexagon
+    for y in 0..canvas_height {
+        for x in 0..(hex_width as u32) {
+            if is_inside_hexagon(x as f32, y as f32, &points) {
+                let dist = distance_to_hexagon_border(x as f32, y as f32, &points);
+                
+                if dist < border_thickness as f32 {
+                    // Border
+                    img.put_pixel(x, y, white);
+                } else {
+                    // Interior - vertical fill logic
+                    let relative_y = (y as f32 - hex_y_offset) / hex_height;
+                    let inverted_fill = 1.0f32 - fill_pct;
+                    if relative_y > inverted_fill {
+                        img.put_pixel(x, y, white);
+                    } else {
+                        img.put_pixel(x, y, transparent);
+                    }
+                }
+            }
         }
     }
-    
-    image::imageops::overlay(&mut img, &logo_with_cutout, logo_x as i64, logo_y as i64);
     
     if !has_data {
         let rgba = img.into_raw();
@@ -574,7 +619,7 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
 
     // 2. Draw Text (White)
     let text_color = Rgba([255, 255, 255, 255]);
-    let mut current_x = (MENUBAR_LOGO_SIZE as f32 + LOGO_TEXT_GAP) * scale;
+    let mut current_x = (HEX_SIZE_PTS + LOGO_TEXT_GAP) * scale;
     
     if is_percentage {
         // Percent mode: 75 %
@@ -601,6 +646,46 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     let rgba = img.into_raw();
     Ok(Image::new_owned(rgba, canvas_width, canvas_height))
 }
+
+fn is_inside_hexagon(x: f32, y: f32, p: &[(f32, f32); 6]) -> bool {
+    // Simple point-in-polygon for convex hexagon
+    let mut inside = true;
+    for i in 0..6 {
+        let p1 = p[i];
+        let p2 = p[(i + 1) % 6];
+        // Cross product to check side
+        if (p2.0 - p1.0) * (y - p1.1) - (p2.1 - p1.1) * (x - p1.0) < 0.0 {
+            inside = false;
+            break;
+        }
+    }
+    inside
+}
+
+fn distance_to_hexagon_border(x: f32, y: f32, p: &[(f32, f32); 6]) -> f32 {
+    let mut min_dist = f32::MAX;
+    for i in 0..6 {
+        let p1 = p[i];
+        let p2 = p[(i + 1) % 6];
+        
+        let dx = p2.0 - p1.0;
+        let dy = p2.1 - p1.1;
+        let l2 = dx * dx + dy * dy;
+        
+        let t = ((x - p1.0) * dx + (y - p1.1) * dy) / l2;
+        let t = t.clamp(0.0, 1.0);
+        
+        let px = p1.0 + t * dx;
+        let py = p1.1 + t * dy;
+        
+        let dist = ((x - px).powi(2) + (y - py).powi(2)).sqrt();
+        if dist < min_dist {
+            min_dist = dist;
+        }
+    }
+    min_dist
+}
+
 
 /// Position window centered on the current monitor
 fn position_window_below_menubar(window: &tauri::WebviewWindow) -> Result<(), String> {
@@ -638,7 +723,7 @@ fn main() {
       let menu = Menu::with_items(app, &[&show_hide, &quit])?;
       
       // Create tray icon
-      let initial_icon = generate_hybrid_menubar_icon(0.0, true, false, true, &AppSettings::default()).ok();
+      let initial_icon = generate_hybrid_menubar_icon(0.0, true, false, true, &AppSettings::default(), &BalanceData { limit: None, usage: None, remaining: None, label: None }).ok();
       let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(initial_icon.unwrap_or_else(|| Image::from_bytes(include_bytes!("../icons/32x32.png")).unwrap()))
         .menu(&menu)
