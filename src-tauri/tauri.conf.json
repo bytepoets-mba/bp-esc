@@ -1,79 +1,50 @@
 {
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/v2/schema/v2.json",
+  "productName": "BYTEPOETS - ESC",
+  "version": "0.2.0",
+  "identifier": "com.bytepoets.bp-esc",
   "build": {
     "beforeBuildCommand": "npm run build:frontend",
     "beforeDevCommand": "",
-    "devPath": "../src",
-    "distDir": "../dist",
-    "withGlobalTauri": true
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "BYTEPOETS - ESC",
-    "version": "0.2.0"
-  },
-  "tauri": {
-    "macOSPrivateApi": true,
-    "allowlist": {
-      "all": true
+  "bundle": {
+    "active": true,
+    "category": "DeveloperTool",
+    "copyright": "© 2026 BYTEPOETS GmbH",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "entitlements": null,
+      "exceptionDomain": "",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": null,
+      "minimumSystemVersion": "11.0"
     },
-    "systemTray": {
+    "resources": [],
+    "shortDescription": "",
+    "targets": "all",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    }
+  },
+  "plugins": {
+    "macos-private-api": {
+      "enabled": true
+    },
+    "system-tray": {
+      "enabled": true,
       "iconPath": "icons/32x32.png",
       "iconAsTemplate": true,
       "menuOnLeftClick": false
-    },
-    "bundle": {
-      "active": true,
-      "category": "DeveloperTool",
-      "copyright": "© 2026 BYTEPOETS GmbH",
-      "deb": {
-        "depends": []
-      },
-      "externalBin": [],
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ],
-      "identifier": "com.bytepoets.bp-esc",
-      "longDescription": "",
-"macOS": {
-    "entitlements": null,
-    "exceptionDomain": "",
-    "frameworks": [],
-    "providerShortName": null,
-    "signingIdentity": null,
-    "minimumSystemVersion": "11.0"
-  },
-      "resources": [],
-      "shortDescription": "",
-      "targets": "all",
-      "windows": {
-        "certificateThumbprint": null,
-        "digestAlgorithm": "sha256",
-        "timestampUrl": ""
-      }
-    },
-    "security": {
-      "csp": null
-    },
-    "updater": {
-      "active": false
-    },
-    "windows": [
-      {
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "visible": true,
-        "resizable": false,
-        "fullscreen": false,
-        "height": 650,
-        "width": 600,
-        "title": "BYTEPOETS - ESC",
-        "center": false
-      }
-    ]
+    }
   }
 }

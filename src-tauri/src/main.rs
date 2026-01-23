@@ -9,8 +9,10 @@ use std::os::unix::fs::PermissionsExt; // macOS is Unix
 
 use serde::{Deserialize, Serialize};
 use tauri::{
-    CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu,
-    Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Icon
+    Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter,
+    menu::{Menu, MenuItemBuilder},
+    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
+    image::Image
 };
 use image::Rgba;
 use imageproc::drawing::draw_text_mut;
@@ -362,7 +364,7 @@ fn calculate_text_width(text: &str, font: &FontVec, scale: PxScale) -> i32 {
 }
 
 /// Generate menubar icon with percentage overlay (transparent cutout for macOS template)
-fn generate_icon_with_percentage(percentage: f64) -> Result<Icon, String> {
+fn generate_icon_with_percentage(percentage: f64) -> Result<Image<'static>, String> {
     // Load the base icon (32x32 for menubar)
     let icon_path = concat!(env!("CARGO_MANIFEST_DIR"), "/icons/32x32.png");
     let base_img = image::open(icon_path)
@@ -412,22 +414,23 @@ fn generate_icon_with_percentage(percentage: f64) -> Result<Icon, String> {
         eprintln!("✗ Warning: Could not load unit font '{}'", MENUBAR_UNIT_FONT);
     }
     
-    // Convert to Icon
+    // Convert to Image
     let rgba = img.into_raw();
-    Ok(Icon::Rgba { rgba, width: 32, height: 32 })
+    Image::from_bytes(&rgba).map_err(|e| format!("Failed to create image: {}", e))
 }
 
 /// Update system tray icon with current balance percentage
 fn update_tray_icon(app_handle: &tauri::AppHandle, percentage: f64) -> Result<(), String> {
     let icon = generate_icon_with_percentage(percentage)?;
-    app_handle.tray_handle()
-        .set_icon(icon)
-        .map_err(|e| format!("Failed to update tray icon: {}", e))?;
+    if let Some(tray) = app_handle.tray_by_id("main-tray") {
+        tray.set_icon(Some(icon))
+            .map_err(|e| format!("Failed to update tray icon: {}", e))?;
+    }
     Ok(())
 }
 
 /// Position window centered on the current monitor
-fn position_window_below_menubar(window: &tauri::Window) -> Result<(), String> {
+fn position_window_below_menubar(window: &tauri::WebviewWindow) -> Result<(), String> {
     // Get the monitor the window is on (or primary monitor)
     let monitor = window.current_monitor()
         .map_err(|e| format!("Failed to get monitor: {}", e))?
@@ -449,16 +452,6 @@ fn position_window_below_menubar(window: &tauri::Window) -> Result<(), String> {
 }
 
 fn main() {
-  // Create system tray menu
-  let quit = CustomMenuItem::new("quit".to_string(), "Quit");
-  let show_hide = CustomMenuItem::new("show_hide".to_string(), "Show/Hide");
-  let tray_menu = SystemTrayMenu::new()
-    .add_item(show_hide)
-    .add_item(quit);
-  
-  let system_tray = SystemTray::new()
-    .with_menu(tray_menu);
-
   tauri::Builder::default()
     .setup(|app| {
       #[cfg(target_os = "macos")]
@@ -466,58 +459,67 @@ fn main() {
         app.set_activation_policy(ActivationPolicy::Accessory);
       }
       
+      // Create tray menu
+      let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+      let show_hide = MenuItemBuilder::with_id("show_hide", "Show/Hide").build(app)?;
+      let menu = Menu::with_items(app, &[&show_hide, &quit])?;
+      
+      // Create tray icon
+      let _tray = TrayIconBuilder::with_id("main-tray")
+        .menu(&menu)
+        .on_menu_event(|app, event| {
+          match event.id().as_ref() {
+            "quit" => {
+              app.exit(0);
+            }
+            "show_hide" => {
+              if let Some(window) = app.get_webview_window("main") {
+                if window.is_visible().unwrap_or(false) {
+                  let _ = window.hide();
+                } else {
+                  let _ = position_window_below_menubar(&window);
+                  let _ = window.show();
+                  let _ = window.set_focus();
+                  let _ = window.emit("refresh-balance", ());
+                }
+              }
+            }
+            _ => {}
+          }
+        })
+        .on_tray_icon_event(|tray, event| {
+          if let TrayIconEvent::Click {
+            button: MouseButton::Left,
+            button_state: MouseButtonState::Up,
+            ..
+          } = event
+          {
+            let app = tray.app_handle();
+            if let Some(window) = app.get_webview_window("main") {
+              if window.is_visible().unwrap_or(false) {
+                let _ = window.hide();
+              } else {
+                let _ = position_window_below_menubar(&window);
+                let _ = window.show();
+                let _ = window.set_focus();
+                let _ = window.emit("refresh-balance", ());
+              }
+            }
+          }
+        })
+        .build(app)?;
+      
       // Position window below menubar on initial launch
-      if let Some(window) = app.get_window("main") {
+      if let Some(window) = app.get_webview_window("main") {
         let _ = position_window_below_menubar(&window);
       }
       
       Ok(())
     })
-    .system_tray(system_tray)
-    .on_system_tray_event(|app, event| match event {
-      SystemTrayEvent::LeftClick { .. } => {
-        // Toggle window visibility on left click
-        if let Some(window) = app.get_window("main") {
-          if window.is_visible().unwrap_or(false) {
-            let _ = window.hide();
-          } else {
-            // Reposition before showing
-            let _ = position_window_below_menubar(&window);
-            let _ = window.show();
-            let _ = window.set_focus();
-            // Refresh balance on show
-            let _ = window.emit("refresh-balance", ());
-          }
-        }
-      }
-      SystemTrayEvent::MenuItemClick { id, .. } => {
-        match id.as_str() {
-          "quit" => {
-            std::process::exit(0);
-          }
-          "show_hide" => {
-            if let Some(window) = app.get_window("main") {
-              if window.is_visible().unwrap_or(false) {
-                let _ = window.hide();
-              } else {
-                // Reposition before showing
-                let _ = position_window_below_menubar(&window);
-                let _ = window.show();
-                let _ = window.set_focus();
-                // Refresh balance on show
-                let _ = window.emit("refresh-balance", ());
-              }
-            }
-          }
-          _ => {}
-        }
-      }
-      _ => {}
-    })
-    .on_window_event(|event| {
+    .on_window_event(|window, event| {
       // Hide window instead of closing when user clicks X
-      if let WindowEvent::CloseRequested { api, .. } = event.event() {
-        event.window().hide().unwrap();
+      if let WindowEvent::CloseRequested { api, .. } = event {
+        window.hide().unwrap();
         api.prevent_close();
       }
     })

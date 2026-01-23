@@ -17,12 +17,12 @@
    ```
    
    Environment will load automatically when entering the directory.
-   First time takes a few minutes to download and build.
+   First time takes a few minutes to download and build dependencies.
    
-3. Install Tauri CLI:
-   ```bash
-   cargo install tauri-cli --version 1.6.2
-   ```
+   The environment will automatically:
+   - Install Node.js and npm via Nix
+   - Run `npm install` to install `@tauri-apps/cli` and other dependencies
+   - Set up Rust toolchain and system libraries
 
 **Note**: The `.envrc` uses `devenv direnvrc` which provides the `use devenv` function for direnv integration.
 
@@ -31,14 +31,13 @@
 ### Running in Development Mode
 
 ```bash
-# Enter devenv shell
-devenv shell
-
-# Run Tauri dev server
-cargo tauri dev
+# Run Tauri dev server (from project root)
+npm run dev
 ```
 
 The app will launch with hot-reload enabled.
+
+**Note**: The Tauri CLI is provided via npm (`@tauri-apps/cli` in `devDependencies`), not via cargo install. This ensures the environment is fully declarative and reproducible.
 
 ### Testing Config File I/O
 
@@ -68,20 +67,19 @@ To test the balance fetching:
 
 ### Building for Production
 
-**Development Builds:**
+**Production Builds:**
 ```bash
-devenv shell npm run build
-```
-
-**Release Builds (with version substitution):**
-```bash
-export TAURI_VERSION=$(awk '/version/ {gsub(/["]/, "", $3); print $3}' Cargo.toml)
-devenv shell npm run build
+npm run build
 ```
 
 **Output:** `src-tauri/target/release/bundle/macos/BYTEPOETS - ESC.app`
 
-**Verify bundle version:** Check Info.plist or DMG filename reflects `$TAURI_VERSION`.
+**DMG Location:** `src-tauri/target/release/bundle/dmg/BYTEPOETS - ESC_<version>_x64.dmg`
+
+The build script automatically:
+1. Prepares frontend assets in `dist/`
+2. Builds the Tauri app bundle
+3. Runs `./scripts/fix-dylib.sh` to remove Nix-specific library paths
 
 ### Verifying Dylib Links (No Nix on Target)
 
@@ -221,11 +219,11 @@ cd ..
 ### Tauri CLI not found
 
 ```bash
-# Ensure cargo bin in PATH
-export PATH="$HOME/.cargo/bin:$PATH"
+# Reinstall npm dependencies
+npm install
 
-# Or reinstall
-cargo install tauri-cli --version 1.6.2
+# Or reload direnv to trigger automatic npm install
+direnv reload
 ```
 
 ## Next Steps

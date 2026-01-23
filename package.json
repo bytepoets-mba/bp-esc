@@ -4,11 +4,14 @@
   "description": "BYTEPOETS Employee Self-Care - OpenRouter Balance Checker",
   "private": true,
   "scripts": {
-    "dev": "cargo tauri dev",
-    "build": "npm run build:frontend && cargo tauri build && ./scripts/fix-dylib.sh",
+    "dev": "tauri dev",
+    "build": "npm run build:frontend && tauri build && ./scripts/fix-dylib.sh",
     "build:frontend": "mkdir -p dist && cp -r src/index.html src/app.js src/style.css src/assets dist/"
   },
   "dependencies": {
-    "@tauri-apps/api": "^1.6.0"
+    "@tauri-apps/api": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
   }
 }
