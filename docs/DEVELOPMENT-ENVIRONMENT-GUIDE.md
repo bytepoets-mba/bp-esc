@@ -67,19 +67,38 @@ To test the balance fetching:
 
 ### Building for Production
 
-**Production Builds:**
+**Production Builds (Local):**
 ```bash
 npm run build
 ```
 
-**Output:** `src-tauri/target/release/bundle/macos/BYTEPOETS - ESC.app`
+**Output:** `target/release/bundle/macos/BP-ESC.app`
 
-**DMG Location:** `src-tauri/target/release/bundle/dmg/BYTEPOETS - ESC_<version>_x64.dmg`
+**CI/CD Build (Recommended):**
+The project uses a professional GitHub Actions pipeline for signing and notarization.
+1. Bump version in `src-tauri/tauri.conf.json`.
+2. Run `/build` command in Cursor (or manually create a `v*` tag).
+3. The build happens on GitHub, producing a signed and notarized DMG.
 
-The build script automatically:
-1. Prepares frontend assets in `dist/`
-2. Builds the Tauri app bundle
-3. Runs `./scripts/fix-dylib.sh` to remove Nix-specific library paths
+### macOS Code Signing & Notarization
+
+To distribute the app outside the Mac App Store, it must be signed with a **Developer ID Application** certificate and notarized by Apple.
+
+#### Local Setup Requirements:
+1. **Certificate:** Must be specifically "Developer ID Application". "Apple Development" or "Mac App Distribution" will fail.
+2. **Entitlements:** Standard entitlements for Tauri apps (Hardened Runtime) are located in `src-tauri/entitlements/release.entitlements`.
+3. **Hardened Runtime:** Always build with `ENABLE_HARDENED_RUNTIME=true` for production.
+
+#### GitHub Secrets for CI/CD:
+The following secrets must be set in the repository for the `Release` workflow to function:
+- `APPLE_CERTIFICATE`: Base64 encoded `.p12` file containing the Developer ID Application certificate and private key.
+- `APPLE_CERTIFICATE_PASSWORD`: Password for the `.p12` file.
+- `APPLE_ID`: Apple ID email (e.g., `dev@company.com`).
+- `APPLE_PASSWORD`: App-specific password generated at [appleid.apple.com](https://appleid.apple.com).
+- `APPLE_TEAM_ID`: 10-character team identifier.
+
+#### DMG Creation (node-appdmg):
+The project uses `node-appdmg` via `scripts/build-dmg.js` instead of the default Tauri DMG bundler. This bypasses system-level `hdiutil` conflicts common on macOS build machines.
 
 ### Verifying Dylib Links (No Nix on Target)
 
