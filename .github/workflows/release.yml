@@ -39,8 +39,11 @@ jobs:
           npx tauri build --bundles app
         env:
           CI: true
-          # Tauri 2.x automatically picks up the certificate from the keychain
-          # if APPLE_SIGNING_IDENTITY is set or if it's the only one.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: "Developer ID Application: BYTEPOETS GmbH"
+          # This is critical for Notarization
+          ENABLE_HARDENED_RUNTIME: true
 
       - name: Notarize App Bundle
         if: env.APPLE_ID != ''
@@ -53,11 +56,18 @@ jobs:
           ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
           
           echo "🚀 Submitting to Apple Notary Service..."
-          xcrun notarytool submit "$ZIP_PATH" \
+          # Capture submission ID and wait for result
+          SUBMISSION_ID=$(xcrun notarytool submit "$ZIP_PATH" \
             --apple-id "${{ secrets.APPLE_ID }}" \
             --password "${{ secrets.APPLE_PASSWORD }}" \
             --team-id "${{ secrets.APPLE_TEAM_ID }}" \
-            --wait
+            --wait | grep "id:" | head -1 | awk '{print $2}')
+          
+          echo "📝 Checking notarization log for ID: $SUBMISSION_ID"
+          xcrun notarytool log "$SUBMISSION_ID" \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --password "${{ secrets.APPLE_PASSWORD }}" \
+            --team-id "${{ secrets.APPLE_TEAM_ID }}" || true
           
           echo "🎫 Stapling notarization ticket..."
           xcrun stapler staple "$APP_PATH"
