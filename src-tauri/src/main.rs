@@ -113,17 +113,25 @@ const MENUBAR_VALUE_FONT: &str = "SF-Pro-Rounded-Semibold";
 /// Font size for the value in points
 const MENUBAR_VALUE_SIZE: f32 = 16.0;
 
+// --- INDICATOR CONFIGURATION (+/-) ---
+
+/// Font for the indicator (+ or -)
+const MENUBAR_INDICATOR_FONT: &str = "SF-Pro-Rounded-Semibold";
+
+/// Font size for the indicator in points
+const MENUBAR_INDICATOR_SIZE: f32 = 14.0;
+
 // --- UNIT CONFIGURATION (the "$" or "%" symbol) ---
 
 /// Font for the unit symbol
-const MENUBAR_UNIT_FONT: &str = "SF-Pro-Rounded-Medium";
+const MENUBAR_UNIT_FONT: &str = "SF-Pro-Rounded-Heavy";
 
 /// Font size for the unit in points
-const MENUBAR_UNIT_SIZE: f32 = 14.0;
+const MENUBAR_UNIT_SIZE: f32 = 16.0;
 
 // --- SPACING (logical points) ---
 const LOGO_TEXT_GAP: f32 = 6.0;
-const UNIT_VALUE_GAP: f32 = 2.0;
+const UNIT_VALUE_GAP: f32 = 1.0;
 const END_PADDING: f32 = 4.0;
 
 // ============================================================================
@@ -426,18 +434,23 @@ fn calculate_text_width(text: &str, font: &FontVec, scale: PxScale) -> i32 {
 #[tauri::command]
 fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, settings: AppSettings) -> Result<(), String> {
     let display_value = if settings.show_percentage {
-        // Percentage logic
-        if let Some(limit) = balance.limit {
+        // Percentage logic: relative to limit
+        let val = if let Some(limit) = balance.limit {
             if limit > 0.0 {
-                (balance.remaining.unwrap_or(0.0) / limit) * 100.0
+                if settings.show_remaining {
+                    (balance.remaining.unwrap_or(0.0) / limit) * 100.0
+                } else {
+                    (balance.usage.unwrap_or(0.0) / limit) * 100.0
+                }
             } else {
                 0.0
             }
         } else {
             0.0
-        }
+        };
+        val
     } else {
-        // Absolute $ logic
+        // Absolute $ logic: directly from balance
         if settings.show_remaining {
             balance.remaining.unwrap_or(0.0)
         } else {
@@ -451,7 +464,7 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
     // Check if we have valid data (remaining balance exists if we fetched successfully)
     let has_data = balance.remaining.is_some();
     
-    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit)?;
+    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings)?;
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
         tray.set_icon(Some(icon))
             .map_err(|e| format!("Failed to update tray icon: {}", e))?;
@@ -468,7 +481,7 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
 }
 
 /// Generate hybrid menubar icon with logo and normal white text
-fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool) -> Result<Image<'static>, String> {
+fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings) -> Result<Image<'static>, String> {
     let scale = MENUBAR_RENDER_SCALE;
     
     // Load Logo
@@ -498,23 +511,32 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
 
     // Prepare text
     let value_text = format!("{}", value.round() as i32);
+    let indicator_text = if settings.show_remaining { "+" } else { "-" };
     let unit_text = if is_percentage { "%" } else { "$" };
     
     let (val_font, _) = try_load_font(MENUBAR_VALUE_FONT).ok_or("Value font not found")?;
+    let (ind_font, _) = try_load_font(MENUBAR_INDICATOR_FONT).ok_or("Indicator font not found")?;
     let (unt_font, _) = try_load_font(MENUBAR_UNIT_FONT).ok_or("Unit font not found")?;
     
     let val_scale = PxScale::from(MENUBAR_VALUE_SIZE * scale);
+    let ind_scale = PxScale::from(MENUBAR_INDICATOR_SIZE * scale);
     let unt_scale = PxScale::from(MENUBAR_UNIT_SIZE * scale);
     
     let val_width = calculate_text_width(&value_text, &val_font, val_scale);
+    let ind_width = calculate_text_width(indicator_text, &ind_font, ind_scale);
     let unt_width = calculate_text_width(unit_text, &unt_font, unt_scale);
     
     // Calculate total width (logical points then scale)
-    // Layout: [logo (w/ unit)] [gap] [val] [padding]
+    // Layout: [logo (w/ indicator)] [gap] [unit/val] [val/unit] [padding]
     let mut total_width_pts = MENUBAR_LOGO_SIZE as f32;
     
     if has_data {
-        total_width_pts += LOGO_TEXT_GAP + (val_width as f32 / scale) + END_PADDING;
+        let text_part_width = if show_unit {
+            (val_width as f32 / scale) + UNIT_VALUE_GAP + (unt_width as f32 / scale)
+        } else {
+            (val_width as f32 / scale)
+        };
+        total_width_pts += LOGO_TEXT_GAP + text_part_width + END_PADDING;
     }
         
     let canvas_width = (total_width_pts * scale) as u32;
@@ -526,20 +548,20 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     let logo_x = 0;
     let logo_y = (canvas_height - logo_physical_size) / 2;
     
-    // Create logo with unit cutout if enabled
+    // Create logo with indicator cutout
     let mut logo_with_cutout = logo_scaled.clone();
-    if show_unit {
-        let cutout_color = Rgba([0u8, 0u8, 0u8, 0u8]);
-        let x = (logo_physical_size as i32 - unt_width) / 2;
-        let y = (logo_physical_size as i32 - (MENUBAR_UNIT_SIZE * scale) as i32) / 2;
-        
-        let mut unit_mask = image::RgbaImage::new(logo_physical_size, logo_physical_size);
-        draw_text_mut(&mut unit_mask, Rgba([255, 255, 255, 255]), x, y, unt_scale, &unt_font, unit_text);
-        
-        for (ux, uy, pixel) in unit_mask.enumerate_pixels() {
-            if pixel[3] > 128 {
-                logo_with_cutout.put_pixel(ux, uy, cutout_color);
-            }
+    let cutout_color = Rgba([0u8, 0u8, 0u8, 0u8]);
+    
+    // Center indicator inside logo
+    let ind_x = (logo_physical_size as i32 - ind_width) / 2;
+    let ind_y = (logo_physical_size as i32 - (MENUBAR_INDICATOR_SIZE * scale) as i32) / 2;
+    
+    let mut ind_mask = image::RgbaImage::new(logo_physical_size, logo_physical_size);
+    draw_text_mut(&mut ind_mask, Rgba([255, 255, 255, 255]), ind_x, ind_y, ind_scale, &ind_font, indicator_text);
+    
+    for (ux, uy, pixel) in ind_mask.enumerate_pixels() {
+        if pixel[3] > 128 {
+            logo_with_cutout.put_pixel(ux, uy, cutout_color);
         }
     }
     
@@ -550,12 +572,31 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
         return Ok(Image::new_owned(rgba, canvas_width, canvas_height));
     }
 
-    // 2. Draw Value Text (White)
+    // 2. Draw Text (White)
     let text_color = Rgba([255, 255, 255, 255]);
-    let current_x = (MENUBAR_LOGO_SIZE as f32 + LOGO_TEXT_GAP) * scale;
-    let val_y = (canvas_height as f32 - (MENUBAR_VALUE_SIZE * scale)) / 2.0;
+    let mut current_x = (MENUBAR_LOGO_SIZE as f32 + LOGO_TEXT_GAP) * scale;
     
-    draw_text_mut(&mut img, text_color, current_x as i32, val_y as i32, val_scale, &val_font, &value_text);
+    if is_percentage {
+        // Percent mode: 75 %
+        let val_y = (canvas_height as f32 - (MENUBAR_VALUE_SIZE * scale)) / 2.0;
+        draw_text_mut(&mut img, text_color, current_x as i32, val_y as i32, val_scale, &val_font, &value_text);
+        
+        if show_unit {
+            current_x += val_width as f32 + (UNIT_VALUE_GAP * scale);
+            let unt_y = (canvas_height as f32 - (MENUBAR_UNIT_SIZE * scale)) / 2.0;
+            draw_text_mut(&mut img, text_color, current_x as i32, unt_y as i32, unt_scale, &unt_font, unit_text);
+        }
+    } else {
+        // Dollar mode: $ 42
+        if show_unit {
+            let unt_y = (canvas_height as f32 - (MENUBAR_UNIT_SIZE * scale)) / 2.0;
+            draw_text_mut(&mut img, text_color, current_x as i32, unt_y as i32, unt_scale, &unt_font, unit_text);
+            current_x += unt_width as f32 + (UNIT_VALUE_GAP * scale);
+        }
+        
+        let val_y = (canvas_height as f32 - (MENUBAR_VALUE_SIZE * scale)) / 2.0;
+        draw_text_mut(&mut img, text_color, current_x as i32, val_y as i32, val_scale, &val_font, &value_text);
+    }
     
     let rgba = img.into_raw();
     Ok(Image::new_owned(rgba, canvas_width, canvas_height))
@@ -597,7 +638,7 @@ fn main() {
       let menu = Menu::with_items(app, &[&show_hide, &quit])?;
       
       // Create tray icon
-      let initial_icon = generate_hybrid_menubar_icon(0.0, true, false, true).ok();
+      let initial_icon = generate_hybrid_menubar_icon(0.0, true, false, true, &AppSettings::default()).ok();
       let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(initial_icon.unwrap_or_else(|| Image::from_bytes(include_bytes!("../icons/32x32.png")).unwrap()))
         .menu(&menu)

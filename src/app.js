@@ -165,12 +165,13 @@ window.addEventListener('DOMContentLoaded', () => {
     if (currentSettings.show_percentage) {
       unitPercent.classList.add('active');
       unitDollar.classList.remove('active');
-      absTypeSection.classList.add('hidden');
     } else {
       unitPercent.classList.remove('active');
       unitDollar.classList.add('active');
-      absTypeSection.classList.remove('hidden');
     }
+    
+    // Type section is always visible now as indicators work for both modes
+    absTypeSection.classList.remove('hidden');
     
     // Type buttons
     if (currentSettings.show_remaining) {
@@ -226,13 +227,11 @@ window.addEventListener('DOMContentLoaded', () => {
   unitPercent.onclick = async () => {
     unitPercent.classList.add('active');
     unitDollar.classList.remove('active');
-    absTypeSection.classList.add('hidden');
     await saveSettingsAction(true);
   };
   unitDollar.onclick = async () => {
     unitPercent.classList.remove('active');
     unitDollar.classList.add('active');
-    absTypeSection.classList.remove('hidden');
     await saveSettingsAction(true);
   };
 
