@@ -58,8 +58,8 @@ jobs:
         if: env.APPLE_ID != ''
         run: |
           PRODUCT_NAME=$(node -e "console.log(require('./src-tauri/tauri.conf.json').productName)")
-          APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.app"
-          ZIP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.zip"
+          APP_PATH="target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.app"
+          ZIP_PATH="target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.zip"
           
           echo "📦 Zipping for notarization..."
           ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
@@ -83,7 +83,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          files: target/universal-apple-darwin/release/bundle/dmg/*.dmg
           draft: true
           generate_release_notes: true
         env:

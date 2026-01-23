@@ -7,8 +7,8 @@ const tauriConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../src-t
 const version = tauriConfig.version;
 const productName = tauriConfig.productName || 'BP-ESC';
 
-const targetDmg = path.resolve(__dirname, `../src-tauri/target/universal-apple-darwin/release/bundle/dmg/${productName}_${version}_universal.dmg`);
-const appPath = path.resolve(__dirname, `../src-tauri/target/universal-apple-darwin/release/bundle/macos/${productName}.app`);
+const targetDmg = path.resolve(__dirname, `../target/universal-apple-darwin/release/bundle/dmg/${productName}_${version}_universal.dmg`);
+const appPath = path.resolve(__dirname, `../target/universal-apple-darwin/release/bundle/macos/${productName}.app`);
 
 // Ensure target directory exists
 const targetDir = path.dirname(targetDmg);
