@@ -18,7 +18,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Tauri v2 APIs - invoke is under __TAURI__.core.invoke
   const invoke = window.__TAURI__.core?.invoke || window.__TAURI__.invoke;
-  const exit = () => window.close();
   
   if (!invoke) {
     console.error('invoke not found in:', window.__TAURI__);
@@ -236,7 +235,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Quit
   async function quitApp() {
-    await exit(0);
+    await invoke('quit_app');
   }
 
   // Load and display app version

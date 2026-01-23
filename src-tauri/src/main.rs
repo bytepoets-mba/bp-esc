@@ -278,6 +278,12 @@ fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Quit the application
+#[tauri::command]
+fn quit_app(app_handle: tauri::AppHandle) {
+    app_handle.exit(0);
+}
+
 /// Update menubar icon with balance percentage
 #[tauri::command]
 fn update_menubar_percentage(app_handle: tauri::AppHandle, percentage: f64) -> Result<(), String> {
@@ -410,9 +416,9 @@ fn generate_icon_with_percentage(percentage: f64) -> Result<Image<'static>, Stri
         eprintln!("✗ Warning: Could not load unit font '{}'", MENUBAR_UNIT_FONT);
     }
     
-    // Convert to Image
+    // Convert to Image with explicit dimensions
     let rgba = img.into_raw();
-    Image::from_bytes(&rgba).map_err(|e| format!("Failed to create image: {}", e))
+    Ok(Image::new_owned(rgba, 34, 34))
 }
 
 /// Update system tray icon with current balance percentage
@@ -421,6 +427,11 @@ fn update_tray_icon(app_handle: &tauri::AppHandle, percentage: f64) -> Result<()
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
         tray.set_icon(Some(icon))
             .map_err(|e| format!("Failed to update tray icon: {}", e))?;
+        
+        // Set as template icon for macOS (allows proper rendering with system theme)
+        #[cfg(target_os = "macos")]
+        tray.set_icon_as_template(true)
+            .map_err(|e| format!("Failed to set icon as template: {}", e))?;
     }
     Ok(())
 }
@@ -463,6 +474,7 @@ fn main() {
       // Create tray icon
       let _tray = TrayIconBuilder::with_id("main-tray")
         .menu(&menu)
+        .show_menu_on_left_click(false)
         .on_menu_event(|app, event| {
           match event.id().as_ref() {
             "quit" => {
@@ -527,7 +539,8 @@ fn main() {
         save_api_key,
         fetch_balance,
         get_app_version,
-        update_menubar_percentage
+        update_menubar_percentage,
+        quit_app
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
