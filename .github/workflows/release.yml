@@ -45,7 +45,7 @@ jobs:
       - name: Notarize App Bundle
         if: env.APPLE_ID != ''
         run: |
-          PRODUCT_NAME=$(node -e "print(require('./src-tauri/tauri.conf.json').productName)")
+          PRODUCT_NAME=$(node -e "console.log(require('./src-tauri/tauri.conf.json').productName)")
           APP_PATH="target/release/bundle/macos/$PRODUCT_NAME.app"
           ZIP_PATH="target/release/bundle/macos/$PRODUCT_NAME.zip"
           
