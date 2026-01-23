@@ -22,6 +22,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin, aarch64-apple-darwin
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -43,7 +45,7 @@ jobs:
       - name: Build Tauri app
         run: |
           npm run build:frontend
-          npx tauri build --bundles app
+          npx tauri build --bundles app --target universal-apple-darwin
         env:
           CI: true
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -56,8 +58,8 @@ jobs:
         if: env.APPLE_ID != ''
         run: |
           PRODUCT_NAME=$(node -e "console.log(require('./src-tauri/tauri.conf.json').productName)")
-          APP_PATH="target/release/bundle/macos/$PRODUCT_NAME.app"
-          ZIP_PATH="target/release/bundle/macos/$PRODUCT_NAME.zip"
+          APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.app"
+          ZIP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.zip"
           
           echo "📦 Zipping for notarization..."
           ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
@@ -70,12 +72,6 @@ jobs:
             --team-id "${{ secrets.APPLE_TEAM_ID }}" \
             --wait | grep "id:" | head -1 | awk '{print $2}')
           
-          echo "📝 Checking notarization log for ID: $SUBMISSION_ID"
-          xcrun notarytool log "$SUBMISSION_ID" \
-            --apple-id "${{ secrets.APPLE_ID }}" \
-            --password "${{ secrets.APPLE_PASSWORD }}" \
-            --team-id "${{ secrets.APPLE_TEAM_ID }}" || true
-          
           echo "🎫 Stapling notarization ticket..."
           xcrun stapler staple "$APP_PATH"
         env:
@@ -87,7 +83,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: target/release/bundle/dmg/*.dmg
+          files: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
           draft: true
           generate_release_notes: true
         env:
