@@ -112,10 +112,10 @@ const MENUBAR_LOGO_PADDING: i32 = 0;
 
 /// Font for the percentage value (the number)
 /// Examples: "Klavika-Medium", "Klavika-Bold", "Helvetica", "Avenir Next"
-const MENUBAR_VALUE_FONT: &str = "Klavika-Medium";
+const MENUBAR_VALUE_FONT: &str = "SF-Pro-Rounded-Bold";
 
 /// Font size for the value in pixels (try 10-14)
-const MENUBAR_VALUE_SIZE: f32 = 12.0;
+const MENUBAR_VALUE_SIZE: f32 = 13.0;
 
 /// Horizontal offset for value from center (-10 to +10)
 const MENUBAR_VALUE_OFFSET_X: i32 = 0;
@@ -128,10 +128,10 @@ const MENUBAR_VALUE_OFFSET_Y: i32 = -2;
 
 /// Font for the unit symbol (the "%")
 /// Examples: "Klavika-Light", "Klavika-Regular", "Helvetica"
-const MENUBAR_UNIT_FONT: &str = "Klavika-Medium";
+const MENUBAR_UNIT_FONT: &str = "SF-Pro-Rounded-Medium";
 
 /// Font size for the unit in pixels (try 6-10, usually smaller than value)
-const MENUBAR_UNIT_SIZE: f32 = 8.0;
+const MENUBAR_UNIT_SIZE: f32 = 11.0;
 
 /// Horizontal offset for unit from center (-10 to +10)
 const MENUBAR_UNIT_OFFSET_X: i32 = 0;
