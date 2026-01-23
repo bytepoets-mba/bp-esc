@@ -32,7 +32,6 @@ const dmg = appdmg({
     specification: {
         title: productName,
         icon: 'src-tauri/icons/icon.png', // Use PNG for appdmg icon
-        background: null, // Keep it clean for CI stability
         'icon-size': 128,
         contents: [
             { x: 448, y: 344, type: 'link', path: '/Applications' },
