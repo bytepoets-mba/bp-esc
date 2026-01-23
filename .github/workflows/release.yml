@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Import Apple Certificate
+        if: env.APPLE_CERTIFICATE != ''
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Build Tauri app
+        run: |
+          npm run build:frontend
+          npx tauri build --bundles app
+        env:
+          CI: true
+          # Tauri 2.x automatically picks up the certificate from the keychain
+          # if APPLE_SIGNING_IDENTITY is set or if it's the only one.
+
+      - name: Notarize App Bundle
+        if: env.APPLE_ID != ''
+        run: |
+          PRODUCT_NAME=$(node -e "print(require('./src-tauri/tauri.conf.json').productName)")
+          APP_PATH="target/release/bundle/macos/$PRODUCT_NAME.app"
+          ZIP_PATH="target/release/bundle/macos/$PRODUCT_NAME.zip"
+          
+          echo "📦 Zipping for notarization..."
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+          
+          echo "🚀 Submitting to Apple Notary Service..."
+          xcrun notarytool submit "$ZIP_PATH" \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --password "${{ secrets.APPLE_PASSWORD }}" \
+            --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+            --wait
+          
+          echo "🎫 Stapling notarization ticket..."
+          xcrun stapler staple "$APP_PATH"
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+
+      - name: Build DMG via node-appdmg
+        run: node scripts/build-dmg.js
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/bundle/dmg/*.dmg
+          draft: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
