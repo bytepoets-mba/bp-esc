@@ -262,7 +262,7 @@ dependencies = [
 
 [[package]]
 name = "bp-esc"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "ab_glyph",
  "dirs 5.0.1",

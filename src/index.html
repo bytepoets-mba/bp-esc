@@ -57,14 +57,71 @@
         <button id="quitBtn" class="btn-secondary btn-quit">✕ Quit</button>
       </div>
       
-      <div class="settings-row">
-        <label class="checkbox-label">
-          <input type="checkbox" id="autocheckToggle" checked>
-          <span>Auto-refresh every 5 minutes</span>
-        </label>
-      </div>
-      
       <p class="last-updated" id="lastUpdated"></p>
+    </div>
+
+    <!-- Settings State -->
+    <div id="settingsState" class="state hidden">
+      <div class="settings-section">
+        <h3>Settings</h3>
+        
+        <div class="setting-item">
+          <label for="apiKeyInputSettings">OpenRouter API Key:</label>
+          <input 
+            type="password" 
+            id="apiKeyInputSettings" 
+            placeholder="sk-or-v1-..."
+            autocomplete="off"
+          >
+        </div>
+
+        <div class="setting-item">
+          <label>Refresh Interval (minutes):</label>
+          <div class="number-input">
+            <button id="refreshMinus" class="btn-icon">−</button>
+            <span id="refreshValue">5</span>
+            <button id="refreshPlus" class="btn-icon">+</button>
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <label class="toggle-label">
+            <span>Menubar Display Unit:</span>
+            <div class="toggle-group">
+              <button id="unitPercent" class="btn-toggle active">%</button>
+              <button id="unitDollar" class="btn-toggle">$</button>
+            </div>
+          </label>
+        </div>
+
+        <div id="absTypeSection" class="setting-item hidden">
+          <label class="toggle-label">
+            <span>Show Value Type:</span>
+            <div class="toggle-group">
+              <button id="typeRemaining" class="btn-toggle active">Remaining</button>
+              <button id="typeUsed" class="btn-toggle">Used</button>
+            </div>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <label class="checkbox-label">
+            <input type="checkbox" id="showUnitToggle" checked>
+            <span>Show Unit (%/$) in Menubar</span>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <label class="checkbox-label">
+            <input type="checkbox" id="autocheckToggle" checked>
+            <span>Enable Auto-refresh</span>
+          </label>
+        </div>
+
+        <div class="button-row">
+          <button id="saveSettingsBtn" class="btn-primary">Done</button>
+        </div>
+      </div>
     </div>
 
     <!-- Error Display -->

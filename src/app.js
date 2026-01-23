@@ -1,74 +1,67 @@
-console.log('app.js loading...');
-
-// Auto-refresh configuration
-const AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-
 // Wait for DOM and Tauri to be ready
 window.addEventListener('DOMContentLoaded', () => {
-  console.log('DOMContentLoaded fired');
-  console.log('window.__TAURI__:', window.__TAURI__);
-  
-  console.log('__TAURI__ structure:', JSON.stringify(Object.keys(window.__TAURI__ || {})));
-  
   if (!window.__TAURI__) {
     console.error('ERROR: Tauri API not available');
-    document.body.innerHTML = '<div style="padding: 2rem; color: red; text-align: center;">Error: Tauri API not loaded.<br>Please restart the app.</div>';
     return;
   }
 
-  // Tauri v2 APIs - invoke is under __TAURI__.core.invoke
   const invoke = window.__TAURI__.core?.invoke || window.__TAURI__.invoke;
   
-  if (!invoke) {
-    console.error('invoke not found in:', window.__TAURI__);
-    document.body.innerHTML = '<div style="padding: 2rem; color: red;">Error: Tauri invoke API not found.</div>';
-    return;
-  }
-  
-  console.log('Tauri APIs loaded, invoke:', typeof invoke);
-
   // State
-  let currentApiKey = null;
+  let currentSettings = null;
+  let currentBalance = null;
   let autoRefreshTimer = null;
 
-  // DOM elements
+  // DOM elements - States
   const loadingState = document.getElementById('loadingState');
   const noKeyState = document.getElementById('noKeyState');
   const balanceState = document.getElementById('balanceState');
+  const settingsState = document.getElementById('settingsState');
+  
+  // DOM elements - Display
   const errorDisplay = document.getElementById('errorDisplay');
-  const apiKeyInput = document.getElementById('apiKeyInput');
-  const saveKeyBtn = document.getElementById('saveKeyBtn');
-  const refreshBtn = document.getElementById('refreshBtn');
-  const settingsBtn = document.getElementById('settingsBtn');
-  const quitBtn = document.getElementById('quitBtn');
   const limitValue = document.getElementById('limitValue');
   const usageValue = document.getElementById('usageValue');
   const remainingValue = document.getElementById('remainingValue');
   const lastUpdated = document.getElementById('lastUpdated');
-  const autocheckToggle = document.getElementById('autocheckToggle');
   const appVersion = document.getElementById('appVersion');
+
+  // DOM elements - Settings
+  const apiKeyInput = document.getElementById('apiKeyInput'); // initial key input
+  const saveKeyBtn = document.getElementById('saveKeyBtn');   // initial save btn
+  
+  const apiKeyInputSettings = document.getElementById('apiKeyInputSettings');
+  const refreshValue = document.getElementById('refreshValue');
+  const refreshMinus = document.getElementById('refreshMinus');
+  const refreshPlus = document.getElementById('refreshPlus');
+  const unitPercent = document.getElementById('unitPercent');
+  const unitDollar = document.getElementById('unitDollar');
+  const absTypeSection = document.getElementById('absTypeSection');
+  const typeRemaining = document.getElementById('typeRemaining');
+  const typeUsed = document.getElementById('typeUsed');
+  const showUnitToggle = document.getElementById('showUnitToggle');
+  const autocheckToggle = document.getElementById('autocheckToggle');
+  const saveSettingsBtn = document.getElementById('saveSettingsBtn'); // Now "Done"
+
+  // DOM elements - Actions
+  const refreshBtn = document.getElementById('refreshBtn');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const quitBtn = document.getElementById('quitBtn');
 
   // State management
   function showState(state) {
-    loadingState.classList.add('hidden');
-    noKeyState.classList.add('hidden');
-    balanceState.classList.add('hidden');
+    [loadingState, noKeyState, balanceState, settingsState].forEach(s => s.classList.add('hidden'));
     
-    if (state === 'loading') {
-      loadingState.classList.remove('hidden');
-    } else if (state === 'noKey') {
-      noKeyState.classList.remove('hidden');
-    } else if (state === 'balance') {
-      balanceState.classList.remove('hidden');
-    }
+    if (state === 'loading') loadingState.classList.remove('hidden');
+    else if (state === 'noKey') noKeyState.classList.remove('hidden');
+    else if (state === 'balance') balanceState.classList.remove('hidden');
+    else if (state === 'settings') settingsState.classList.remove('hidden');
   }
 
   function showError(message) {
     errorDisplay.textContent = message;
     errorDisplay.classList.remove('hidden');
-    setTimeout(() => {
-      errorDisplay.classList.add('hidden');
-    }, 5000);
+    setTimeout(() => errorDisplay.classList.add('hidden'), 5000);
   }
 
   function hideError() {
@@ -78,7 +71,6 @@ window.addEventListener('DOMContentLoaded', () => {
   // Auto-refresh management
   function stopAutoRefresh() {
     if (autoRefreshTimer) {
-      console.log('Stopping auto-refresh timer');
       clearTimeout(autoRefreshTimer);
       autoRefreshTimer = null;
     }
@@ -86,89 +78,62 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function startAutoRefresh() {
     stopAutoRefresh();
+    if (!currentSettings?.auto_refresh_enabled) return;
     
-    if (!autocheckToggle.checked) {
-      console.log('Auto-refresh disabled by user');
-      return;
-    }
-    
-    console.log(`Starting auto-refresh timer (${AUTO_REFRESH_INTERVAL_MS / 1000}s)`);
+    const intervalMs = (currentSettings.refresh_interval_minutes || 5) * 60 * 1000;
     autoRefreshTimer = setTimeout(() => {
-      console.log('Auto-refresh triggered');
       loadBalance();
-    }, AUTO_REFRESH_INTERVAL_MS);
+    }, intervalMs);
   }
 
   // Format currency
   function formatCurrency(value) {
-    if (value === null || value === undefined) {
-      return '-';
-    }
+    if (value === null || value === undefined) return '-';
     return `$${value.toFixed(2)}`;
   }
 
   // Display balance
-  async function displayBalance(balance) {
+  async function displayBalance(balance, shouldShowState = true) {
+    currentBalance = balance;
+    
+    // Calculate percentage
+    const percentage = (balance.limit && balance.limit > 0) 
+        ? Math.floor((balance.remaining / balance.limit) * 100) 
+        : 0;
+    
+    // Update label with percentage
+    const remainingLabel = remainingValue.parentElement.querySelector('.label');
+    if (remainingLabel) {
+      remainingLabel.textContent = `${percentage}% Remaining:`;
+    }
+
     limitValue.textContent = formatCurrency(balance.limit);
     usageValue.textContent = formatCurrency(balance.usage);
     remainingValue.textContent = formatCurrency(balance.remaining);
     
     // Color code remaining
     if (balance.remaining !== null) {
-      if (balance.remaining < 0) {
-        remainingValue.style.color = '#dc2626';
-      } else if (balance.remaining < 5) {
-        remainingValue.style.color = '#ea580c';
-      } else {
-        remainingValue.style.color = '#667eea';
-      }
+      if (balance.remaining < 0) remainingValue.style.color = '#dc2626';
+      else if (balance.remaining < 5) remainingValue.style.color = '#ea580c';
+      else remainingValue.style.color = '#667eea';
     }
     
-    // Update menubar icon with percentage
-    if (balance.limit !== null && balance.remaining !== null) {
-      const percentage = (balance.remaining / balance.limit) * 100;
-      try {
-        await invoke('update_menubar_percentage', { percentage });
-        console.log(`Updated menubar icon with ${percentage.toFixed(1)}%`);
-      } catch (error) {
-        console.error('Failed to update menubar icon:', error);
-      }
+    // Update menubar icon
+    try {
+      await invoke('update_menubar_display', { balance, settings: currentSettings });
+    } catch (error) {
+      console.error('Failed to update menubar icon:', error);
     }
     
-    // Timestamp
-    const now = new Date().toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     lastUpdated.textContent = `Last updated: ${now}`;
-    
-    showState('balance');
-  }
-
-  // Validate API key format
-  function validateApiKeyFormat(key) {
-    const trimmedKey = key.trim();
-    
-    if (!trimmedKey) {
-      return { valid: false, error: 'API key cannot be empty' };
-    }
-    
-    if (!trimmedKey.startsWith('sk-')) {
-      return { valid: false, error: 'API key must start with "sk-"' };
-    }
-    
-    if (trimmedKey.length < 20) {
-      return { valid: false, error: 'API key appears too short (minimum 20 characters)' };
-    }
-    
-    return { valid: true };
+    if (shouldShowState) showState('balance');
   }
 
   // Load balance
   async function loadBalance() {
-    if (!currentApiKey) {
-      console.warn('loadBalance called without API key');
-      showError('No API key loaded');
+    if (!currentSettings?.api_key) {
+      showState('noKey');
       return;
     }
     
@@ -176,93 +141,160 @@ window.addEventListener('DOMContentLoaded', () => {
     hideError();
     
     try {
-      console.log('Fetching balance...');
-      const balance = await invoke('fetch_balance', { apiKey: currentApiKey });
-      console.log('Balance received:', balance);
+      const balance = await invoke('fetch_balance', { apiKey: currentSettings.api_key });
       displayBalance(balance);
-      
-      // Start auto-refresh timer after successful load
       startAutoRefresh();
     } catch (error) {
       console.error('Failed to fetch balance:', error);
       showState('balance');
       showError(error);
-      
-      // Still start timer even on error (will retry later)
       startAutoRefresh();
     }
   }
 
-  // Save and load
-  async function saveAndLoad() {
-    const key = apiKeyInput.value.trim();
+  // Settings UI Sync
+  function syncSettingsToUI() {
+    if (!currentSettings) return;
     
-    // Validate
-    const validation = validateApiKeyFormat(key);
-    if (!validation.valid) {
-      showError(validation.error);
-      apiKeyInput.classList.add('error');
-      apiKeyInput.focus();
-      setTimeout(() => apiKeyInput.classList.remove('error'), 500);
+    apiKeyInputSettings.value = currentSettings.api_key || '';
+    refreshValue.textContent = currentSettings.refresh_interval_minutes;
+    showUnitToggle.checked = currentSettings.show_unit;
+    autocheckToggle.checked = currentSettings.auto_refresh_enabled;
+    
+    // Unit buttons
+    if (currentSettings.show_percentage) {
+      unitPercent.classList.add('active');
+      unitDollar.classList.remove('active');
+      absTypeSection.classList.add('hidden');
+    } else {
+      unitPercent.classList.remove('active');
+      unitDollar.classList.add('active');
+      absTypeSection.classList.remove('hidden');
+    }
+    
+    // Type buttons
+    if (currentSettings.show_remaining) {
+      typeRemaining.classList.add('active');
+      typeUsed.classList.remove('active');
+    } else {
+      typeRemaining.classList.remove('active');
+      typeUsed.classList.add('active');
+    }
+  }
+
+  // Action: Save Settings
+  async function saveSettingsAction(silent = false) {
+    const newSettings = {
+      ...currentSettings,
+      api_key: apiKeyInputSettings.value.trim(),
+      refresh_interval_minutes: parseInt(refreshValue.textContent),
+      show_unit: showUnitToggle.checked,
+      auto_refresh_enabled: autocheckToggle.checked,
+      show_percentage: unitPercent.classList.contains('active'),
+      show_remaining: typeRemaining.classList.contains('active'),
+    };
+
+    try {
+      await invoke('save_settings', { settings: newSettings });
+      currentSettings = newSettings;
+      
+      // Update UI and Menubar immediately if we have balance
+      if (currentBalance) {
+        displayBalance(currentBalance, false); // Pass false to NOT showState('balance')
+      }
+    } catch (error) {
+      if (!silent) showError(error);
+    }
+  }
+
+  // Event Listeners - Settings (Automatic Saving)
+  refreshMinus.onclick = async () => {
+    let val = parseInt(refreshValue.textContent);
+    if (val > 1) {
+      refreshValue.textContent = val - 1;
+      await saveSettingsAction(true);
+    }
+  };
+  refreshPlus.onclick = async () => {
+    let val = parseInt(refreshValue.textContent);
+    if (val < 60) {
+      refreshValue.textContent = val + 1;
+      await saveSettingsAction(true);
+    }
+  };
+
+  unitPercent.onclick = async () => {
+    unitPercent.classList.add('active');
+    unitDollar.classList.remove('active');
+    absTypeSection.classList.add('hidden');
+    await saveSettingsAction(true);
+  };
+  unitDollar.onclick = async () => {
+    unitPercent.classList.remove('active');
+    unitDollar.classList.add('active');
+    absTypeSection.classList.remove('hidden');
+    await saveSettingsAction(true);
+  };
+
+  typeRemaining.onclick = async () => {
+    typeRemaining.classList.add('active');
+    typeUsed.classList.remove('active');
+    await saveSettingsAction(true);
+  };
+  typeUsed.onclick = async () => {
+    typeRemaining.classList.remove('active');
+    typeUsed.classList.add('active');
+    await saveSettingsAction(true);
+  };
+
+  showUnitToggle.onchange = async () => {
+    await saveSettingsAction(true);
+  };
+
+  autocheckToggle.onchange = async () => {
+    await saveSettingsAction(true);
+    if (currentSettings.auto_refresh_enabled) startAutoRefresh();
+    else stopAutoRefresh();
+  };
+
+  apiKeyInputSettings.onblur = async () => {
+    await saveSettingsAction(true);
+  };
+
+  // Action: Done
+  saveSettingsBtn.onclick = async () => {
+    if (currentSettings?.api_key) showState('balance');
+    else showState('noKey');
+  };
+
+  // Event Listeners - Navigation
+  settingsBtn.onclick = () => {
+    syncSettingsToUI();
+    showState('settings');
+  };
+  refreshBtn.onclick = loadBalance;
+  quitBtn.onclick = () => invoke('quit_app');
+
+  // Initial Key Input
+  saveKeyBtn.onclick = async () => {
+    const key = apiKeyInput.value.trim();
+    if (!key.startsWith('sk-')) {
+      showError('Invalid API Key');
       return;
     }
-    
-    showState('loading');
-    hideError();
-    saveKeyBtn.disabled = true;
-    
-    try {
-      console.log('Saving API key...');
-      await invoke('save_api_key', { key });
-      console.log('API key saved');
-      currentApiKey = key;
-      await loadBalance();
-    } catch (error) {
-      console.error('Failed to save:', error);
-      showState('noKey');
-      showError(error);
-    } finally {
-      saveKeyBtn.disabled = false;
-    }
-  }
+    // Set to settings input so saveSettingsAction can read it
+    apiKeyInputSettings.value = key;
+    await saveSettingsAction(false); // Do not silent save here, we want to load balance
+  };
 
-  // Show settings
-  function showSettings() {
-    apiKeyInput.value = currentApiKey || '';
-    showState('noKey');
-    stopAutoRefresh();
-  }
-
-  // Quit
-  async function quitApp() {
-    await invoke('quit_app');
-  }
-
-  // Load and display app version
-  async function loadVersion() {
+  // Init
+  async function init() {
     try {
       const version = await invoke('get_app_version');
       appVersion.textContent = `v${version}`;
-    } catch (error) {
-      console.error('Failed to get version:', error);
-      appVersion.textContent = '';
-    }
-  }
-
-  // Initialize
-  async function init() {
-    console.log('Initializing app...');
-    showState('loading');
-    
-    // Load version first
-    await loadVersion();
-    
-    try {
-      const savedKey = await invoke('read_api_key');
-      console.log('Saved key found?', !!savedKey);
       
-      if (savedKey) {
-        currentApiKey = savedKey;
+      currentSettings = await invoke('read_settings');
+      if (currentSettings.api_key) {
         await loadBalance();
       } else {
         showState('noKey');
@@ -270,58 +302,9 @@ window.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
       console.error('Init error:', error);
       showState('noKey');
-      showError(`Failed to initialize: ${error}`);
     }
   }
 
-  // Event listeners
-  saveKeyBtn.addEventListener('click', saveAndLoad);
-  refreshBtn.addEventListener('click', () => {
-    refreshBtn.disabled = true;
-    loadBalance().finally(() => {
-      refreshBtn.disabled = false;
-    });
-  });
-  settingsBtn.addEventListener('click', showSettings);
-  quitBtn.addEventListener('click', quitApp);
-
-  apiKeyInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      saveAndLoad();
-    }
-  });
-
-  apiKeyInput.addEventListener('input', () => {
-    apiKeyInput.classList.remove('error');
-    hideError();
-  });
-
-  // Auto-check toggle handler
-  autocheckToggle.addEventListener('change', () => {
-    if (autocheckToggle.checked) {
-      console.log('Auto-refresh enabled');
-      startAutoRefresh();
-    } else {
-      console.log('Auto-refresh disabled');
-      stopAutoRefresh();
-    }
-  });
-
-  // Listen for refresh-balance event from Rust
-  window.__TAURI__.event.listen('refresh-balance', () => {
-    loadBalance();
-  });
-
-// Global error handler
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('Unhandled rejection:', event.reason);
-  showError('An unexpected error occurred. Please try again.');
-  event.preventDefault();
+  window.__TAURI__.event.listen('refresh-balance', loadBalance);
+  init();
 });
-
-// Start the app
-console.log('Starting init...');
-init();
-});
-
-console.log('app.js setup complete');

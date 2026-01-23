@@ -8,6 +8,82 @@ use std::time::Duration;
 use std::os::unix::fs::PermissionsExt; // macOS is Unix
 
 use serde::{Deserialize, Serialize};
+
+// ============================================================================
+// SETTINGS CONFIGURATION
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AppSettings {
+    pub api_key: Option<String>,
+    pub refresh_interval_minutes: u32,
+    pub show_percentage: bool,        // true = %, false = $
+    pub show_remaining: bool,         // true = remaining, false = usage (for absolute $)
+    pub show_unit: bool,              // true = display % or $, false = hide unit
+    pub auto_refresh_enabled: bool,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            api_key: None,
+            refresh_interval_minutes: 5,
+            show_percentage: true,
+            show_remaining: true,
+            show_unit: true,
+            auto_refresh_enabled: true,
+        }
+    }
+}
+
+/// Get the settings file path: ~/.config/bpesc-balance/settings.json
+fn get_settings_file_path() -> Result<PathBuf, String> {
+    let config_dir = get_config_dir()?;
+    Ok(config_dir.join("settings.json"))
+}
+
+#[tauri::command]
+fn read_settings() -> Result<AppSettings, String> {
+    let path = get_settings_file_path()?;
+    if !path.exists() {
+        // Migration: try to read old .env file if it exists
+        let mut settings = AppSettings::default();
+        if let Ok(Some(key)) = read_api_key() {
+            settings.api_key = Some(key);
+            let _ = save_settings(settings.clone()); // Save migrated settings
+        }
+        return Ok(settings);
+    }
+    
+    let contents = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read settings: {}", e))?;
+    
+    serde_json::from_str(&contents)
+        .map_err(|e| format!("Failed to parse settings: {}", e))
+}
+
+#[tauri::command]
+fn save_settings(settings: AppSettings) -> Result<(), String> {
+    let config_dir = get_config_dir()?;
+    if !config_dir.exists() {
+        fs::create_dir_all(&config_dir)
+            .map_err(|e| format!("Failed to create config directory: {}", e))?;
+    }
+    
+    let path = get_settings_file_path()?;
+    let contents = serde_json::to_string_pretty(&settings)
+        .map_err(|e| format!("Failed to serialize settings: {}", e))?;
+    
+    fs::write(&path, contents)
+        .map_err(|e| format!("Failed to write settings: {}", e))?;
+    
+    // Set file permissions to 600 (rw-------)
+    let perms = fs::Permissions::from_mode(0o600);
+    fs::set_permissions(&path, perms)
+        .map_err(|e| format!("Failed to set settings permissions: {}", e))?;
+    
+    Ok(())
+}
 use tauri::{
     Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter,
     menu::{Menu, MenuItemBuilder},
@@ -23,6 +99,15 @@ use ab_glyph::{FontVec, PxScale};
 // ============================================================================
 // Adjust these constants to fine-tune the percentage text appearance in the menubar icon
 
+/// Logical size of the menubar icon in points (macOS standard is ~22)
+const MENUBAR_LOGICAL_SIZE: u32 = 28;
+
+/// Scaling factor for Retina displays (2.0 for @2x)
+const MENUBAR_RENDER_SCALE: f32 = 2.0;
+
+/// Padding around the logo within the icon canvas (physical pixels)
+const MENUBAR_LOGO_PADDING: i32 = 0;
+
 // --- VALUE CONFIGURATION (the number, e.g., "75") ---
 
 /// Font for the percentage value (the number)
@@ -30,7 +115,7 @@ use ab_glyph::{FontVec, PxScale};
 const MENUBAR_VALUE_FONT: &str = "Klavika-Medium";
 
 /// Font size for the value in pixels (try 10-14)
-const MENUBAR_VALUE_SIZE: f32 = 13.0;
+const MENUBAR_VALUE_SIZE: f32 = 12.0;
 
 /// Horizontal offset for value from center (-10 to +10)
 const MENUBAR_VALUE_OFFSET_X: i32 = 0;
@@ -284,12 +369,6 @@ fn quit_app(app_handle: tauri::AppHandle) {
     app_handle.exit(0);
 }
 
-/// Update menubar icon with balance percentage
-#[tauri::command]
-fn update_menubar_percentage(app_handle: tauri::AppHandle, percentage: f64) -> Result<(), String> {
-    update_tray_icon(&app_handle, percentage)
-}
-
 /// Try to load a font from the filesystem
 fn try_load_font(font_name: &str) -> Option<(FontVec, String)> {
     // Determine if font name already includes weight (e.g., "Klavika-Bold")
@@ -369,41 +448,97 @@ fn calculate_text_width(text: &str, font: &FontVec, scale: PxScale) -> i32 {
     width as i32
 }
 
-/// Generate menubar icon with optional percentage overlay (transparent cutout for macOS template)
-fn generate_icon_with_percentage(percentage: f64) -> Result<Image<'static>, String> {
-    // For macOS Retina displays, we want the icon to be high-resolution.
-    // Standard menubar height is ~22 points (logical pixels).
-    // We provide a 44x44 physical pixel image (which is 22x22 logical points at @2x).
-    let size = 50;
+/// Update system tray icon with current balance percentage or absolute value
+#[tauri::command]
+fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, settings: AppSettings) -> Result<(), String> {
+    let display_value = if settings.show_percentage {
+        // Percentage logic
+        if let Some(limit) = balance.limit {
+            if limit > 0.0 {
+                (balance.remaining.unwrap_or(0.0) / limit) * 100.0
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        }
+    } else {
+        // Absolute $ logic
+        if settings.show_remaining {
+            balance.remaining.unwrap_or(0.0)
+        } else {
+            balance.usage.unwrap_or(0.0)
+        }
+    };
     
+    // floor to int as requested
+    let final_value = display_value.floor();
+    
+    let icon = generate_icon_with_percentage(final_value, settings.show_percentage, settings.show_unit)?;
+    if let Some(tray) = app_handle.tray_by_id("main-tray") {
+        tray.set_icon(Some(icon))
+            .map_err(|e| format!("Failed to update tray icon: {}", e))?;
+        
+        #[cfg(target_os = "macos")]
+        tray.set_icon_as_template(true)
+            .map_err(|e| format!("Failed to set icon as template: {}", e))?;
+    }
+    Ok(())
+}
+
+/// Generate menubar icon with optional overlay (transparent cutout for macOS template)
+fn generate_icon_with_percentage(value: f64, is_percentage: bool, show_unit: bool) -> Result<Image<'static>, String> {
+    // --- LOCAL CONFIGURATION ---
+    // Physical pixel calculations based on global logical constants
+    let physical_size = (MENUBAR_LOGICAL_SIZE as f32 * MENUBAR_RENDER_SCALE) as u32;
+    let logo_padding = (MENUBAR_LOGO_PADDING as f32 * MENUBAR_RENDER_SCALE) as i32;
+    let logo_target_size = (physical_size as i32 - (logo_padding * 2)).max(1) as u32;
+    
+    // Scale font sizes by the render scale
+    let value_font_size = MENUBAR_VALUE_SIZE * MENUBAR_RENDER_SCALE;
+    let unit_font_size = MENUBAR_UNIT_SIZE * MENUBAR_RENDER_SCALE;
+    
+    // Physical offsets for text
+    let val_off_x = (MENUBAR_VALUE_OFFSET_X as f32 * MENUBAR_RENDER_SCALE) as i32;
+    // Overwrite vertical offset to 0 if unit is hidden to center the number
+    let val_off_y_logical = if show_unit { MENUBAR_VALUE_OFFSET_Y } else { 0 };
+    let val_off_y = (val_off_y_logical as f32 * MENUBAR_RENDER_SCALE) as i32;
+    
+    let unt_off_x = (MENUBAR_UNIT_OFFSET_X as f32 * MENUBAR_RENDER_SCALE) as i32;
+    let unt_off_y = (MENUBAR_UNIT_OFFSET_Y as f32 * MENUBAR_RENDER_SCALE) as i32;
+    // ---------------------------
+
     // Create a base canvas (fully opaque black for the "template")
     let logo_data = include_bytes!("../icons/32x32.png");
     let logo_img = image::load_from_memory(logo_data)
         .map_err(|e| format!("Failed to load logo: {}", e))?
         .to_rgba8();
     
-    // Create final 44x44 canvas
-    let mut img = image::RgbaImage::from_pixel(size, size, Rgba([0u8, 0u8, 0u8, 0u8]));
+    // Create final canvas
+    let mut img = image::RgbaImage::from_pixel(physical_size, physical_size, Rgba([0u8, 0u8, 0u8, 0u8]));
     
-    // Scale logo to fill more space (e.g., 38x38)
-    let logo_upscaled = image::imageops::resize(&logo_img, 44, 44, image::imageops::FilterType::Lanczos3);
+    // Scale logo to the target size
+    let logo_scaled = image::imageops::resize(
+        &logo_img, 
+        logo_target_size, 
+        logo_target_size, 
+        image::imageops::FilterType::Lanczos3
+    );
     
-    // Center logo on the 44x44 canvas
-    image::imageops::overlay(&mut img, &logo_upscaled, 2, 2);
+    // Center logo on the canvas
+    let logo_x = (physical_size - logo_target_size) / 2;
+    let logo_y = (physical_size - logo_target_size) / 2;
+    image::imageops::overlay(&mut img, &logo_scaled, logo_x as i64, logo_y as i64);
     
-    // Adjust text sizing for the 44x44 coordinate space
-    let value_font_size = MENUBAR_VALUE_SIZE * 1.35;
-    let unit_font_size = MENUBAR_UNIT_SIZE * 1.35;
-    
-    // If percentage is 0.0 or less, we might just want the logo without text 
-    if percentage <= 0.0 {
+    // If value is 0.0 or less, we might just want the logo without text 
+    if value <= 0.0 {
         let rgba = img.into_raw();
-        return Ok(Image::new_owned(rgba, size, size));
+        return Ok(Image::new_owned(rgba, physical_size, physical_size));
     }
     
     // Separate value and unit
-    let value_text = format!("{}", percentage.round() as i32);
-    let unit_text = "%";
+    let value_text = format!("{}", value.round() as i32);
+    let unit_text = if is_percentage { "%" } else { "$" };
     
     // --- RENDER TEXT AS CUTOUT (Transparent) ---
     // We use alpha=0 to "cut through" the logo
@@ -412,30 +547,12 @@ fn generate_icon_with_percentage(percentage: f64) -> Result<Image<'static>, Stri
     if let Some((value_font, _)) = try_load_font(MENUBAR_VALUE_FONT) {
         let scale = PxScale::from(value_font_size);
         let text_width = calculate_text_width(&value_text, &value_font, scale);
-        let x = ((size as i32 - text_width) / 2) + MENUBAR_VALUE_OFFSET_X;
-        let y = ((size as i32 - value_font_size as i32) / 2) + MENUBAR_VALUE_OFFSET_Y;
         
-        // Use a blend-less draw or manual pixel manipulation to ensure transparency cuts through
-        // draw_text_mut with alpha 0 might not work as expected with default blending
-        // So we render the text to a separate buffer then subtract/clear those pixels
-        let mut text_mask = image::RgbaImage::new(size, size);
+        let x = ((physical_size as i32 - text_width) / 2) + val_off_x;
+        let y = ((physical_size as i32 - value_font_size as i32) / 2) + val_off_y;
+        
+        let mut text_mask = image::RgbaImage::new(physical_size, physical_size);
         draw_text_mut(&mut text_mask, Rgba([255, 255, 255, 255]), x, y, scale, &value_font, &value_text);
-        
-        for (x, y, pixel) in text_mask.enumerate_pixels() {
-            if pixel[3] > 128 { // If pixel is part of text
-                img.put_pixel(x, y, cutout_color);
-            }
-        }
-    }
-    
-    if let Some((unit_font, _)) = try_load_font(MENUBAR_UNIT_FONT) {
-        let scale = PxScale::from(unit_font_size);
-        let text_width = calculate_text_width(unit_text, &unit_font, scale);
-        let x = ((size as i32 - text_width) / 2) + MENUBAR_UNIT_OFFSET_X;
-        let y = ((size as i32 - unit_font_size as i32) / 2) + MENUBAR_UNIT_OFFSET_Y;
-        
-        let mut text_mask = image::RgbaImage::new(size, size);
-        draw_text_mut(&mut text_mask, Rgba([255, 255, 255, 255]), x, y, scale, &unit_font, unit_text);
         
         for (x, y, pixel) in text_mask.enumerate_pixels() {
             if pixel[3] > 128 {
@@ -444,24 +561,28 @@ fn generate_icon_with_percentage(percentage: f64) -> Result<Image<'static>, Stri
         }
     }
     
+    if show_unit {
+        if let Some((unit_font, _)) = try_load_font(MENUBAR_UNIT_FONT) {
+            let scale = PxScale::from(unit_font_size);
+            let text_width = calculate_text_width(unit_text, &unit_font, scale);
+            
+            let x = ((physical_size as i32 - text_width) / 2) + unt_off_x;
+            let y = ((physical_size as i32 - unit_font_size as i32) / 2) + unt_off_y;
+            
+            let mut text_mask = image::RgbaImage::new(physical_size, physical_size);
+            draw_text_mut(&mut text_mask, Rgba([255, 255, 255, 255]), x, y, scale, &unit_font, unit_text);
+            
+            for (x, y, pixel) in text_mask.enumerate_pixels() {
+                if pixel[3] > 128 {
+                    img.put_pixel(x, y, cutout_color);
+                }
+            }
+        }
+    }
+    
     // Convert to Image
     let rgba = img.into_raw();
-    Ok(Image::new_owned(rgba, size, size))
-}
-
-/// Update system tray icon with current balance percentage
-fn update_tray_icon(app_handle: &tauri::AppHandle, percentage: f64) -> Result<(), String> {
-    let icon = generate_icon_with_percentage(percentage)?;
-    if let Some(tray) = app_handle.tray_by_id("main-tray") {
-        tray.set_icon(Some(icon))
-            .map_err(|e| format!("Failed to update tray icon: {}", e))?;
-        
-        // Set as template icon for macOS (allows proper rendering with system theme)
-        #[cfg(target_os = "macos")]
-        tray.set_icon_as_template(true)
-            .map_err(|e| format!("Failed to set icon as template: {}", e))?;
-    }
-    Ok(())
+    Ok(Image::new_owned(rgba, physical_size, physical_size))
 }
 
 /// Position window centered on the current monitor
@@ -500,7 +621,7 @@ fn main() {
       let menu = Menu::with_items(app, &[&show_hide, &quit])?;
       
       // Create tray icon
-      let initial_icon = generate_icon_with_percentage(0.0).ok();
+      let initial_icon = generate_icon_with_percentage(0.0, true, true).ok();
       let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(initial_icon.unwrap_or_else(|| Image::from_bytes(include_bytes!("../icons/32x32.png")).unwrap()))
         .menu(&menu)
@@ -567,9 +688,11 @@ fn main() {
     .invoke_handler(tauri::generate_handler![
         read_api_key, 
         save_api_key,
+        read_settings,
+        save_settings,
         fetch_balance,
         get_app_version,
-        update_menubar_percentage,
+        update_menubar_display,
         quit_app
     ])
     .run(tauri::generate_context!())
