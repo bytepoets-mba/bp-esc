@@ -8,15 +8,15 @@
     "beforeDevCommand": "",
     "frontendDist": "../dist"
   },
-  "app": {
+    "app": {
     "macOSPrivateApi": true,
     "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
         "title": "BYTEPOETS - ESC",
-        "width": 400,
-        "height": 500,
+        "width": 600,
+        "height": 600,
         "resizable": false,
         "fullscreen": false,
         "visible": false,
@@ -25,13 +25,7 @@
         "alwaysOnTop": false,
         "skipTaskbar": false
       }
-    ],
-    "trayIcon": {
-      "id": "main-tray",
-      "iconPath": "icons/32x32.png",
-      "iconAsTemplate": true,
-      "showMenuOnLeftClick": false
-    }
+    ]
   },
   "bundle": {
     "active": true,

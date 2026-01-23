@@ -369,56 +369,84 @@ fn calculate_text_width(text: &str, font: &FontVec, scale: PxScale) -> i32 {
     width as i32
 }
 
-/// Generate menubar icon with percentage overlay (transparent cutout for macOS template)
+/// Generate menubar icon with optional percentage overlay (transparent cutout for macOS template)
 fn generate_icon_with_percentage(percentage: f64) -> Result<Image<'static>, String> {
-    // Create a transparent 34x34 canvas (increased from 32x32)
-    let mut img = image::RgbaImage::from_pixel(34, 34, Rgba([0u8, 0u8, 0u8, 0u8]));
+    // For macOS Retina displays, we want the icon to be high-resolution.
+    // Standard menubar height is ~22 points (logical pixels).
+    // We provide a 44x44 physical pixel image (which is 22x22 logical points at @2x).
+    let size = 44;
+    
+    // Create a base canvas (fully opaque black for the "template")
+    let logo_data = include_bytes!("../icons/32x32.png");
+    let logo_img = image::load_from_memory(logo_data)
+        .map_err(|e| format!("Failed to load logo: {}", e))?
+        .to_rgba8();
+    
+    // Create final 44x44 canvas
+    let mut img = image::RgbaImage::from_pixel(size, size, Rgba([0u8, 0u8, 0u8, 0u8]));
+    
+    // Scale logo to fill more space (e.g., 38x38)
+    let logo_upscaled = image::imageops::resize(&logo_img, 44, 44, image::imageops::FilterType::Lanczos3);
+    
+    // Center logo on the 44x44 canvas
+    image::imageops::overlay(&mut img, &logo_upscaled, 2, 2);
+    
+    // Adjust text sizing for the 44x44 coordinate space
+    let value_font_size = MENUBAR_VALUE_SIZE * 1.35;
+    let unit_font_size = MENUBAR_UNIT_SIZE * 1.35;
+    
+    // If percentage is 0.0 or less, we might just want the logo without text 
+    if percentage <= 0.0 {
+        let rgba = img.into_raw();
+        return Ok(Image::new_owned(rgba, size, size));
+    }
     
     // Separate value and unit
     let value_text = format!("{}", percentage.round() as i32);
     let unit_text = "%";
     
-    // --- RENDER VALUE (the number) ---
-    if let Some((value_font, font_path)) = try_load_font(MENUBAR_VALUE_FONT) {
-        eprintln!("✓ Loaded value font: {}", font_path);
-        
-        let scale = PxScale::from(MENUBAR_VALUE_SIZE);
-        
-        // Calculate precise centering (adjusted for 34x34 canvas)
+    // --- RENDER TEXT AS CUTOUT (Transparent) ---
+    // We use alpha=0 to "cut through" the logo
+    let cutout_color = Rgba([0u8, 0u8, 0u8, 0u8]);
+    
+    if let Some((value_font, _)) = try_load_font(MENUBAR_VALUE_FONT) {
+        let scale = PxScale::from(value_font_size);
         let text_width = calculate_text_width(&value_text, &value_font, scale);
+        let x = ((size as i32 - text_width) / 2) + MENUBAR_VALUE_OFFSET_X;
+        let y = ((size as i32 - value_font_size as i32) / 2) + MENUBAR_VALUE_OFFSET_Y;
         
-        // Center position with configurable offsets
-        let x = ((34 - text_width) / 2) + MENUBAR_VALUE_OFFSET_X;
-        let y = ((34 - MENUBAR_VALUE_SIZE as i32) / 2) + MENUBAR_VALUE_OFFSET_Y;
+        // Use a blend-less draw or manual pixel manipulation to ensure transparency cuts through
+        // draw_text_mut with alpha 0 might not work as expected with default blending
+        // So we render the text to a separate buffer then subtract/clear those pixels
+        let mut text_mask = image::RgbaImage::new(size, size);
+        draw_text_mut(&mut text_mask, Rgba([255, 255, 255, 255]), x, y, scale, &value_font, &value_text);
         
-        // Draw text as OPAQUE BLACK (alpha = 255) for visibility
-        draw_text_mut(&mut img, Rgba([0u8, 0u8, 0u8, 255u8]), x, y, scale, &value_font, &value_text);
-    } else {
-        eprintln!("✗ Warning: Could not load value font '{}'", MENUBAR_VALUE_FONT);
+        for (x, y, pixel) in text_mask.enumerate_pixels() {
+            if pixel[3] > 128 { // If pixel is part of text
+                img.put_pixel(x, y, cutout_color);
+            }
+        }
     }
     
-    // --- RENDER UNIT (the "%" symbol) ---
-    if let Some((unit_font, font_path)) = try_load_font(MENUBAR_UNIT_FONT) {
-        eprintln!("✓ Loaded unit font: {}", font_path);
-        
-        let scale = PxScale::from(MENUBAR_UNIT_SIZE);
-        
-        // Calculate precise centering (adjusted for 34x34 canvas)
+    if let Some((unit_font, _)) = try_load_font(MENUBAR_UNIT_FONT) {
+        let scale = PxScale::from(unit_font_size);
         let text_width = calculate_text_width(unit_text, &unit_font, scale);
+        let x = ((size as i32 - text_width) / 2) + MENUBAR_UNIT_OFFSET_X;
+        let y = ((size as i32 - unit_font_size as i32) / 2) + MENUBAR_UNIT_OFFSET_Y;
         
-        // Center position with configurable offsets
-        let x = ((34 - text_width) / 2) + MENUBAR_UNIT_OFFSET_X;
-        let y = ((34 - MENUBAR_UNIT_SIZE as i32) / 2) + MENUBAR_UNIT_OFFSET_Y;
+        let mut text_mask = image::RgbaImage::new(size, size);
+        draw_text_mut(&mut text_mask, Rgba([255, 255, 255, 255]), x, y, scale, &unit_font, unit_text);
         
-        // Draw text as OPAQUE BLACK
-        draw_text_mut(&mut img, Rgba([0u8, 0u8, 0u8, 255u8]), x, y, scale, &unit_font, unit_text);
-    } else {
-        eprintln!("✗ Warning: Could not load unit font '{}'", MENUBAR_UNIT_FONT);
+        for (x, y, pixel) in text_mask.enumerate_pixels() {
+            if pixel[3] > 128 {
+                img.put_pixel(x, y, cutout_color);
+            }
+        }
     }
     
-    // Convert to Image with explicit dimensions
+    // Convert to Image
     let rgba = img.into_raw();
-    Ok(Image::new_owned(rgba, 34, 34))
+    Ok(Image::new_owned(rgba, size, size))
 }
 
 /// Update system tray icon with current balance percentage
@@ -472,7 +500,9 @@ fn main() {
       let menu = Menu::with_items(app, &[&show_hide, &quit])?;
       
       // Create tray icon
+      let initial_icon = generate_icon_with_percentage(0.0).ok();
       let _tray = TrayIconBuilder::with_id("main-tray")
+        .icon(initial_icon.unwrap_or_else(|| Image::from_bytes(include_bytes!("../icons/32x32.png")).unwrap()))
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| {
