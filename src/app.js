@@ -16,9 +16,9 @@ window.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  // Tauri v1 APIs - invoke is under __TAURI__.tauri.invoke
-  const invoke = window.__TAURI__.tauri?.invoke || window.__TAURI__.invoke;
-  const exit = window.__TAURI__.process?.exit || (() => window.close());
+  // Tauri v2 APIs - invoke is under __TAURI__.core.invoke
+  const invoke = window.__TAURI__.core?.invoke || window.__TAURI__.invoke;
+  const exit = () => window.close();
   
   if (!invoke) {
     console.error('invoke not found in:', window.__TAURI__);
@@ -308,10 +308,10 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-// Listen for refresh-balance event from Rust
-window.__TAURI__.event.listen('refresh-balance', () => {
-  loadBalance();
-});
+  // Listen for refresh-balance event from Rust
+  window.__TAURI__.event.listen('refresh-balance', () => {
+    loadBalance();
+  });
 
 // Global error handler
 window.addEventListener('unhandledrejection', (event) => {

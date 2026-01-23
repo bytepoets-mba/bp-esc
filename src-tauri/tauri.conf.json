@@ -8,6 +8,30 @@
     "beforeDevCommand": "",
     "frontendDist": "../dist"
   },
+  "app": {
+    "macOSPrivateApi": true,
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "BYTEPOETS - ESC",
+        "width": 400,
+        "height": 500,
+        "resizable": true,
+        "fullscreen": false,
+        "visible": false,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": false
+      }
+    ],
+    "trayIcon": {
+      "id": "main-tray",
+      "iconPath": "icons/32x32.png",
+      "iconAsTemplate": true,
+      "menuOnLeftClick": false
+    }
+  },
   "bundle": {
     "active": true,
     "category": "DeveloperTool",
@@ -34,17 +58,6 @@
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
       "timestampUrl": ""
-    }
-  },
-  "plugins": {
-    "macos-private-api": {
-      "enabled": true
-    },
-    "system-tray": {
-      "enabled": true,
-      "iconPath": "icons/32x32.png",
-      "iconAsTemplate": true,
-      "menuOnLeftClick": false
     }
   }
 }
