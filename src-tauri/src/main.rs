@@ -374,7 +374,7 @@ fn generate_icon_with_percentage(percentage: f64) -> Result<Image<'static>, Stri
     // For macOS Retina displays, we want the icon to be high-resolution.
     // Standard menubar height is ~22 points (logical pixels).
     // We provide a 44x44 physical pixel image (which is 22x22 logical points at @2x).
-    let size = 44;
+    let size = 50;
     
     // Create a base canvas (fully opaque black for the "template")
     let logo_data = include_bytes!("../icons/32x32.png");
