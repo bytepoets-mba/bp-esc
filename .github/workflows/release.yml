@@ -23,6 +23,13 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          # Use the same cache for all release tags to maximize hits
+          shared-key: "release-build"
+          workspaces: "src-tauri -> target"
+
       - name: Install dependencies
         run: npm ci
 
