@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          # cache: 'npm' # Removed temporarily as it causes issues if lockfile isn't synced correctly
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
