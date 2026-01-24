@@ -788,18 +788,6 @@ fn toggle_window(app: &AppHandle) {
     }
 }
 
-/// Handle window visibility based on API key validation and settings
-fn handle_window_visibility(window: &tauri::WebviewWindow, show_window: bool) {
-    if show_window {
-        let _ = position_window_below_menubar(window);
-        let _ = window.show();
-        let _ = window.set_focus();
-        let _ = window.emit("show-main-window", ());
-    } else {
-        let _ = window.hide();
-    }
-}
-
 fn update_app_shortcut(app: &AppHandle, shortcut_str: &str, enabled: bool) -> Result<(), String> {
     let shortcut_ext = app.global_shortcut();
     

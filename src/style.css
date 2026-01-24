@@ -12,7 +12,7 @@
 html {
   background: transparent !important;
   overflow: hidden;
-  height: fit-content;
+  height: auto !important;
 }
 
 body {
@@ -21,9 +21,7 @@ body {
   padding: 0;
   margin: 0;
   overflow: hidden;
-  height: fit-content;
-  /* Body will be sized by JS, default to safe minimum */
-  min-height: 400px;
+  height: auto !important;
 }
 
 .container {
@@ -37,9 +35,6 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-app-region: drag;
   backdrop-filter: blur(10px);
-  /* Ensure container doesn't collapse */
-  min-height: 200px;
-  overflow: visible;
 }
 
 .header {

@@ -80,193 +80,72 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-// --- ULTIMATE AUTO-RESIZE SOLUTION ---
+// --- PROFESSIONAL SCROLL-HEIGHT AUTO-RESIZE LOGIC ---
 let resizeTimeout = null;
 let lastMeasuredHeight = 0;
-let resizeAttempts = 0;
-const MAX_RESIZE_ATTEMPTS = 3;
 
 async function performResize() {
   try {
-    console.log('🔄 Starting ultimate resize calculation...');
-    
     const { getCurrentWindow, LogicalSize } = window.__TAURI__.window;
     const appWindow = getCurrentWindow();
     
-    // Use triple requestAnimationFrame for maximum stability
+    // Ensure CSS layout is stable
     await new Promise(resolve => {
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(resolve);
-        });
+        requestAnimationFrame(resolve);
       });
     });
     
-    // Measure the actual content container with comprehensive approach
     const container = document.querySelector('.container');
-    if (!container) {
-      console.warn('⚠️ Container not found');
-      return;
-    }
+    if (!container) return;
     
-    // Calculate total height including all potential overflow areas
-    const containerRect = container.getBoundingClientRect();
-    const containerHeight = Math.ceil(containerRect.height);
-    console.log(`📏 Container height: ${containerHeight}px`);
+    const rect = container.getBoundingClientRect();
+    const ch = Math.ceil(rect.height);
+    const wh = window.innerHeight;
+    const sh = document.documentElement.scrollHeight;
     
-    // Measure footer separately to ensure it's never cut off
-    const footer = document.querySelector('.footer');
-    const footerHeight = footer ? Math.ceil(footer.getBoundingClientRect().height) : 0;
-    console.log(`👣 Footer height: ${footerHeight}px`);
+    // Update debug labels
+    const shLabel = document.getElementById('shValue');
+    const chLabel = document.getElementById('chValue');
+    const whLabel = document.getElementById('whValue');
+    if (shLabel) shLabel.textContent = sh;
+    if (chLabel) chLabel.textContent = ch;
+    if (whLabel) whLabel.textContent = wh;
     
-    // Measure any visible error messages
-    const errorDisplay = document.getElementById('errorDisplay');
-    const errorHeight = errorDisplay && !errorDisplay.classList.contains('hidden') 
-      ? Math.ceil(errorDisplay.getBoundingClientRect().height) 
-      : 0;
-    console.log(`⚠️ Error height: ${errorHeight}px`);
+    // Use container height exactly.
+    const finalHeight = ch;
     
-    // Calculate total required height - footer is INSIDE container, don't double count!
-    const contentHeight = containerHeight + errorHeight;
-    console.log(`📊 Total content height: ${contentHeight}px (container includes footer)`);
-    
-    // PRECISE PADDING STRATEGY for Tauri v2.5 + macOS:
-    // - 15px base padding (minimal safety)
-    // - 5px footer safety (just in case)
-    const basePadding = 15;
-    const footerSafety = 5;
-    const paddingStrategy = basePadding + footerSafety;
-    console.log(`🛡️  Precise padding: ${paddingStrategy}px (base: ${basePadding}, footer: ${footerSafety})`);
-    
-    const finalHeight = contentHeight + paddingStrategy;
-    console.log(`🎯 Final calculated height: ${finalHeight}px`);
-    
-    // Tauri v2.5 approach - skip getting current size (not needed for our use case)
-    // We'll just set the size directly based on our calculations
-    console.log(`📊 Calculated final height: ${finalHeight}px`);
-    
-    // Always apply CSS fallback first for Tauri v2.5
-    applyCssFallback(finalHeight);
-    
-    // Only attempt Tauri resize if height changed significantly or is new max
-    if (Math.abs(lastMeasuredHeight - finalHeight) > 1 || finalHeight > lastMeasuredHeight) {
-      console.log('🔄 Attempting Tauri window resize...');
+    if (Math.abs(lastMeasuredHeight - finalHeight) > 1) {
+      console.log(`📏 Resizing to: ${finalHeight}px`);
       
       try {
-        // Tauri v2.5 API - set size directly
-        // Note: In Tauri v2.5, we need to use PhysicalSize for setSize
-        const { PhysicalSize } = window.__TAURI__.window;
-        await appWindow.setSize(new PhysicalSize(800, finalHeight));
-        console.log('✅ Tauri window resize successful');
+        await appWindow.setSize(new LogicalSize(800, finalHeight));
         lastMeasuredHeight = finalHeight;
-        resizeAttempts = 0;
       } catch (tauriError) {
-        console.error('💥 Tauri resize failed (expected in v2.5):', tauriError.message);
-        // This is expected in Tauri v2.5 without permissions, CSS fallback already applied
-        lastMeasuredHeight = finalHeight;
+        console.error('Resize failed', tauriError);
       }
-    } else {
-      console.log('⏭️ Skipping Tauri resize - height change too small');
     }
   } catch (e) {
-    console.error('💥 Ultimate resize failed:', e);
+    console.error('Resize failed:', e);
   }
 }
 
-function applyCssFallback(height) {
-  try {
-    console.log('🎨 Applying PRECISE CSS SOLUTION for height:', height);
-    
-    // PRECISE CSS SOLUTION - Exact height with minimal safe buffer
-    // Add just enough padding for footer visibility (20px is sufficient)
-    const preciseHeight = height + 20;
-    
-    // Clear any previous aggressive styles
-    document.documentElement.style.minHeight = '';
-    document.documentElement.style.height = '';
-    
-    // Set body to precise calculated height
-    document.body.style.minHeight = `${preciseHeight}px`;
-    document.body.style.height = 'auto';
-    document.body.style.paddingBottom = '0';
-    
-    // Reset container to natural sizing
-    const container = document.querySelector('.container');
-    if (container) {
-      container.style.minHeight = 'auto';
-      container.style.maxHeight = 'none';
-      container.style.overflow = 'visible';
-      container.style.position = 'relative';
-      container.style.paddingBottom = '0';
-      container.style.marginBottom = '0';
-    }
-    
-    // Reset footer to natural positioning
-    const footer = document.querySelector('.footer');
-    if (footer) {
-      footer.style.position = 'relative';
-      footer.style.marginBottom = '0';
-      footer.style.paddingBottom = '1rem'; // Keep original padding
-      footer.style.marginTop = ''; // Use CSS default
-    }
-    
-    // Settings-specific: just a bit more padding
-    if (isSettingsVisible()) {
-      console.log('🔧 Settings screen - adding minimal safety padding');
-      document.body.style.paddingBottom = '10px';
-    }
-    
-    console.log('✅ PRECISE CSS SOLUTION applied:', preciseHeight, 'px');
-    
-  } catch (cssError) {
-    console.error('💥 PRECISE CSS SOLUTION failed:', cssError);
-  }
-}
-
-// Enhanced ResizeObserver with mutation observation
-const resizeObserver = new ResizeObserver((entries) => {
-  console.log('👀 ResizeObserver triggered with', entries.length, 'entries');
-  
-  // Debounce rapid resize events with adaptive timing
+// Clean observer setup
+const resizeObserver = new ResizeObserver(() => {
   if (resizeTimeout) clearTimeout(resizeTimeout);
-  
-  // Adaptive debounce: shorter delay for rapid changes, longer for stabilization
-  const isRapidChange = entries.some(entry => 
-    Math.abs(entry.contentRect.height - (entry.target.dataset.lastHeight || 0)) > 20
-  );
-  
-  console.log(`⏱️  Scheduling resize (${isRapidChange ? 'rapid' : 'normal'} mode) in ${isRapidChange ? '30' : '80'}ms`);
-  resizeTimeout = setTimeout(performResize, isRapidChange ? 30 : 80);
-  
-  // Store last height for change detection
-  entries.forEach(entry => {
-    entry.target.dataset.lastHeight = entry.contentRect.height;
-  });
+  resizeTimeout = setTimeout(performResize, 50);
 });
 
-// Observe both body and container for maximum reliability
-console.log('👁️  Setting up ResizeObserver on document.body');
 resizeObserver.observe(document.body);
-const container = document.querySelector('.container');
-if (container) {
-  console.log('👁️  Setting up ResizeObserver on .container');
-  resizeObserver.observe(container);
-} else {
-  console.warn('❌ Container not found for ResizeObserver');
-}
 
-// Also trigger on state changes, initial load, and after animations
-console.log('📡 Setting up event listeners');
-window.addEventListener('load', () => {
-  console.log('🌅 Window loaded - triggering initial resize');
-  performResize();
-});
+// Trigger on all relevant events
+window.addEventListener('load', performResize);
 window.addEventListener('transitionend', (e) => {
   if (e.target.closest('.state') || e.target.closest('.container')) {
-    console.log('🎭 Transition ended - triggering resize');
     performResize();
   }
 });
+// ---------------------------------------------------
 // ---------------------------------------------------
 
   // Confirm dialog helper
@@ -541,6 +420,16 @@ window.addEventListener('transitionend', (e) => {
   refreshBtn.onclick = loadBalance;
   quitBtn.onclick = () => invoke('quit_app');
   hideBtn.onclick = () => invoke('toggle_window_visibility');
+
+  // Toggle debug info on logo double click
+  const bpLogo = document.getElementById('bpLogo');
+  const checkLabel = document.getElementById('checkLabel');
+  if (bpLogo && checkLabel) {
+    bpLogo.ondblclick = () => {
+      const isHidden = checkLabel.style.display === 'none';
+      checkLabel.style.display = isHidden ? 'block' : 'none';
+    };
+  }
 
   // Setup event listener for window visibility control
   async function setupWindowVisibilityListener() {
