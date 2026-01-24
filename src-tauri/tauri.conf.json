@@ -18,15 +18,12 @@
       {
         "label": "main",
         "title": "BYTEPOETS - ESC",
-        "width": 800,
-        "height": 800,
-        "resizable": true,
+        "resizable": false,
         "fullscreen": false,
-        "visible": false,
+        "visible": true,
         "decorations": false,
         "transparent": true,
-        "alwaysOnTop": false,
-        "skipTaskbar": false
+        "alwaysOnTop": true
       }
     ]
   },
