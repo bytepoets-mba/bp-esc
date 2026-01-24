@@ -344,6 +344,17 @@ async fn fetch_balance(api_key: String) -> Result<BalanceData, String> {
     })
 }
 
+/// Reset settings by deleting the config directory
+#[tauri::command]
+fn reset_settings() -> Result<(), String> {
+    let config_dir = get_config_dir()?;
+    if config_dir.exists() {
+        fs::remove_dir_all(&config_dir)
+            .map_err(|e| format!("Failed to delete config directory: {}", e))?;
+    }
+    Ok(())
+}
+
 /// Get app version from Cargo.toml
 #[tauri::command]
 fn get_app_version() -> String {
@@ -792,6 +803,7 @@ fn main() {
         save_api_key,
         read_settings,
         save_settings,
+        reset_settings,
         fetch_balance,
         get_app_version,
         update_menubar_display,

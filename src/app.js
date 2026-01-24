@@ -14,7 +14,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // DOM elements - States
   const loadingState = document.getElementById('loadingState');
-  const noKeyState = document.getElementById('noKeyState');
   const balanceState = document.getElementById('balanceState');
   const settingsState = document.getElementById('settingsState');
   
@@ -27,9 +26,6 @@ window.addEventListener('DOMContentLoaded', () => {
   const appVersion = document.getElementById('appVersion');
 
   // DOM elements - Settings
-  const apiKeyInput = document.getElementById('apiKeyInput'); // initial key input
-  const saveKeyBtn = document.getElementById('saveKeyBtn');   // initial save btn
-  
   const apiKeyInputSettings = document.getElementById('apiKeyInputSettings');
   const refreshValue = document.getElementById('refreshValue');
   const refreshMinus = document.getElementById('refreshMinus');
@@ -42,6 +38,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const showUnitToggle = document.getElementById('showUnitToggle');
   const autocheckToggle = document.getElementById('autocheckToggle');
   const saveSettingsBtn = document.getElementById('saveSettingsBtn'); // Now "Done"
+  const resetSettingsBtn = document.getElementById('resetSettingsBtn');
 
   // DOM elements - Actions
   const refreshBtn = document.getElementById('refreshBtn');
@@ -50,12 +47,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // State management
   function showState(state) {
-    [loadingState, noKeyState, balanceState, settingsState].forEach(s => s.classList.add('hidden'));
+    [loadingState, balanceState, settingsState].forEach(s => s.classList.add('hidden'));
     
     if (state === 'loading') loadingState.classList.remove('hidden');
-    else if (state === 'noKey') noKeyState.classList.remove('hidden');
     else if (state === 'balance') balanceState.classList.remove('hidden');
-    else if (state === 'settings') settingsState.classList.remove('hidden');
+    else if (state === 'settings') {
+      settingsState.classList.remove('hidden');
+      // Auto-focus API key if it's empty
+      if (!apiKeyInputSettings.value) apiKeyInputSettings.focus();
+    }
   }
 
   function showError(message) {
@@ -133,7 +133,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Load balance
   async function loadBalance() {
     if (!currentSettings?.api_key) {
-      showState('noKey');
+      showState('settings');
       return;
     }
     
@@ -262,8 +262,32 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Action: Done
   saveSettingsBtn.onclick = async () => {
-    if (currentSettings?.api_key) showState('balance');
-    else showState('noKey');
+    if (currentSettings?.api_key) {
+      await loadBalance(); // Load balance when closing settings
+    } else {
+      showError('Please enter an API key first');
+      apiKeyInputSettings.focus();
+    }
+  };
+
+  // Action: Reset
+  resetSettingsBtn.onclick = async () => {
+    const confirmed = confirm('Clear all application data and start over? This cannot be undone.');
+    if (!confirmed) return;
+
+    try {
+      await invoke('reset_settings');
+      // Clear local state
+      currentSettings = null;
+      currentBalance = null;
+      apiKeyInputSettings.value = '';
+      stopAutoRefresh();
+      
+      // Force re-init to default state
+      await init();
+    } catch (error) {
+      showError('Failed to reset settings: ' + error);
+    }
   };
 
   // Event Listeners - Navigation
@@ -273,18 +297,6 @@ window.addEventListener('DOMContentLoaded', () => {
   };
   refreshBtn.onclick = loadBalance;
   quitBtn.onclick = () => invoke('quit_app');
-
-  // Initial Key Input
-  saveKeyBtn.onclick = async () => {
-    const key = apiKeyInput.value.trim();
-    if (!key.startsWith('sk-')) {
-      showError('Invalid API Key');
-      return;
-    }
-    // Set to settings input so saveSettingsAction can read it
-    apiKeyInputSettings.value = key;
-    await saveSettingsAction(false); // Do not silent save here, we want to load balance
-  };
 
   // Init
   async function init() {
@@ -296,11 +308,12 @@ window.addEventListener('DOMContentLoaded', () => {
       if (currentSettings.api_key) {
         await loadBalance();
       } else {
-        showState('noKey');
+        syncSettingsToUI(); // Sync defaults if no key
+        showState('settings');
       }
     } catch (error) {
       console.error('Init error:', error);
-      showState('noKey');
+      showState('settings');
     }
   }
 

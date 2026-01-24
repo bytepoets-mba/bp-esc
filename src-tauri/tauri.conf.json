@@ -15,8 +15,8 @@
       {
         "label": "main",
         "title": "BYTEPOETS - ESC",
-        "width": 600,
-        "height": 800,
+        "width": 800,
+        "height": 600,
         "resizable": false,
         "fullscreen": false,
         "visible": false,

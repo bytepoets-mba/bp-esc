@@ -19,20 +19,8 @@
       <p>Loading...</p>
     </div>
 
-    <!-- No API Key State -->
-    <div id="noKeyState" class="state hidden">
-      <div class="input-section">
-        <label for="apiKeyInput">Enter your OpenRouter API Key:</label>
-        <input 
-          type="password" 
-          id="apiKeyInput" 
-          placeholder="sk-or-v1-..."
-          autocomplete="off"
-        >
-        <button id="saveKeyBtn" class="btn-primary">Save & Check Balance</button>
-        <p class="help-text">Your API key is stored locally in ~/.config/bpesc-balance/.env</p>
-      </div>
-    </div>
+    <!-- No API Key State (REMOVED: Now handled by Settings) -->
+    <!-- <div id="noKeyState" class="state hidden">...</div> -->
 
     <!-- Balance Display State -->
     <div id="balanceState" class="state hidden">
@@ -65,61 +53,70 @@
       <div class="settings-section">
         <h3>Settings</h3>
         
-        <div class="setting-item">
-          <label for="apiKeyInputSettings">OpenRouter API Key:</label>
-          <input 
-            type="password" 
-            id="apiKeyInputSettings" 
-            placeholder="sk-or-v1-..."
-            autocomplete="off"
-          >
-        </div>
+        <div class="settings-grid">
+          <!-- Left Column -->
+          <div class="settings-col">
+            <div class="setting-item">
+              <label for="apiKeyInputSettings">OpenRouter API Key:</label>
+              <input 
+                type="password" 
+                id="apiKeyInputSettings" 
+                placeholder="sk-or-v1-..."
+                autocomplete="off"
+              >
+            </div>
 
-        <div class="setting-item">
-          <label>Refresh Interval (minutes):</label>
-          <div class="number-input">
-            <button id="refreshMinus" class="btn-icon">−</button>
-            <span id="refreshValue">5</span>
-            <button id="refreshPlus" class="btn-icon">+</button>
+            <div class="setting-item">
+              <label>Refresh Interval (minutes):</label>
+              <div class="number-input">
+                <button id="refreshMinus" class="btn-icon">−</button>
+                <span id="refreshValue">5</span>
+                <button id="refreshPlus" class="btn-icon">+</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column -->
+          <div class="settings-col">
+            <div class="setting-item">
+              <label class="toggle-label">
+                <span>Display Unit:</span>
+                <div class="toggle-group">
+                  <button id="unitPercent" class="btn-toggle active">%</button>
+                  <button id="unitDollar" class="btn-toggle">$</button>
+                </div>
+              </label>
+            </div>
+
+            <div id="absTypeSection" class="setting-item hidden">
+              <label class="toggle-label">
+                <span>Value Type:</span>
+                <div class="toggle-group">
+                  <button id="typeRemaining" class="btn-toggle active">Remaining</button>
+                  <button id="typeUsed" class="btn-toggle">Used</button>
+                </div>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <label class="checkbox-label">
+                <input type="checkbox" id="showUnitToggle" checked>
+                <span>Show Unit in Menubar</span>
+              </label>
+            </div>
+
+            <div class="setting-item">
+              <label class="checkbox-label">
+                <input type="checkbox" id="autocheckToggle" checked>
+                <span>Enable Auto-refresh</span>
+              </label>
+            </div>
           </div>
         </div>
 
-        <div class="setting-item">
-          <label class="toggle-label">
-            <span>Menubar Display Unit:</span>
-            <div class="toggle-group">
-              <button id="unitPercent" class="btn-toggle active">%</button>
-              <button id="unitDollar" class="btn-toggle">$</button>
-            </div>
-          </label>
-        </div>
-
-        <div id="absTypeSection" class="setting-item hidden">
-          <label class="toggle-label">
-            <span>Show Value Type:</span>
-            <div class="toggle-group">
-              <button id="typeRemaining" class="btn-toggle active">Remaining</button>
-              <button id="typeUsed" class="btn-toggle">Used</button>
-            </div>
-          </label>
-        </div>
-
-        <div class="setting-item">
-          <label class="checkbox-label">
-            <input type="checkbox" id="showUnitToggle" checked>
-            <span>Show Unit (%/$) in Menubar</span>
-          </label>
-        </div>
-
-        <div class="setting-item">
-          <label class="checkbox-label">
-            <input type="checkbox" id="autocheckToggle" checked>
-            <span>Enable Auto-refresh</span>
-          </label>
-        </div>
-
-        <div class="button-row">
-          <button id="saveSettingsBtn" class="btn-primary">Done</button>
+        <div class="settings-footer">
+          <button id="resetSettingsBtn" class="btn-reset">Reset App Data</button>
+          <button id="saveSettingsBtn" class="btn-primary btn-done">Done</button>
         </div>
       </div>
     </div>
