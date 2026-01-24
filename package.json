@@ -1,6 +1,6 @@
 {
   "name": "bp-esc",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "BYTEPOETS Employee Self-Care - OpenRouter Balance Checker",
   "private": true,
   "scripts": {
