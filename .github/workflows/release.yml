@@ -30,7 +30,9 @@ jobs:
         with:
           # Use the same cache for all release tags to maximize hits
           shared-key: "release-build"
-          workspaces: "src-tauri -> target"
+          workspaces: "src-tauri -> ../target"
+          # Disable job-id key to allow cache persistence across different workflow runs
+          add-job-id-key: false
 
       - name: Install dependencies
         run: npm ci
