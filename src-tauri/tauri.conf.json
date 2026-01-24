@@ -4,7 +4,7 @@
   "version": "0.2.3",
   "identifier": "com.bytepoets.bp-esc",
   "plugins": {
-    "global-shortcut": {}
+    "global-shortcut": null
   },
   "build": {
     "beforeBuildCommand": "npm run build:frontend",
@@ -20,7 +20,7 @@
         "title": "BYTEPOETS - ESC",
         "width": 800,
         "height": 600,
-        "resizable": false,
+        "resizable": true,
         "fullscreen": false,
         "visible": false,
         "decorations": false,

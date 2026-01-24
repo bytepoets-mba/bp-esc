@@ -25,15 +25,29 @@ use ab_glyph::{FontVec, PxScale};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppSettings {
+    #[serde(default)]
     pub api_key: Option<String>,
+    #[serde(default = "default_refresh_interval")]
     pub refresh_interval_minutes: u32,
+    #[serde(default = "default_true")]
     pub show_percentage: bool,        // true = %, false = $
+    #[serde(default = "default_true")]
     pub show_remaining: bool,         // true = remaining, false = usage (for absolute $)
+    #[serde(default = "default_true")]
     pub show_unit: bool,              // true = display % or $, false = hide unit
+    #[serde(default = "default_true")]
     pub auto_refresh_enabled: bool,
+    #[serde(default = "default_true")]
     pub show_window_on_start: bool,
+    #[serde(default = "default_shortcut")]
     pub global_shortcut: String,
+    #[serde(default = "default_true")]
+    pub global_shortcut_enabled: bool,
 }
+
+fn default_refresh_interval() -> u32 { 5 }
+fn default_true() -> bool { true }
+fn default_shortcut() -> String { "F19".to_string() }
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -46,6 +60,7 @@ impl Default for AppSettings {
             auto_refresh_enabled: true,
             show_window_on_start: true,
             global_shortcut: "F19".to_string(),
+            global_shortcut_enabled: true,
         }
     }
 }
@@ -103,7 +118,7 @@ fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
     save_settings_internal(&settings)?;
     
     // Update global shortcut
-    let _ = update_app_shortcut(&app, &settings.global_shortcut);
+    let _ = update_app_shortcut(&app, &settings.global_shortcut, settings.global_shortcut_enabled);
     
     Ok(())
 }
@@ -381,6 +396,24 @@ fn get_app_version() -> String {
 #[tauri::command]
 fn quit_app(app_handle: tauri::AppHandle) {
     app_handle.exit(0);
+}
+
+/// Toggle window visibility (show/hide)
+#[tauri::command]
+fn toggle_window_visibility(app: tauri::AppHandle) {
+    toggle_window(&app);
+}
+
+/// Notify that API key is valid
+#[tauri::command]
+async fn notify_api_key_valid(app: tauri::AppHandle) {
+    let _ = app.emit("api-key-valid", ());
+}
+
+/// Notify that API key is invalid
+#[tauri::command]
+async fn notify_api_key_invalid(app: tauri::AppHandle) {
+    let _ = app.emit("api-key-invalid", ());
 }
 
 /// Open a URL in the default browser
@@ -755,14 +788,26 @@ fn toggle_window(app: &AppHandle) {
     }
 }
 
-fn update_app_shortcut(app: &AppHandle, shortcut_str: &str) -> Result<(), String> {
+/// Handle window visibility based on API key validation and settings
+fn handle_window_visibility(window: &tauri::WebviewWindow, show_window: bool) {
+    if show_window {
+        let _ = position_window_below_menubar(window);
+        let _ = window.show();
+        let _ = window.set_focus();
+        let _ = window.emit("show-main-window", ());
+    } else {
+        let _ = window.hide();
+    }
+}
+
+fn update_app_shortcut(app: &AppHandle, shortcut_str: &str, enabled: bool) -> Result<(), String> {
     let shortcut_ext = app.global_shortcut();
     
     // Unregister all existing shortcuts first to be safe
     let _ = shortcut_ext.unregister_all();
     
-    // Register new one
-    if !shortcut_str.is_empty() {
+    // Register new one only if enabled
+    if enabled && !shortcut_str.is_empty() {
         if let Ok(shortcut) = shortcut_str.parse::<Shortcut>() {
             shortcut_ext.on_shortcut(shortcut, |app, _shortcut, event| {
                 if event.state() == ShortcutState::Pressed {
@@ -820,18 +865,26 @@ fn main() {
       
       // Register global shortcut
       let settings = read_settings().unwrap_or_default();
-      let _ = update_app_shortcut(app.app_handle(), &settings.global_shortcut);
+      let _ = update_app_shortcut(app.app_handle(), &settings.global_shortcut, settings.global_shortcut_enabled);
       
-      // Position window below menubar on initial launch
+      // Position window initially (hidden) - simplified without event listeners
       if let Some(window) = app.get_webview_window("main") {
-        if settings.show_window_on_start {
-            let _ = position_window_below_menubar(&window);
-            let _ = window.show();
-            let _ = window.set_focus();
-        } else {
-            let _ = position_window_below_menubar(&window);
-            let _ = window.hide();
-        }
+          let _ = position_window_below_menubar(&window);
+          
+          // Check settings to determine initial visibility
+          match read_settings() {
+              Ok(settings) => {
+                  if settings.api_key.is_some() && settings.show_window_on_start {
+                      // Will be shown by frontend after validation
+                      let _ = window.hide();
+                  } else {
+                      let _ = window.hide();
+                  }
+              }
+              Err(_) => {
+                  let _ = window.hide();
+              }
+          }
       }
       
       Ok(())
@@ -853,7 +906,10 @@ fn main() {
         get_app_version,
         update_menubar_display,
         quit_app,
-        open_external_url
+        open_external_url,
+        toggle_window_visibility,
+        notify_api_key_valid,
+        notify_api_key_invalid
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

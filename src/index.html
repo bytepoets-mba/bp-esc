@@ -9,8 +9,8 @@
 <body>
   <div class="container">
     <header class="header">
-      <img src="assets/bp-logo.png" alt="BYTEPOETS Logo" />
       <div class="tagline">OpenRouter Balance Checker</div>
+      <img src="assets/bp-logo.png" alt="BYTEPOETS Logo" />
     </header>
 
     <!-- Loading State -->
@@ -37,9 +37,10 @@
       </div>
 
       <div class="button-row">
+        <button id="quitBtn" class="btn-secondary btn-reset">✕ Quit</button>
         <button id="refreshBtn" class="btn-secondary" style="flex:1">↻ Refresh</button>
         <button id="settingsBtn" class="btn-secondary" style="flex:1">⚙ Settings</button>
-        <button id="quitBtn" class="btn-secondary btn-quit" style="flex:0.5">✕ Quit</button>
+        <button id="hideBtn" class="btn-primary" style="flex:0.5">Hide</button>
       </div>
     </div>
 
@@ -72,8 +73,16 @@
             </div>
 
             <div class="setting-item">
+              <label class="checkbox-label">
+                <input type="checkbox" id="shortcutEnabledToggle">
+                <span>Enable Global Shortcut</span>
+              </label>
+            </div>
+
+            <div class="setting-item">
               <label for="shortcutInput">Global Shortcut:</label>
               <input type="text" id="shortcutInput" placeholder="F19" autocomplete="off">
+              <p class="help-text">Example: <code>Command+Shift+Option+Control+F19</code></p>
             </div>
           </div>
 
