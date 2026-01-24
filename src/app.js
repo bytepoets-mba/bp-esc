@@ -37,13 +37,21 @@ window.addEventListener('DOMContentLoaded', () => {
   const typeUsed = document.getElementById('typeUsed');
   const showUnitToggle = document.getElementById('showUnitToggle');
   const autocheckToggle = document.getElementById('autocheckToggle');
-  const saveSettingsBtn = document.getElementById('saveSettingsBtn'); // Now "Done"
+  const startWindowToggle = document.getElementById('startWindowToggle');
+  const saveSettingsBtn = document.getElementById('saveSettingsBtn');
   const resetSettingsBtn = document.getElementById('resetSettingsBtn');
 
   // DOM elements - Actions
   const refreshBtn = document.getElementById('refreshBtn');
   const settingsBtn = document.getElementById('settingsBtn');
   const quitBtn = document.getElementById('quitBtn');
+
+  // DOM elements - Confirm Dialog
+  const confirmDialog = document.getElementById('confirmDialog');
+  const confirmMessage = document.getElementById('confirmMessage');
+  const confirmCancel = document.getElementById('confirmCancel');
+  const confirmOk = document.getElementById('confirmOk');
+  let confirmCallback = null;
 
   // State management
   function showState(state) {
@@ -53,9 +61,12 @@ window.addEventListener('DOMContentLoaded', () => {
     else if (state === 'balance') balanceState.classList.remove('hidden');
     else if (state === 'settings') {
       settingsState.classList.remove('hidden');
-      // Auto-focus API key if it's empty
       if (!apiKeyInputSettings.value) apiKeyInputSettings.focus();
     }
+  }
+
+  function isSettingsVisible() {
+    return !settingsState.classList.contains('hidden');
   }
 
   function showError(message) {
@@ -67,6 +78,24 @@ window.addEventListener('DOMContentLoaded', () => {
   function hideError() {
     errorDisplay.classList.add('hidden');
   }
+
+  // Confirm dialog helper
+  function showConfirm(message, onConfirm) {
+    confirmMessage.textContent = message;
+    confirmCallback = onConfirm;
+    confirmDialog.classList.remove('hidden');
+  }
+
+  confirmCancel.onclick = () => {
+    confirmDialog.classList.add('hidden');
+    confirmCallback = null;
+  };
+
+  confirmOk.onclick = () => {
+    confirmDialog.classList.add('hidden');
+    if (confirmCallback) confirmCallback();
+    confirmCallback = null;
+  };
 
   // Auto-refresh management
   function stopAutoRefresh() {
@@ -115,7 +144,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (balance.remaining !== null) {
       if (balance.remaining < 0) remainingValue.style.color = '#dc2626';
       else if (balance.remaining < 5) remainingValue.style.color = '#ea580c';
-      else remainingValue.style.color = '#667eea';
+      else remainingValue.style.color = '#6366f1';
     }
     
     // Update menubar icon
@@ -126,7 +155,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     
     const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    lastUpdated.textContent = `Last updated: ${now}`;
+    lastUpdated.textContent = now;
     if (shouldShowState) showState('balance');
   }
 
@@ -137,16 +166,17 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
     
-    showState('loading');
+    const settingsActive = isSettingsVisible();
+    if (!settingsActive) showState('loading');
     hideError();
     
     try {
       const balance = await invoke('fetch_balance', { apiKey: currentSettings.api_key });
-      displayBalance(balance);
+      displayBalance(balance, !settingsActive);
       startAutoRefresh();
     } catch (error) {
       console.error('Failed to fetch balance:', error);
-      showState('balance');
+      if (!settingsActive) showState('balance');
       showError(error);
       startAutoRefresh();
     }
@@ -160,8 +190,8 @@ window.addEventListener('DOMContentLoaded', () => {
     refreshValue.textContent = currentSettings.refresh_interval_minutes;
     showUnitToggle.checked = currentSettings.show_unit;
     autocheckToggle.checked = currentSettings.auto_refresh_enabled;
+    startWindowToggle.checked = currentSettings.show_window_on_start;
     
-    // Unit buttons
     if (currentSettings.show_percentage) {
       unitPercent.classList.add('active');
       unitDollar.classList.remove('active');
@@ -170,10 +200,6 @@ window.addEventListener('DOMContentLoaded', () => {
       unitDollar.classList.add('active');
     }
     
-    // Type section is always visible now as indicators work for both modes
-    absTypeSection.classList.remove('hidden');
-    
-    // Type buttons
     if (currentSettings.show_remaining) {
       typeRemaining.classList.add('active');
       typeUsed.classList.remove('active');
@@ -191,6 +217,7 @@ window.addEventListener('DOMContentLoaded', () => {
       refresh_interval_minutes: parseInt(refreshValue.textContent),
       show_unit: showUnitToggle.checked,
       auto_refresh_enabled: autocheckToggle.checked,
+      show_window_on_start: startWindowToggle.checked,
       show_percentage: unitPercent.classList.contains('active'),
       show_remaining: typeRemaining.classList.contains('active'),
     };
@@ -198,17 +225,15 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       await invoke('save_settings', { settings: newSettings });
       currentSettings = newSettings;
-      
-      // Update UI and Menubar immediately if we have balance
       if (currentBalance) {
-        displayBalance(currentBalance, false); // Pass false to NOT showState('balance')
+        displayBalance(currentBalance, false);
       }
     } catch (error) {
       if (!silent) showError(error);
     }
   }
 
-  // Event Listeners - Settings (Automatic Saving)
+  // Event Listeners - Settings
   refreshMinus.onclick = async () => {
     let val = parseInt(refreshValue.textContent);
     if (val > 1) {
@@ -246,51 +271,51 @@ window.addEventListener('DOMContentLoaded', () => {
     await saveSettingsAction(true);
   };
 
-  showUnitToggle.onchange = async () => {
-    await saveSettingsAction(true);
-  };
-
+  showUnitToggle.onchange = () => saveSettingsAction(true);
   autocheckToggle.onchange = async () => {
     await saveSettingsAction(true);
     if (currentSettings.auto_refresh_enabled) startAutoRefresh();
     else stopAutoRefresh();
   };
+  startWindowToggle.onchange = () => saveSettingsAction(true);
+  apiKeyInputSettings.onblur = () => saveSettingsAction(true);
 
-  apiKeyInputSettings.onblur = async () => {
-    await saveSettingsAction(true);
-  };
-
-  // Action: Done
+  // Done button - save and show balance
   saveSettingsBtn.onclick = async () => {
+    await saveSettingsAction(false);
+    
     if (currentSettings?.api_key) {
-      await loadBalance(); // Load balance when closing settings
+      showState('loading');
+      try {
+        const balance = await invoke('fetch_balance', { apiKey: currentSettings.api_key });
+        displayBalance(balance, true); // Force show balance state
+        startAutoRefresh();
+      } catch (error) {
+        showState('balance');
+        showError(error);
+      }
     } else {
-      showError('Please enter an API key first');
+      showError('Please enter an API key');
       apiKeyInputSettings.focus();
     }
   };
 
-  // Action: Reset
-  resetSettingsBtn.onclick = async () => {
-    const confirmed = confirm('Clear all application data and start over? This cannot be undone.');
-    if (!confirmed) return;
-
-    try {
-      await invoke('reset_settings');
-      // Clear local state
-      currentSettings = null;
-      currentBalance = null;
-      apiKeyInputSettings.value = '';
-      stopAutoRefresh();
-      
-      // Force re-init to default state
-      await init();
-    } catch (error) {
-      showError('Failed to reset settings: ' + error);
-    }
+  // Reset button - confirm and wipe data
+  resetSettingsBtn.onclick = () => {
+    showConfirm('Reset all settings and clear your API key? This cannot be undone.', async () => {
+      try {
+        await invoke('reset_settings');
+        currentSettings = await invoke('read_settings');
+        currentBalance = null;
+        stopAutoRefresh();
+        syncSettingsToUI();
+        showState('settings');
+      } catch (error) {
+        showError('Failed to reset: ' + error);
+      }
+    });
   };
 
-  // Event Listeners - Navigation
   settingsBtn.onclick = () => {
     syncSettingsToUI();
     showState('settings');
@@ -303,12 +328,12 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       const version = await invoke('get_app_version');
       appVersion.textContent = `v${version}`;
-      
       currentSettings = await invoke('read_settings');
+      
       if (currentSettings.api_key) {
         await loadBalance();
       } else {
-        syncSettingsToUI(); // Sync defaults if no key
+        syncSettingsToUI();
         showState('settings');
       }
     } catch (error) {
@@ -317,6 +342,5 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  window.__TAURI__.event.listen('refresh-balance', loadBalance);
   init();
 });

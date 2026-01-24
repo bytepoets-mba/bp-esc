@@ -21,6 +21,7 @@ pub struct AppSettings {
     pub show_remaining: bool,         // true = remaining, false = usage (for absolute $)
     pub show_unit: bool,              // true = display % or $, false = hide unit
     pub auto_refresh_enabled: bool,
+    pub show_window_on_start: bool,
 }
 
 impl Default for AppSettings {
@@ -32,6 +33,7 @@ impl Default for AppSettings {
             show_remaining: true,
             show_unit: true,
             auto_refresh_enabled: true,
+            show_window_on_start: true,
         }
     }
 }
@@ -365,6 +367,12 @@ fn get_app_version() -> String {
 #[tauri::command]
 fn quit_app(app_handle: tauri::AppHandle) {
     app_handle.exit(0);
+}
+
+/// Open a URL in the default browser
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    open::that(url).map_err(|e| e.to_string())
 }
 
 /// Try to load a font from the filesystem
@@ -786,7 +794,15 @@ fn main() {
       
       // Position window below menubar on initial launch
       if let Some(window) = app.get_webview_window("main") {
-        let _ = position_window_below_menubar(&window);
+        let settings = read_settings().unwrap_or_default();
+        if settings.show_window_on_start {
+            let _ = position_window_below_menubar(&window);
+            let _ = window.show();
+            let _ = window.set_focus();
+        } else {
+            let _ = position_window_below_menubar(&window);
+            let _ = window.hide();
+        }
       }
       
       Ok(())
@@ -807,7 +823,8 @@ fn main() {
         fetch_balance,
         get_app_version,
         update_menubar_display,
-        quit_app
+        quit_app,
+        open_external_url
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
