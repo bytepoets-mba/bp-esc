@@ -25,7 +25,7 @@ fi
 # Source hash generation library
 source "$SCRIPT_DIR/lib/generate-hash.sh"
 
-DIR="+pm"
+DIR="+pm/backlog"
 
 # Default priority to 5000 if not provided or invalid
 if [[ -z "$1" ]] || ! [[ "$1" =~ ^[0-9]+$ ]]; then
