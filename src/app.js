@@ -38,6 +38,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const showUnitToggle = document.getElementById('showUnitToggle');
   const autocheckToggle = document.getElementById('autocheckToggle');
   const startWindowToggle = document.getElementById('startWindowToggle');
+  const shortcutInput = document.getElementById('shortcutInput');
   const saveSettingsBtn = document.getElementById('saveSettingsBtn');
   const resetSettingsBtn = document.getElementById('resetSettingsBtn');
 
@@ -191,6 +192,7 @@ window.addEventListener('DOMContentLoaded', () => {
     showUnitToggle.checked = currentSettings.show_unit;
     autocheckToggle.checked = currentSettings.auto_refresh_enabled;
     startWindowToggle.checked = currentSettings.show_window_on_start;
+    shortcutInput.value = currentSettings.global_shortcut || 'F19';
     
     if (currentSettings.show_percentage) {
       unitPercent.classList.add('active');
@@ -218,6 +220,7 @@ window.addEventListener('DOMContentLoaded', () => {
       show_unit: showUnitToggle.checked,
       auto_refresh_enabled: autocheckToggle.checked,
       show_window_on_start: startWindowToggle.checked,
+      global_shortcut: shortcutInput.value.trim() || 'F19',
       show_percentage: unitPercent.classList.contains('active'),
       show_remaining: typeRemaining.classList.contains('active'),
     };
@@ -279,6 +282,7 @@ window.addEventListener('DOMContentLoaded', () => {
   };
   startWindowToggle.onchange = () => saveSettingsAction(true);
   apiKeyInputSettings.onblur = () => saveSettingsAction(true);
+  shortcutInput.onblur = () => saveSettingsAction(true);
 
   // Done button - save and show balance
   saveSettingsBtn.onclick = async () => {

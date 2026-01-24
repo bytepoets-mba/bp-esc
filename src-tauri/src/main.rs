@@ -8,6 +8,16 @@ use std::time::Duration;
 use std::os::unix::fs::PermissionsExt; // macOS is Unix
 
 use serde::{Deserialize, Serialize};
+use tauri::{
+    AppHandle, Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter,
+    menu::{Menu, MenuItemBuilder},
+    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
+    image::Image
+};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState, Shortcut};
+use image::Rgba;
+use imageproc::drawing::draw_text_mut;
+use ab_glyph::{FontVec, PxScale};
 
 // ============================================================================
 // SETTINGS CONFIGURATION
@@ -22,6 +32,7 @@ pub struct AppSettings {
     pub show_unit: bool,              // true = display % or $, false = hide unit
     pub auto_refresh_enabled: bool,
     pub show_window_on_start: bool,
+    pub global_shortcut: String,
 }
 
 impl Default for AppSettings {
@@ -34,6 +45,7 @@ impl Default for AppSettings {
             show_unit: true,
             auto_refresh_enabled: true,
             show_window_on_start: true,
+            global_shortcut: "F19".to_string(),
         }
     }
 }
@@ -44,6 +56,28 @@ fn get_settings_file_path() -> Result<PathBuf, String> {
     Ok(config_dir.join("settings.json"))
 }
 
+/// Internal function to save settings without an AppHandle
+fn save_settings_internal(settings: &AppSettings) -> Result<(), String> {
+    let config_dir = get_config_dir()?;
+    if !config_dir.exists() {
+        fs::create_dir_all(&config_dir)
+            .map_err(|e| format!("Failed to create config directory: {}", e))?;
+    }
+    
+    let path = get_settings_file_path()?;
+    let contents = serde_json::to_string_pretty(settings)
+        .map_err(|e| format!("Failed to serialize settings: {}", e))?;
+    
+    fs::write(&path, contents)
+        .map_err(|e| format!("Failed to write settings: {}", e))?;
+    
+    let perms = fs::Permissions::from_mode(0o600);
+    fs::set_permissions(&path, perms)
+        .map_err(|e| format!("Failed to set settings permissions: {}", e))?;
+    
+    Ok(())
+}
+
 #[tauri::command]
 fn read_settings() -> Result<AppSettings, String> {
     let path = get_settings_file_path()?;
@@ -52,7 +86,7 @@ fn read_settings() -> Result<AppSettings, String> {
         let mut settings = AppSettings::default();
         if let Ok(Some(key)) = read_api_key() {
             settings.api_key = Some(key);
-            let _ = save_settings(settings.clone()); // Save migrated settings
+            let _ = save_settings_internal(&settings); // Save migrated settings
         }
         return Ok(settings);
     }
@@ -65,38 +99,14 @@ fn read_settings() -> Result<AppSettings, String> {
 }
 
 #[tauri::command]
-fn save_settings(settings: AppSettings) -> Result<(), String> {
-    let config_dir = get_config_dir()?;
-    if !config_dir.exists() {
-        fs::create_dir_all(&config_dir)
-            .map_err(|e| format!("Failed to create config directory: {}", e))?;
-    }
+fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
+    save_settings_internal(&settings)?;
     
-    let path = get_settings_file_path()?;
-    let contents = serde_json::to_string_pretty(&settings)
-        .map_err(|e| format!("Failed to serialize settings: {}", e))?;
-    
-    fs::write(&path, contents)
-        .map_err(|e| format!("Failed to write settings: {}", e))?;
-    
-    // Set file permissions to 600 (rw-------)
-    let perms = fs::Permissions::from_mode(0o600);
-    fs::set_permissions(&path, perms)
-        .map_err(|e| format!("Failed to set settings permissions: {}", e))?;
+    // Update global shortcut
+    let _ = update_app_shortcut(&app, &settings.global_shortcut);
     
     Ok(())
 }
-use tauri::{
-    Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter,
-    menu::{Menu, MenuItemBuilder},
-    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
-    image::Image
-};
-use image::Rgba;
-use imageproc::drawing::draw_text_mut;
-use ab_glyph::{FontVec, PxScale};
-
-// ============================================================================
 // MENUBAR ICON CONFIGURATION
 // ============================================================================
 // Adjust these constants to fine-tune the percentage text appearance in the menubar icon
@@ -348,12 +358,16 @@ async fn fetch_balance(api_key: String) -> Result<BalanceData, String> {
 
 /// Reset settings by deleting the config directory
 #[tauri::command]
-fn reset_settings() -> Result<(), String> {
+fn reset_settings(app: AppHandle) -> Result<(), String> {
     let config_dir = get_config_dir()?;
     if config_dir.exists() {
         fs::remove_dir_all(&config_dir)
             .map_err(|e| format!("Failed to delete config directory: {}", e))?;
     }
+    
+    // Unregister shortcuts
+    let _ = app.global_shortcut().unregister_all();
+    
     Ok(())
 }
 
@@ -728,8 +742,42 @@ fn position_window_below_menubar(window: &tauri::WebviewWindow) -> Result<(), St
     Ok(())
 }
 
+fn toggle_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
+            let _ = window.hide();
+        } else {
+            let _ = position_window_below_menubar(&window);
+            let _ = window.show();
+            let _ = window.set_focus();
+            let _ = window.emit("refresh-balance", ());
+        }
+    }
+}
+
+fn update_app_shortcut(app: &AppHandle, shortcut_str: &str) -> Result<(), String> {
+    let shortcut_ext = app.global_shortcut();
+    
+    // Unregister all existing shortcuts first to be safe
+    let _ = shortcut_ext.unregister_all();
+    
+    // Register new one
+    if !shortcut_str.is_empty() {
+        if let Ok(shortcut) = shortcut_str.parse::<Shortcut>() {
+            shortcut_ext.on_shortcut(shortcut, |app, _shortcut, event| {
+                if event.state() == ShortcutState::Pressed {
+                    toggle_window(app);
+                }
+            }).map_err(|e| format!("Failed to register shortcut: {}", e))?;
+        }
+    }
+    
+    Ok(())
+}
+
 fn main() {
   tauri::Builder::default()
+    .plugin(tauri_plugin_global_shortcut::Builder::new().build())
     .setup(|app| {
       #[cfg(target_os = "macos")]
       {
@@ -753,17 +801,7 @@ fn main() {
               app.exit(0);
             }
             "show_hide" => {
-              if let Some(window) = app.get_webview_window("main") {
-                // Only hide if window is visible AND focused
-                if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
-                  let _ = window.hide();
-                } else {
-                  let _ = position_window_below_menubar(&window);
-                  let _ = window.show();
-                  let _ = window.set_focus();
-                  let _ = window.emit("refresh-balance", ());
-                }
-              }
+              toggle_window(app);
             }
             _ => {}
           }
@@ -775,26 +813,17 @@ fn main() {
             ..
           } = event
           {
-            let app = tray.app_handle();
-            if let Some(window) = app.get_webview_window("main") {
-              // Only hide if window is visible AND focused
-              if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
-                let _ = window.hide();
-              } else {
-                // Show and focus the window
-                let _ = position_window_below_menubar(&window);
-                let _ = window.show();
-                let _ = window.set_focus();
-                let _ = window.emit("refresh-balance", ());
-              }
-            }
+            toggle_window(tray.app_handle());
           }
         })
         .build(app)?;
       
+      // Register global shortcut
+      let settings = read_settings().unwrap_or_default();
+      let _ = update_app_shortcut(app.app_handle(), &settings.global_shortcut);
+      
       // Position window below menubar on initial launch
       if let Some(window) = app.get_webview_window("main") {
-        let settings = read_settings().unwrap_or_default();
         if settings.show_window_on_start {
             let _ = position_window_below_menubar(&window);
             let _ = window.show();
