@@ -61,14 +61,11 @@ window.addEventListener('DOMContentLoaded', () => {
   const showUnitToggle = document.getElementById('showUnitToggle');
   const autocheckToggle = document.getElementById('autocheckToggle');
   const startWindowToggle = document.getElementById('startWindowToggle');
+  const alwaysOnTopToggle = document.getElementById('alwaysOnTopToggle');
   const shortcutInput = document.getElementById('shortcutInput');
   const shortcutEnabledToggle = document.getElementById('shortcutEnabledToggle');
-  const saveSettingsBtn = document.getElementById('saveSettingsBtn');
   const resetSettingsBtn = document.getElementById('resetSettingsBtn');
 
-  // Cleanup: Remove old settings button reference
-  // const settingsBtn = document.getElementById('settingsBtn'); 
-  
   // DOM elements - Actions
   const refreshBtn = document.getElementById('refreshBtn');
   const quitBtn = document.getElementById('quitBtn');
@@ -323,6 +320,7 @@ window.addEventListener('transitionend', (e) => {
     showUnitToggle.checked = currentSettings.show_unit;
     autocheckToggle.checked = currentSettings.auto_refresh_enabled;
     startWindowToggle.checked = currentSettings.show_window_on_start;
+    alwaysOnTopToggle.checked = currentSettings.always_on_top;
 
     shortcutInput.value = currentSettings.global_shortcut || 'F19';
     shortcutEnabledToggle.checked = currentSettings.global_shortcut_enabled;
@@ -353,6 +351,7 @@ window.addEventListener('transitionend', (e) => {
       show_unit: showUnitToggle.checked,
       auto_refresh_enabled: autocheckToggle.checked,
       show_window_on_start: startWindowToggle.checked,
+      always_on_top: alwaysOnTopToggle.checked,
       global_shortcut: shortcutInput.value.trim() || 'F19',
       global_shortcut_enabled: shortcutEnabledToggle.checked,
       show_percentage: unitPercent.classList.contains('active'),
@@ -415,30 +414,10 @@ window.addEventListener('transitionend', (e) => {
     else stopAutoRefresh();
   };
   startWindowToggle.onchange = () => saveSettingsAction(true);
+  alwaysOnTopToggle.onchange = () => saveSettingsAction(true);
   apiKeyInputSettings.onblur = () => saveSettingsAction(true);
   shortcutInput.onblur = () => saveSettingsAction(true);
   shortcutEnabledToggle.onchange = () => saveSettingsAction(true);
-
-  // Done button - save and show balance
-  saveSettingsBtn.onclick = async () => {
-    await saveSettingsAction(false);
-    
-    if (currentSettings?.api_key) {
-      showState('loading');
-    try {
-      const balance = await invoke('fetch_balance', { apiKey: currentSettings.api_key });
-      displayBalance(balance, true); // Force show balance state
-      startAutoRefresh();
-    } catch (error) {
-      await resetBalanceDisplay();
-      showState('balance');
-      showError(error);
-    }
-    } else {
-      showError('Please enter an API key');
-      apiKeyInputSettings.focus();
-    }
-  };
 
   // Reset button - confirm and wipe data
   resetSettingsBtn.onclick = () => {

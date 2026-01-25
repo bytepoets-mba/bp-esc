@@ -43,10 +43,13 @@ pub struct AppSettings {
     pub global_shortcut: String,
     #[serde(default = "default_true")]
     pub global_shortcut_enabled: bool,
+    #[serde(default = "default_false")]
+    pub always_on_top: bool,
 }
 
 fn default_refresh_interval() -> u32 { 5 }
 fn default_true() -> bool { true }
+fn default_false() -> bool { false }
 fn default_shortcut() -> String { "F19".to_string() }
 
 impl Default for AppSettings {
@@ -61,6 +64,7 @@ impl Default for AppSettings {
             show_window_on_start: true,
             global_shortcut: "F19".to_string(),
             global_shortcut_enabled: true,
+            always_on_top: false,
         }
     }
 }
@@ -119,6 +123,11 @@ fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
     
     // Update global shortcut
     let _ = update_app_shortcut(&app, &settings.global_shortcut, settings.global_shortcut_enabled);
+    
+    // Update Always on Top
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_always_on_top(settings.always_on_top);
+    }
     
     Ok(())
 }
@@ -859,9 +868,10 @@ fn main() {
       if let Some(window) = app.get_webview_window("main") {
           let _ = position_window_below_menubar(&window);
           
-          // Check settings to determine initial visibility
+          // Check settings to determine initial visibility and always_on_top
           match read_settings() {
               Ok(settings) => {
+                  let _ = window.set_always_on_top(settings.always_on_top);
                   if settings.api_key.is_some() && settings.show_window_on_start {
                       // Will be shown by frontend after validation
                       let _ = window.show();
