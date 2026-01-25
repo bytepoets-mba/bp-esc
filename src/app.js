@@ -123,7 +123,17 @@ async function performResize() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    const finalHeight = Math.min(Math.max(container.scrollHeight, 400), 800);
+    const totalContentHeight = container.scrollHeight;
+
+    // Update debug labels if visible
+    const shLabel = document.getElementById('shValue');
+    const chLabel = document.getElementById('chValue');
+    const whLabel = document.getElementById('whValue');
+    if (shLabel) shLabel.textContent = totalContentHeight;
+    if (chLabel) chLabel.textContent = container.clientHeight;
+    if (whLabel) whLabel.textContent = window.innerHeight;
+
+    const finalHeight = Math.min(Math.max(totalContentHeight, 400), 800);
     
     // One call, let the OS handle the physics
     await appWindow.setSize(new LogicalSize(800, finalHeight));
