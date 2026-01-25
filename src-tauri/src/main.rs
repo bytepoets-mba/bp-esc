@@ -1,4 +1,4 @@
-// BP Employee Self-Care - OpenRouter Balance Checker
+// BYTEPOETS - Employee Self-Care App
 // macOS only application
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 

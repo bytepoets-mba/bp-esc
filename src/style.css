@@ -57,7 +57,7 @@ body {
 
 .container {
   background: rgba(255, 255, 255, 1.0);
-  border-radius: 16px;
+  border-radius: 0;
   box-shadow: 0 8px 32px rgba(161, 133, 133, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
   width: 100%;
   height: 100vh;
@@ -67,6 +67,25 @@ body {
   -webkit-app-region: drag;
   backdrop-filter: blur(10px);
   overflow: hidden;
+  position: relative;
+}
+
+.container::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #d0d0d0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 9999;
+}
+
+body.unfocused .container::after {
+  opacity: 0.5;
 }
 
 

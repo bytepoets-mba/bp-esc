@@ -1,7 +1,7 @@
 [package]
 name = "bp-esc"
 version = "0.2.4"
-description = "BYTEPOETS Employee Self-Care - OpenRouter Balance Checker"
+description = "BYTEPOETS Employee Self-Care App"
 authors = ["BYTEPOETS GmbH"]
 license = "Proprietary"
 repository = "https://github.com/bytepoets-mba/bp-esc"

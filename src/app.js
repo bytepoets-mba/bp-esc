@@ -446,6 +446,14 @@ window.addEventListener('transitionend', (e) => {
     bpLogo.ondblclick = () => {
       const isHidden = checkLabel.style.display === 'none';
       checkLabel.style.display = isHidden ? 'block' : 'none';
+      
+      // Force initial status when showing
+      if (!isHidden) {
+        const focusLabel = document.getElementById('focusValue');
+        if (focusLabel) {
+          focusLabel.textContent = document.hasFocus() ? 'FOCUSED' : 'BLURRED';
+        }
+      }
     };
   }
 
@@ -490,6 +498,30 @@ window.addEventListener('transitionend', (e) => {
     }
   }
 
+  // Setup event listener for window focus/blur
+  async function setupFocusListeners() {
+    try {
+      const focusLabel = document.getElementById('focusValue');
+      
+      window.addEventListener('focus', () => {
+        document.body.classList.remove('unfocused');
+        if (focusLabel) focusLabel.textContent = 'FOCUSED';
+      });
+
+      window.addEventListener('blur', () => {
+        document.body.classList.add('unfocused');
+        if (focusLabel) focusLabel.textContent = 'BLURRED';
+      });
+
+      // Initial state
+      if (focusLabel) focusLabel.textContent = document.hasFocus() ? 'FOCUSED' : 'BLURRED';
+      if (!document.hasFocus()) document.body.classList.add('unfocused');
+
+    } catch (error) {
+      console.error('Failed to setup focus listeners:', error);
+    }
+  }
+
   // Init
   async function init() {
     try {
@@ -497,6 +529,9 @@ window.addEventListener('transitionend', (e) => {
       appVersion.textContent = `v${version}`;
       currentSettings = await invoke('read_settings');
         syncSettingsToUI(); // Always sync UI after loading settings
+
+      // Setup focus listeners
+      await setupFocusListeners();
 
       // Setup event listener for window control
       await setupWindowVisibilityListener();
