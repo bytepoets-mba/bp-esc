@@ -83,6 +83,12 @@ window.addEventListener('DOMContentLoaded', () => {
   let confirmCallback = null;
 
   function showError(message) {
+    const ts = new Date().toISOString();
+    console.error(`[${ts}] ${message}`);
+    
+    // Paper trail: also log to backend for persistence if needed
+    invoke('log_error', { message: `[${ts}] ${message}` }).catch(e => console.error("Logger failed", e));
+
     errorDisplay.textContent = message;
     errorDisplay.classList.remove('hidden');
     setTimeout(() => {
@@ -118,6 +124,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // --- SIMPLE AUTO-RESIZE LOGIC ---
 let resizeTimeout = null;
+let currentAnimatedPct = 0;
+let animationFrameId = null;
 
 async function performResize() {
   try {
@@ -211,6 +219,32 @@ window.addEventListener('transitionend', (e) => {
     return `$${value.toFixed(2)}`;
   }
 
+  function animateHexagon(targetPct) {
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    
+    const duration = 1200; // ms
+    const startPct = currentAnimatedPct;
+    const startTime = performance.now();
+
+    function step(now) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Ease out cubic
+      const ease = 1 - Math.pow(1 - progress, 3);
+      
+      currentAnimatedPct = startPct + (targetPct - startPct) * ease;
+      drawPieChart(currentAnimatedPct, true);
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(step);
+      } else {
+        animationFrameId = null;
+      }
+    }
+    animationFrameId = requestAnimationFrame(step);
+  }
+
   // Display balance
   async function displayBalance(balance) {
     currentBalance = balance;
@@ -229,8 +263,13 @@ window.addEventListener('transitionend', (e) => {
       exactPercentEl.textContent = hasData ? rawPercentage.toFixed(1) : '-';
     }
 
-    // Pie chart drawing
-    drawPieChart(rawPercentage, hasData);
+    // Pie chart drawing with animation
+    if (hasData) {
+      animateHexagon(rawPercentage);
+    } else {
+      currentAnimatedPct = 0;
+      drawPieChart(0, false);
+    }
 
     // Dynamic value updates with a small fade effect to prevent flashing
     const updateValue = (el, newVal) => {
@@ -271,38 +310,76 @@ window.addEventListener('transitionend', (e) => {
     const canvas = document.getElementById('balancePie');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const size = 50 * window.devicePixelRatio;
-    canvas.width = size;
-    canvas.height = size;
+    const dpr = window.devicePixelRatio || 1;
+    const size = 60;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    ctx.scale(dpr, dpr);
     
     ctx.clearRect(0, 0, size, size);
-    
-    if (!hasData) {
-      ctx.beginPath();
-      ctx.arc(size/2, size/2, size/2 - 2, 0, 2 * Math.PI);
-      ctx.strokeStyle = '#e5e7eb';
-      ctx.stroke();
-      return;
+    if (!hasData) return;
+
+    // Adjust dimensions to avoid cutoff (hexagon is taller than wide)
+    const hexWidth = size - 12; // horizontal room
+    const hexHeight = hexWidth / 0.866; 
+    const center = size / 2;
+    const xOff = (size - hexWidth) / 2;
+    const yOff = (size - hexHeight) / 2;
+
+    const points = [
+      { x: center, y: yOff },
+      { x: xOff + hexWidth, y: yOff + hexHeight * 0.25 },
+      { x: xOff + hexWidth, y: yOff + hexHeight * 0.75 },
+      { x: center, y: yOff + hexHeight },
+      { x: xOff, y: yOff + hexHeight * 0.75 },
+      { x: xOff, y: yOff + hexHeight * 0.25 }
+    ];
+
+    function pathHex(c) {
+      c.beginPath();
+      c.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < 6; i++) c.lineTo(points[i].x, points[i].y);
+      c.closePath();
     }
 
-    const center = size / 2;
-    const radius = size / 2 - 2;
-    const startAngle = -0.5 * Math.PI; // Top
-    
-    // Remaining (Blue)
-    const remainingAngle = (remainingPct / 100) * 2 * Math.PI;
-    ctx.beginPath();
-    ctx.moveTo(center, center);
-    ctx.arc(center, center, radius, startAngle, startAngle + remainingAngle);
+    // 1. Draw Fill (Bottom-to-Top)
+    ctx.save();
+    pathHex(ctx);
+    ctx.clip();
+    const fillPct = Math.max(0, Math.min(100, remainingPct)) / 100;
+    const fillY = yOff + hexHeight * (1 - fillPct);
     ctx.fillStyle = '#006497';
-    ctx.fill();
+    ctx.fillRect(0, fillY, size, size);
+    ctx.restore();
+
+    // 2. Real Inner Shadow
+    ctx.save();
+    pathHex(ctx);
+    ctx.clip();
     
-    // Used (Dark Grey)
+    // Use an inverted path to cast shadow inward
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 2;
+
     ctx.beginPath();
-    ctx.moveTo(center, center);
-    ctx.arc(center, center, radius, startAngle + remainingAngle, startAngle + 2 * Math.PI);
-    ctx.fillStyle = '#6b7280';
+    ctx.rect(0, 0, size, size);
+    // Draw hex backwards (hole) to make shadow cast inside
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 5; i >= 0; i--) ctx.lineTo(points[i].x, points[i].y);
+    ctx.closePath();
+    ctx.fillStyle = 'black'; // Color doesn't matter, just needs fill for shadow
     ctx.fill();
+    ctx.restore();
+
+    // 3. Bright Gray Outline
+    ctx.save();
+    pathHex(ctx);
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.05)'; // Very bright gray like button hair lines
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
   }
 
   // Reset UI to empty state
@@ -492,13 +569,18 @@ window.addEventListener('transitionend', (e) => {
     });
   };
 
-  refreshBtn.onclick = loadBalance;
+  refreshBtn.onclick = () => {
+    currentAnimatedPct = 0; // Reset for full build-up animation
+    loadBalance();
+  };
   quitBtn.onclick = () => invoke('quit_app');
   hideBtn.onclick = () => invoke('toggle_window_visibility');
 
   // Toggle debug info on logo double click
   const bpLogo = document.getElementById('bpLogo');
   const checkLabel = document.getElementById('checkLabel');
+  const openLogBtn = document.getElementById('openLogBtn');
+  
   if (bpLogo && checkLabel) {
     bpLogo.ondblclick = () => {
       const isHidden = checkLabel.style.display === 'none';
@@ -511,6 +593,12 @@ window.addEventListener('transitionend', (e) => {
           focusLabel.textContent = document.hasFocus() ? 'FOCUSED' : 'BLURRED';
         }
       }
+    };
+  }
+
+  if (openLogBtn) {
+    openLogBtn.onclick = () => {
+      invoke('open_error_log').catch(err => showError(err));
     };
   }
 

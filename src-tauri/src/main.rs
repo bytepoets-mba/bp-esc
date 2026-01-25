@@ -198,6 +198,40 @@ fn get_env_file_path() -> Result<PathBuf, String> {
 }
 
 /// Read API key from ~/.config/bpesc-balance/.env
+/// Open the error log file in the system default editor
+#[tauri::command]
+fn open_error_log() -> Result<(), String> {
+    let config_dir = get_config_dir()?;
+    let log_path = config_dir.join("error.log");
+    
+    if log_path.exists() {
+        open::that(log_path).map_err(|e| e.to_string())?;
+    } else {
+        return Err("Log file does not exist yet.".to_string());
+    }
+    Ok(())
+}
+
+/// Log error to file: ~/.config/bpesc-balance/error.log
+#[tauri::command]
+fn log_error(message: String) -> Result<(), String> {
+    let config_dir = get_config_dir()?;
+    if !config_dir.exists() {
+        let _ = fs::create_dir_all(&config_dir);
+    }
+    let log_path = config_dir.join("error.log");
+    
+    use std::io::Write;
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)
+        .map_err(|e| e.to_string())?;
+    
+    writeln!(file, "{}", message).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 fn read_api_key() -> Result<Option<String>, String> {
     let env_path = get_env_file_path()?;
@@ -920,6 +954,8 @@ fn main() {
         fetch_balance,
         get_app_version,
         update_menubar_display,
+        log_error,
+        open_error_log,
         quit_app,
         open_external_url,
         toggle_window_visibility,

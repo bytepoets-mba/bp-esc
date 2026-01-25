@@ -10,7 +10,10 @@
 <body>
     <div class="container">
     <div id="checkLabel" style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: #006497; color: white; padding: 4px 12px; border-radius: 6px; font-size: 11px; font-family: 'SF Mono', monospace; font-weight: bold; z-index: 9999; -webkit-app-region: no-drag; box-shadow: 0 2px 8px rgba(0,0,0,0.2); white-space: nowrap; display: none;">
-      ScrollH: <span id="shValue">0</span> | ClientH: <span id="chValue">0</span> | WinH: <span id="whValue">0</span> | <span id="focusValue">FOCUSED</span>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div>ScrollH: <span id="shValue">0</span> | ClientH: <span id="chValue">0</span> | WinH: <span id="whValue">0</span> | <span id="focusValue">FOCUSED</span></div>
+        <button id="openLogBtn" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 10px; font-family: inherit; font-weight: bold;">LOG</button>
+      </div>
     </div>
       
       <div class="header-logo">
