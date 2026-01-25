@@ -102,6 +102,7 @@ The most seamless way to switch `gh` identity per-directory is using `direnv` to
     *   **Name**: `bp-github-cli-home`
     *   **Repository access**: Select **"All repositories"** (to use one token for all your BP projects).
     *   **Permissions**: `Actions` (R/W), `Contents` (R/W), `Workflows` (R/W).
+    *   **Note on Annotations**: Fine-grained tokens may cause a `403 Forbidden` error when `gh` tries to fetch build annotations (e.g., in `gh run watch`). This is a known GitHub limitation. If you need annotations, use a **Classic PAT** with `repo` scope instead; otherwise, this error can be safely ignored.
 2.  **Set up Secrets**: Create a file named `.env.secrets` in the root of the project (git-ignored). You can use `.env.secrets.example` as a template:
     ```bash
     cp .env.secrets.example .env.secrets
@@ -203,6 +204,19 @@ hdiutil attach "src-tauri/target/release/bundle/dmg/BYTEPOETS - ESC_0.2.0_x64.dm
 otool -L "/Volumes/BYTEPOETS - ESC/BYTEPOETS - ESC.app/Contents/MacOS/BYTEPOETS - ESC" | grep -i nix
 hdiutil detach "/Volumes/BYTEPOETS - ESC"
 ```
+
+### Monitoring Release Progress
+
+To monitor the CI/CD pipeline with live updates and green checkmarks (NixFleet style), you can use this Fish one-liner:
+
+```fish
+gh run watch (gh run list --workflow release.yml --limit 1 --json databaseId --jq '.[0].databaseId') --exit-status
+```
+
+This will:
+1. Find the latest run of the `release.yml` workflow.
+2. Provide a live-updating view of every step.
+3. Exit with a success/failure code once finished.
 
 ## Project Structure
 
