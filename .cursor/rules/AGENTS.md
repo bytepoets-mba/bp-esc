@@ -45,12 +45,18 @@ Work style: telegraph; noun-phrases ok; minimal grammar; min tokens.
 ./scripts/create-backlog-item.sh [priority] [description]
 
 # Examples
-./scripts/create-backlog-item.sh 0100 implement-feature-x
-./scripts/create-backlog-item.sh 5000 refactor-auth
+./scripts/create-backlog-item.sh A10 implement-critical-fix
+./scripts/create-backlog-item.sh P50 refactor-auth
 
 # Just hash
 ./scripts/lib/generate-hash.sh
 ```
+
+**Priority Schema**: `[A-Z][0-9]{2}` (e.g., `P50`).
+- `A00` = Highest priority.
+- `P50` = Default starting point.
+- `Z99` = Lowest priority.
+- AI should "fit in" based on existing items. Higher priority means earlier letter (A-O) or lower number (00-49).
 
 **Rules**:
 - ✅ Use scripts (collision-free hashes, validation)

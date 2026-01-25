@@ -27,11 +27,11 @@ source "$SCRIPT_DIR/lib/generate-hash.sh"
 
 DIR="+pm/backlog"
 
-# Default priority to 5000 if not provided or invalid
-if [[ -z "$1" ]] || ! [[ "$1" =~ ^[0-9]+$ ]]; then
-  priority="5000"
+# Default priority to P50 if not provided or invalid
+if [[ -z "$1" ]] || ! [[ "$1" =~ ^[A-Z][0-9]{2}$ ]]; then
+  priority="P50"
 else
-  priority=$(printf "%04d" "$1")
+  priority="$1"
 fi
 
 # Generate default name with reverse timestamp if not provided or invalid
