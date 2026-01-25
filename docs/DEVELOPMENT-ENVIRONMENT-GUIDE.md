@@ -142,6 +142,22 @@ And the git remote should use this host:
 git remote set-url origin git@github-bp:bytepoets-mba/bp-esc.git
 ```
 
+### Version Management
+
+The version must be kept in sync across multiple files. **NEVER** bump only one.
+
+#### Files to Update:
+1.  **`src-tauri/tauri.conf.json`**: Primary version source for Tauri.
+2.  **`src-tauri/Cargo.toml`**: Rust package version.
+3.  **`package.json`**: Node.js/Frontend version.
+
+#### Sync Command:
+To verify synchronization, you can run:
+```bash
+grep -r "\"version\": \"$(node -e "console.log(require('./src-tauri/tauri.conf.json').version)")\"" .
+```
+Or simply check all three files. The `/release` command now performs this check automatically.
+
 ### CI & Caching
 
 The project uses `Swatinem/rust-cache@v2` in GitHub Actions to minimize build times.

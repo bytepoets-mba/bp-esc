@@ -4,11 +4,16 @@ Trigger the professional CI/CD release pipeline.
 
 ## Logic
 
+0. **Sync Check:** Ensure everything is saved, staged, and properl pushed.
+    -   Check if there are any uncommitted changes: `git status`.
+    -   If there are uncommitted changes, **STOP** and inform the user. Ask them if they want to commit now!
+    -   If there are no uncommitted changes, continue.
 1.  **Version Check:** 
     - Read `version` from `src-tauri/tauri.conf.json`.
     - Fetch remote tags: `git fetch --tags`.
     - Verify `v<version>` does **not** already exist on remote or locally: `git tag -l v<version>`.
-    - If it exists, **STOP** and inform the user we must bump the version in `tauri.conf.json` before releasing. Ask them if they want to do that now!
+    - **Sync Check:** Ensure `version` is consistent across `src-tauri/Cargo.toml` and `package.json`.
+    - If inconsistent or tag exists, **STOP** and inform the user. Ask them if they want to sync and bump now!
 2.  **Git Tagging:**
     -   Verify the working directory is clean.
     -   Create a tag matching the version (e.g., `v1.2.3`).

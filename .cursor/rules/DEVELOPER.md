@@ -102,6 +102,10 @@ Before making changes, understand the project architecture:
 
 > **Keep code, docs, and tests in sync.**
 
+**CRITICAL: Version Synchronization**
+- When bumping versions, update **all** sources: `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json`.
+- Never release with inconsistent version strings.
+
 When you change code:
 - Update README.md if public API/features changed
 - Update or create tests for new functionality
