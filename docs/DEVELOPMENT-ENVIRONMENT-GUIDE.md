@@ -152,10 +152,7 @@ The project uses `Swatinem/rust-cache@v2` in GitHub Actions to minimize build ti
 - **Persistence**: `add-job-id-key: false` ensures the cache persists across different workflow runs.
 
 #### Troubleshooting "No cache found"
-If a release run reports "No cache found", it is usually due to one of these reasons:
-1. **First Run**: It's the first build after changing the `shared-key` or the workspace path.
-2. **Tag Isolation**: GitHub Actions caches are branch-scoped. A tag push (`v*`) can pull caches from `main`, but not the other way around. 
-3. **Recommendation**: To keep the cache "warm", ensure there is a CI workflow running on the `main` branch that uses the same `shared-key: "release-build"`.
+If a release run reports "No cache found", it is usually because it's the first build after changing the `shared-key` or the workspace path. Subsequent releases on different tags will still benefit from the `shared-key: "release-build"` setup.
 
 #### Local Setup Requirements:
 1. **Certificate:** Must be specifically "Developer ID Application". "Apple Development" or "Mac App Distribution" will fail.

@@ -4,7 +4,11 @@ Trigger the professional CI/CD release pipeline.
 
 ## Logic
 
-1.  **Version Check:** Read `version` from `src-tauri/tauri.conf.json`.
+1.  **Version Check:** 
+    - Read `version` from `src-tauri/tauri.conf.json`.
+    - Fetch remote tags: `git fetch --tags`.
+    - Verify `v<version>` does **not** already exist on remote or locally: `git tag -l v<version>`.
+    - If it exists, **STOP** and inform the user we must bump the version in `tauri.conf.json` before releasing. Ask them if they want to do that now!
 2.  **Git Tagging:**
     -   Verify the working directory is clean.
     -   Create a tag matching the version (e.g., `v1.2.3`).
@@ -19,7 +23,7 @@ Trigger the professional CI/CD release pipeline.
 
 -   Ensure `tauri.conf.json` version is bumped before calling.
 -   Requires `origin` to be a GitHub repository.
--   GitHub operations (`gh`) must be authenticated as `bytepoets-mba`.
+-   GitHub operations (`gh`) must be authenticated as `bytepoets-mba` (handled via `.env.secrets` and `direnv`).
 
 ## Safety
 
