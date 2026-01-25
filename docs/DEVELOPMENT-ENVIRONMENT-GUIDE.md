@@ -84,6 +84,17 @@ The project uses a professional GitHub Actions pipeline for signing and notariza
 
 To distribute the app outside the Mac App Store, it must be signed with a **Developer ID Application** certificate and notarized by Apple.
 
+### Dual GitHub Identity (bytepoets-mba)
+
+This repository requires GitHub operations (`gh`) to be performed as the `bytepoets-mba` user. To automate this via `direnv`:
+
+1.  **Generate a Token**: Create a [Fine-grained Personal Access Token](https://github.com/settings/tokens?type=beta) for the `bytepoets-mba` account with `repo` and `actions` permissions.
+2.  **Set up Secrets**: Create a file named `.env.secrets` in the root of the project (this file is git-ignored):
+    ```bash
+    export GH_TOKEN=github_pat_...
+    ```
+3.  **Reload**: Run `direnv allow`. The `gh` CLI will now automatically use this token instead of your global account.
+
 #### Local Setup Requirements:
 1. **Certificate:** Must be specifically "Developer ID Application". "Apple Development" or "Mac App Distribution" will fail.
 2. **Entitlements:** Standard entitlements for Tauri apps (Hardened Runtime) are located in `src-tauri/entitlements/release.entitlements`.
