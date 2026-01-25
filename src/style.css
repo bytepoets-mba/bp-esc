@@ -86,11 +86,40 @@ body {
   background: rgba(0, 100, 151, 0.1);
 }
 
+.api-key-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.api-key-row.active .api-key-indicator {
+  background: #006497;
+  box-shadow: 0 0 8px rgba(0, 100, 151, 0.4);
+}
+
 .api-key-label {
   flex: 1;
   font-weight: 600;
   font-size: 0.9rem;
   color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.api-key-edit-input {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 2px 4px;
+  border: 1px solid #006497;
+  border-radius: 4px;
+  background: white;
+  color: #1f2937;
+  outline: none;
 }
 
 .api-key-mask {
@@ -560,18 +589,70 @@ input[type="text"] {
 }
 
 .balance-summary {
+  position: relative;
   display: flex;
-  justify-content: center;
   align-items: center;
-  padding: 0.5rem 0;
+  justify-content: center;
+  padding: 1rem 0;
+  width: 100%;
 }
 
 .pie-container {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1.25rem;
-  padding: 0.5rem 0;
+  width: 100%;
+  position: relative;
+}
+
+.key-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px !important;
+  font-size: 24px !important;
+  color: #9ca3af !important;
+  opacity: 0.2;
+  transition: all 0.2s;
+  -webkit-app-region: no-drag;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.key-nav-btn.left {
+  left: 0;
+}
+
+.key-nav-btn.right {
+  right: 0;
+}
+
+.key-nav-btn:hover {
+  opacity: 1;
+  color: #006497 !important;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 50%;
+}
+
+.pie-label-left {
+  font-family: 'SF Mono', monospace;
+  font-weight: 700;
+  font-size: 1.5rem;
+  color: #1f2937;
+  text-align: right;
+  flex: 1;
+  padding-right: 20px;
+}
+
+#balancePie {
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
 }
 
 .pie-label {
@@ -579,11 +660,9 @@ input[type="text"] {
   font-weight: 700;
   font-size: 1.5rem;
   color: #1f2937;
-}
-
-#balancePie {
-  width: 60px;
-  height: 60px;
+  text-align: left;
+  flex: 1;
+  padding-left: 20px;
 }
 
 .highlight .value {
@@ -633,6 +712,73 @@ input[type="text"] {
 }
 
 /* Confirm Dialog */
+.error-message.hidden {
+  display: none;
+}
+
+.log-drawer {
+  background: #1a1a1a;
+  color: #d1d5db;
+  border-top: 1px solid #374151;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  -webkit-app-region: no-drag;
+}
+
+.log-drawer.hidden {
+  display: none;
+}
+
+.log-drawer-header {
+  padding: 6px 12px;
+  background: #262626;
+  border-bottom: 1px solid #374151;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.log-content {
+  padding: 8px;
+  overflow-y: scroll;
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #0f0f0f;
+}
+
+.log-line {
+  margin-bottom: 2px;
+  line-height: 1.2;
+  border-bottom: 1px solid #262626;
+  padding-bottom: 2px;
+}
+
+.log-ts {
+  color: #6b7280;
+  margin-right: 6px;
+}
+
+.log-line.error .log-msg {
+  color: #ef4444;
+}
+
+.log-line.warn .log-msg {
+  color: #f59e0b;
+}
+
+.log-line.info .log-msg {
+  color: #60a5fa;
+}
+
 .dialog-overlay {
   position: fixed;
   top: 0;

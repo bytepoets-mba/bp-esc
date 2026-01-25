@@ -42,10 +42,19 @@
       <!-- Balance Display State -->
       <div id="balanceState" class="state hidden">
         <div class="balance-summary">
+          <button id="prevKeyBtn" class="btn-subtle key-nav-btn left">
+            <span class="material-symbols-rounded">chevron_left</span>
+          </button>
+          
           <div class="pie-container">
+            <div id="apiKeyLabelDisplay" class="pie-label-left">-</div>
             <canvas id="balancePie" width="50" height="50"></canvas>
             <div class="pie-label"><span id="exactPercent">-</span>%</div>
           </div>
+
+          <button id="nextKeyBtn" class="btn-subtle key-nav-btn right">
+            <span class="material-symbols-rounded">chevron_right</span>
+          </button>
         </div>
 
         <div class="balance-card">
@@ -92,6 +101,7 @@
                 <div id="apiKeyList" class="api-key-list">
                   <!-- Keys injected here -->
                 </div>
+                <p class="help-text">Tip: Double-click a label to set a <strong>Custom Alias</strong></p>
                 <div class="api-key-add-row" style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
                   <input type="password" id="newApiKeyInput" placeholder="sk-or-v1-..." autocomplete="off" style="flex: 1;">
                   <button id="addApiKeyBtn" class="btn-primary" style="padding: 0 12px;">Add</button>
@@ -117,7 +127,14 @@
                   <span>Global Shortcut</span>
                 </label>
                 <input type="text" id="shortcutInput" placeholder="F19" autocomplete="off" style="margin-top: 0.5rem;">
-                <p class="help-text">Example: <code>F19</code> or <code>Cmd+Shift+B</code></p>
+                <p class="help-text">Example: <code>F19</code>, <code>Cmd+Shift+B</code>, <code>Ctrl+Alt+S</code></p>
+              </div>
+
+              <div class="setting-item side">
+                <label for="debugLoggingToggle" class="checkbox-label">
+                  <input type="checkbox" id="debugLoggingToggle">
+                  <span>Enable Log File</span>
+                </label>
               </div>
             </div>
 
@@ -205,6 +222,19 @@
 
     <!-- Error Display -->
     <div id="errorDisplay" class="error-message hidden"></div>
+
+    <!-- Log Drawer -->
+    <div id="logDrawer" class="log-drawer hidden">
+      <div class="log-drawer-header">
+        <span>Debug Logs</span>
+        <div style="display: flex; gap: 8px;">
+          <button id="openLogFileBtn" class="btn-subtle" style="padding: 2px 6px; font-size: 10px;">Open File</button>
+          <button id="clearLogsBtn" class="btn-subtle" style="padding: 2px 6px; font-size: 10px;">Clear</button>
+          <button id="closeLogDrawerBtn" class="btn-subtle" style="padding: 2px 6px; font-size: 10px;">✕</button>
+        </div>
+      </div>
+      <div id="logContent" class="log-content"></div>
+    </div>
 
     <!-- Confirm Dialog -->
     <div id="confirmDialog" class="dialog-overlay hidden">

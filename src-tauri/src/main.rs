@@ -59,6 +59,8 @@ pub struct AppSettings {
     pub unfocused_overlay: bool,
     #[serde(default = "default_zero")]
     pub decimal_places: u32,
+    #[serde(default = "default_false")]
+    pub debug_logging_enabled: bool,
 }
 
 fn default_refresh_interval() -> u32 { 5 }
@@ -84,6 +86,7 @@ impl Default for AppSettings {
             always_on_top: false,
             unfocused_overlay: true,
             decimal_places: 0,
+            debug_logging_enabled: false,
         }
     }
 }
@@ -234,15 +237,44 @@ fn open_error_log() -> Result<(), String> {
     Ok(())
 }
 
-/// Log error to file: ~/.config/bpesc-balance/error.log
 #[tauri::command]
-fn log_error(message: String) -> Result<(), String> {
+fn open_app_log() -> Result<(), String> {
+    let config_dir = get_config_dir()?;
+    let log_path = config_dir.join("app.log");
+    
+    if log_path.exists() {
+        open::that(log_path).map_err(|e| e.to_string())?;
+    } else {
+        return Err("Log file does not exist yet.".to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn log_message(_app: AppHandle, message: String) -> Result<(), String> {
+    let settings = match read_settings() {
+        Ok(s) => s,
+        Err(_) => return Ok(()), // Silent fail if settings unreadable
+    };
+
+    if !settings.debug_logging_enabled {
+        return Ok(());
+    }
+
     let config_dir = get_config_dir()?;
     if !config_dir.exists() {
         let _ = fs::create_dir_all(&config_dir);
     }
-    let log_path = config_dir.join("error.log");
+    let log_path = config_dir.join("app.log");
+    let old_log_path = config_dir.join("app.log.old");
     
+    // Check file size for rotation (100KB)
+    if let Ok(metadata) = fs::metadata(&log_path) {
+        if metadata.len() > 100 * 1024 {
+            let _ = fs::rename(&log_path, &old_log_path);
+        }
+    }
+
     use std::io::Write;
     let mut file = fs::OpenOptions::new()
         .create(true)
@@ -251,6 +283,44 @@ fn log_error(message: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     
     writeln!(file, "{}", message).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn read_logs() -> Result<Vec<String>, String> {
+    let config_dir = get_config_dir()?;
+    let log_path = config_dir.join("app.log");
+    let old_log_path = config_dir.join("app.log.old");
+
+    let mut all_lines = Vec::new();
+
+    // Read old log first if it exists
+    if old_log_path.exists() {
+        if let Ok(content) = fs::read_to_string(&old_log_path) {
+            all_lines.extend(content.lines().map(|s| s.to_string()));
+        }
+    }
+
+    // Read current log
+    if log_path.exists() {
+        if let Ok(content) = fs::read_to_string(&log_path) {
+            all_lines.extend(content.lines().map(|s| s.to_string()));
+        }
+    }
+
+    // Newest first
+    all_lines.reverse();
+    Ok(all_lines)
+}
+
+#[tauri::command]
+fn clear_logs() -> Result<(), String> {
+    let config_dir = get_config_dir()?;
+    let log_path = config_dir.join("app.log");
+    let old_log_path = config_dir.join("app.log.old");
+    
+    let _ = fs::remove_file(log_path);
+    let _ = fs::remove_file(old_log_path);
     Ok(())
 }
 
@@ -369,7 +439,7 @@ struct OpenRouterData {
 
 /// Fetch balance from OpenRouter API
 #[tauri::command]
-async fn fetch_balance(api_key: String) -> Result<BalanceData, String> {
+async fn fetch_balance(app: AppHandle, api_key: String) -> Result<BalanceData, String> {
     // Validate API key format
     validate_api_key(&api_key)?;
     
@@ -408,12 +478,18 @@ async fn fetch_balance(api_key: String) -> Result<BalanceData, String> {
     }
     
     // Parse JSON response
-    let api_response: OpenRouterResponse = response
-        .json()
+    let raw_body = response
+        .text()
         .await
+        .map_err(|e| format!("Failed to read response body: {}", e))?;
+    
+    // Log raw body for debugging
+    let _ = log_message(app, format!("[INFO] Raw OpenRouter response: {}", raw_body));
+
+    let api_response: OpenRouterResponse = serde_json::from_str(&raw_body)
         .map_err(|e| {
             eprintln!("JSON parse error: {}", e);
-            "Failed to parse API response. The service may be temporarily unavailable.".to_string()
+            format!("Failed to parse API response: {}. Body: {}", e, raw_body)
         })?;
     
     // Check for API error
@@ -976,7 +1052,10 @@ fn main() {
         fetch_balance,
         get_app_version,
         update_menubar_display,
-        log_error,
+        log_message,
+        read_logs,
+        clear_logs,
+        open_app_log,
         open_error_log,
         quit_app,
         open_external_url,

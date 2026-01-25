@@ -68,12 +68,15 @@ window.addEventListener('DOMContentLoaded', () => {
   const decimalPlus = document.getElementById('decimalPlus');
   const shortcutInput = document.getElementById('shortcutInput');
   const shortcutEnabledToggle = document.getElementById('shortcutEnabledToggle');
+  const debugLoggingToggle = document.getElementById('debugLoggingToggle');
   const resetSettingsBtn = document.getElementById('resetSettingsBtn');
 
   // DOM elements - Actions
   const refreshBtn = document.getElementById('refreshBtn');
   const quitBtn = document.getElementById('quitBtn');
   const hideBtn = document.getElementById('hideBtn');
+  const prevKeyBtn = document.getElementById('prevKeyBtn');
+  const nextKeyBtn = document.getElementById('nextKeyBtn');
 
   // DOM elements - Confirm Dialog
   const confirmDialog = document.getElementById('confirmDialog');
@@ -94,10 +97,43 @@ window.addEventListener('DOMContentLoaded', () => {
       const row = document.createElement('div');
       row.className = `api-key-row ${index === currentSettings.active_api_key_index ? 'active' : ''}`;
       
+      const indicator = document.createElement('div');
+      indicator.className = 'api-key-indicator';
+      row.appendChild(indicator);
+      
       const label = document.createElement('span');
       label.className = 'api-key-label';
       label.textContent = api.label || `Key ${index + 1}`;
-      label.onclick = async () => {
+      
+      // Double click to rename
+      label.ondblclick = (e) => {
+        e.stopPropagation();
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'api-key-edit-input';
+        input.value = label.textContent;
+        
+        const saveEdit = async () => {
+          const newLabel = input.value.trim();
+          if (newLabel && newLabel !== api.label) {
+            api.label = newLabel;
+            await saveSettingsAction(true);
+          }
+          renderApiKeyList();
+        };
+
+        input.onblur = saveEdit;
+        input.onkeydown = (ke) => {
+          if (ke.key === 'Enter') saveEdit();
+          if (ke.key === 'Escape') renderApiKeyList();
+        };
+
+        label.replaceWith(input);
+        input.focus();
+        input.select();
+      };
+
+      row.onclick = async () => {
         if (currentSettings.active_api_key_index !== index) {
           currentSettings.active_api_key_index = index;
           await saveSettingsAction(true);
@@ -168,9 +204,7 @@ window.addEventListener('DOMContentLoaded', () => {
   function showError(message) {
     const ts = new Date().toISOString();
     console.error(`[${ts}] ${message}`);
-    
-    // Paper trail: also log to backend for persistence if needed
-    invoke('log_error', { message: `[${ts}] ${message}` }).catch(e => console.error("Logger failed", e));
+    addLog(message, 'error');
 
     errorDisplay.textContent = message;
     errorDisplay.classList.remove('hidden');
@@ -330,7 +364,15 @@ window.addEventListener('transitionend', (e) => {
 
   // Display balance
   async function displayBalance(balance) {
+    addLog(`Displaying balance: ${JSON.stringify(balance)}`);
     currentBalance = balance;
+
+    // Update active key label next to hexagon
+    const activeKeyLabel = currentSettings?.api_keys[currentSettings.active_api_key_index]?.label;
+    const labelDisplay = document.getElementById('apiKeyLabelDisplay');
+    if (labelDisplay) {
+      labelDisplay.textContent = activeKeyLabel || '-';
+    }
     
     // Check if we have valid balance data
     const hasData = balance && balance.limit !== null && balance.remaining !== null;
@@ -479,20 +521,23 @@ window.addEventListener('transitionend', (e) => {
   async function loadBalance() {
     const activeKey = currentSettings?.api_keys[currentSettings.active_api_key_index]?.key;
     if (!activeKey) {
+      addLog('No active API key found', 'warn');
       showState('settings');
       return;
     }
     
+    addLog(`Fetching balance for: ${currentSettings.api_keys[currentSettings.active_api_key_index].label}`);
     const refreshBtn = document.getElementById('refreshBtn');
     if (refreshBtn) refreshBtn.classList.add('spinning');
     hideError();
     
     try {
       const balance = await invoke('fetch_balance', { apiKey: activeKey });
+      addLog('Balance fetch successful');
       await displayBalance(balance);
       startAutoRefresh();
     } catch (error) {
-      console.error('Failed to fetch balance:', error);
+      addLog(`Balance fetch failed: ${error}`, 'error');
       await resetBalanceDisplay();
       showError(error);
       startAutoRefresh();
@@ -516,6 +561,7 @@ window.addEventListener('transitionend', (e) => {
 
     shortcutInput.value = currentSettings.global_shortcut || 'F19';
     shortcutEnabledToggle.checked = currentSettings.global_shortcut_enabled;
+    debugLoggingToggle.checked = currentSettings.debug_logging_enabled;
     
     if (currentSettings.show_percentage) {
       unitPercent.classList.add('active');
@@ -547,6 +593,7 @@ window.addEventListener('transitionend', (e) => {
       decimal_places: parseInt(decimalValue.textContent),
       global_shortcut: shortcutInput.value.trim() || 'F19',
       global_shortcut_enabled: shortcutEnabledToggle.checked,
+      debug_logging_enabled: debugLoggingToggle.checked,
       show_percentage: unitPercent.classList.contains('active'),
       show_remaining: typeRemaining.classList.contains('active'),
     };
@@ -634,6 +681,7 @@ window.addEventListener('transitionend', (e) => {
 
   shortcutInput.onblur = () => saveSettingsAction(true);
   shortcutEnabledToggle.onchange = () => saveSettingsAction(true);
+  debugLoggingToggle.onchange = () => saveSettingsAction(true);
 
   // Reset button - confirm and wipe data
   resetSettingsBtn.onclick = () => {
@@ -658,6 +706,22 @@ window.addEventListener('transitionend', (e) => {
   quitBtn.onclick = () => invoke('quit_app');
   hideBtn.onclick = () => invoke('toggle_window_visibility');
 
+  prevKeyBtn.onclick = async () => {
+    if (!currentSettings || currentSettings.api_keys.length <= 1) return;
+    currentSettings.active_api_key_index = (currentSettings.active_api_key_index - 1 + currentSettings.api_keys.length) % currentSettings.api_keys.length;
+    await saveSettingsAction(true);
+    renderApiKeyList();
+    loadBalance();
+  };
+
+  nextKeyBtn.onclick = async () => {
+    if (!currentSettings || currentSettings.api_keys.length <= 1) return;
+    currentSettings.active_api_key_index = (currentSettings.active_api_key_index + 1) % currentSettings.api_keys.length;
+    await saveSettingsAction(true);
+    renderApiKeyList();
+    loadBalance();
+  };
+
   // Toggle debug info on logo double click
   const bpLogo = document.getElementById('bpLogo');
   const checkLabel = document.getElementById('checkLabel');
@@ -678,11 +742,69 @@ window.addEventListener('transitionend', (e) => {
     };
   }
 
+  const logContent = document.getElementById('logContent');
+  const logDrawer = document.getElementById('logDrawer');
+  const openLogFileBtn = document.getElementById('openLogFileBtn');
+  const closeLogDrawerBtn = document.getElementById('closeLogDrawerBtn');
+  const clearLogsBtn = document.getElementById('clearLogsBtn');
+
+  async function addLog(message, type = 'info') {
+    const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
+    const formatted = `[${ts}] [${type.toUpperCase()}] ${message}`;
+    
+    // SSOT: Log to file
+    await invoke('log_message', { message: formatted }).catch(() => {});
+    
+    // Update drawer if visible
+    if (!logDrawer.classList.contains('hidden')) {
+      await refreshLogsInUI();
+    }
+  }
+
+  async function refreshLogsInUI() {
+    try {
+      const logs = await invoke('read_logs');
+      logContent.innerHTML = logs.map(line => {
+        const type = line.includes('[ERROR]') ? 'error' : 
+                     line.includes('[WARN]') ? 'warn' : 'info';
+        return `<div class="log-line ${type}">${line}</div>`;
+      }).join('');
+    } catch (e) {
+      console.error('Failed to read logs', e);
+    }
+  }
+
   if (openLogBtn) {
-    openLogBtn.onclick = () => {
-      invoke('open_error_log').catch(err => showError(err));
+    openLogBtn.onclick = async () => {
+      const isOpening = logDrawer.classList.contains('hidden');
+      logDrawer.classList.toggle('hidden');
+      
+      const { getCurrentWindow } = window.__TAURI__.window;
+      const appWindow = getCurrentWindow();
+      await appWindow.setResizable(isOpening);
+      
+      if (isOpening) {
+        await refreshLogsInUI();
+      }
+      performResize();
     };
   }
+
+  closeLogDrawerBtn.onclick = async () => {
+    logDrawer.classList.add('hidden');
+    const { getCurrentWindow } = window.__TAURI__.window;
+    await getCurrentWindow().setResizable(false);
+    performResize();
+  };
+
+  clearLogsBtn.onclick = async () => {
+    await invoke('clear_logs');
+    logContent.innerHTML = '';
+  };
+
+  openLogFileBtn.onclick = () => {
+    invoke('open_app_log').catch(err => showError(err));
+  };
 
   // Setup event listener for window visibility control
   async function setupWindowVisibilityListener() {
@@ -716,11 +838,13 @@ window.addEventListener('transitionend', (e) => {
 
   // Test API key by attempting to fetch balance
   async function testApiKey(key) {
+    addLog(`Testing API key: ${key.slice(0, 8)}...`);
     try {
       const balance = await invoke('fetch_balance', { apiKey: key });
+      addLog(`API key valid. Label: ${balance.label || 'none'}`);
       return { valid: true, balance };
     } catch (error) {
-      console.error('API key test failed:', error);
+      addLog(`API key test failed: ${error}`, 'error');
       return { valid: false, reason: 'network', error: error };
     }
   }
