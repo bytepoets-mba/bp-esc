@@ -937,7 +937,6 @@ fn toggle_window(app: &AppHandle) {
         if window.is_visible().unwrap_or(false) && window.is_focused().unwrap_or(false) {
             let _ = window.hide();
         } else {
-            let _ = position_window_below_menubar(&window);
             let _ = window.show();
             let _ = window.set_focus();
             let _ = window.emit("refresh-balance", ());
