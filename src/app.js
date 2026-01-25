@@ -113,51 +113,31 @@ window.addEventListener('DOMContentLoaded', () => {
     performResize();
   }
 
-// --- PROFESSIONAL SCROLL-HEIGHT AUTO-RESIZE LOGIC ---
+// --- SIMPLE AUTO-RESIZE LOGIC ---
 let resizeTimeout = null;
-let lastMeasuredHeight = 0;
 
 async function performResize() {
   try {
     const { getCurrentWindow, LogicalSize } = window.__TAURI__.window;
     const appWindow = getCurrentWindow();
-    
-    // Ensure CSS layout is stable
-    await new Promise(resolve => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(resolve);
-      });
-    });
-    
     const container = document.querySelector('.container');
     if (!container) return;
+
+    const finalHeight = Math.min(Math.max(container.scrollHeight, 400), 800);
     
-    // Use the container's scrollHeight for the most accurate measurement
-    const totalContentHeight = container.scrollHeight;
-    
-    // Clamp window height between 400 and 800
-    const finalHeight = Math.min(Math.max(totalContentHeight, 400), 800);
-    
-    if (Math.abs(lastMeasuredHeight - finalHeight) > 1) {
-      console.log(`📏 Resizing window to: ${finalHeight}px`);
-      
-      try {
-        await appWindow.setSize(new LogicalSize(800, finalHeight));
-        lastMeasuredHeight = finalHeight;
-      } catch (tauriError) {
-        console.error('Resize failed', tauriError);
-      }
-    }
+    // One call, let the OS handle the physics
+    await appWindow.setSize(new LogicalSize(800, finalHeight));
   } catch (e) {
-    console.error('Resize failed:', e);
+    // console.error('Resize failed:', e);
   }
 }
 
-// Clean observer setup
+// Single debounce to wait for layout to settle
 const resizeObserver = new ResizeObserver(() => {
   if (resizeTimeout) clearTimeout(resizeTimeout);
-  resizeTimeout = setTimeout(performResize, 50);
+  resizeTimeout = setTimeout(performResize, 100);
 });
+// ----------------------------------
 
 resizeObserver.observe(document.body);
 
