@@ -17,12 +17,12 @@
     "windows": [
       {
         "label": "main",
-        "title": "BYTEPOETS - ESC",
+        "title": "Employee Self-Care",
         "resizable": false,
         "fullscreen": false,
         "visible": true,
-        "decorations": false,
-        "transparent": true,
+        "decorations": true,
+        "transparent": false,
         "alwaysOnTop": true
       }
     ]
