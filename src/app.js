@@ -63,6 +63,9 @@ window.addEventListener('DOMContentLoaded', () => {
   const startWindowToggle = document.getElementById('startWindowToggle');
   const alwaysOnTopToggle = document.getElementById('alwaysOnTopToggle');
   const unfocusedOverlayToggle = document.getElementById('unfocusedOverlayToggle');
+  const decimalValue = document.getElementById('decimalValue');
+  const decimalMinus = document.getElementById('decimalMinus');
+  const decimalPlus = document.getElementById('decimalPlus');
   const shortcutInput = document.getElementById('shortcutInput');
   const shortcutEnabledToggle = document.getElementById('shortcutEnabledToggle');
   const resetSettingsBtn = document.getElementById('resetSettingsBtn');
@@ -307,6 +310,7 @@ window.addEventListener('transitionend', (e) => {
     startWindowToggle.checked = currentSettings.show_window_on_start;
     alwaysOnTopToggle.checked = currentSettings.always_on_top;
     unfocusedOverlayToggle.checked = currentSettings.unfocused_overlay;
+    decimalValue.textContent = currentSettings.decimal_places || 0;
 
     shortcutInput.value = currentSettings.global_shortcut || 'F19';
     shortcutEnabledToggle.checked = currentSettings.global_shortcut_enabled;
@@ -339,6 +343,7 @@ window.addEventListener('transitionend', (e) => {
       show_window_on_start: startWindowToggle.checked,
       always_on_top: alwaysOnTopToggle.checked,
       unfocused_overlay: unfocusedOverlayToggle.checked,
+      decimal_places: parseInt(decimalValue.textContent),
       global_shortcut: shortcutInput.value.trim() || 'F19',
       global_shortcut_enabled: shortcutEnabledToggle.checked,
       show_percentage: unitPercent.classList.contains('active'),
@@ -410,6 +415,22 @@ window.addEventListener('transitionend', (e) => {
       document.body.classList.add('unfocused');
     }
   };
+  
+  decimalMinus.onclick = async () => {
+    let val = parseInt(decimalValue.textContent);
+    if (val > 0) {
+      decimalValue.textContent = val - 1;
+      await saveSettingsAction(true);
+    }
+  };
+  decimalPlus.onclick = async () => {
+    let val = parseInt(decimalValue.textContent);
+    if (val < 2) {
+      decimalValue.textContent = val + 1;
+      await saveSettingsAction(true);
+    }
+  };
+
   apiKeyInputSettings.onblur = () => saveSettingsAction(true);
   shortcutInput.onblur = () => saveSettingsAction(true);
   shortcutEnabledToggle.onchange = () => saveSettingsAction(true);

@@ -47,11 +47,14 @@ pub struct AppSettings {
     pub always_on_top: bool,
     #[serde(default = "default_true")]
     pub unfocused_overlay: bool,
+    #[serde(default = "default_zero")]
+    pub decimal_places: u32,
 }
 
 fn default_refresh_interval() -> u32 { 5 }
 fn default_true() -> bool { true }
 fn default_false() -> bool { false }
+fn default_zero() -> u32 { 0 }
 fn default_shortcut() -> String { "F19".to_string() }
 
 impl Default for AppSettings {
@@ -68,6 +71,7 @@ impl Default for AppSettings {
             global_shortcut_enabled: true,
             always_on_top: false,
             unfocused_overlay: true,
+            decimal_places: 0,
         }
     }
 }
@@ -536,8 +540,13 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
         }
     };
     
-    // floor to int as requested
-    let final_value = display_value.floor();
+    // floor to int as requested unless fractional is enabled
+    let final_value = if settings.decimal_places > 0 {
+        let factor = 10.0f64.powi(settings.decimal_places as i32);
+        (display_value * factor).round() / factor
+    } else {
+        display_value.floor()
+    };
     
     // Check if we have valid data (remaining balance exists if we fetched successfully)
     let has_data = balance.remaining.is_some();
@@ -588,7 +597,11 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     }
 
     // Prepare text
-    let value_text = format!("{}", value.round() as i32);
+    let value_text = if settings.decimal_places > 0 {
+        format!("{:.1$}", value, settings.decimal_places as usize)
+    } else {
+        format!("{}", value.round() as i32)
+    };
     let unit_text = if is_percentage { "%" } else { "$" };
     
     let (val_font, _) = try_load_font(MENUBAR_VALUE_FONT).ok_or("Value font not found")?;

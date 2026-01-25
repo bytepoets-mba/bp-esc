@@ -82,38 +82,31 @@
                 <input type="password" id="apiKeyInputSettings" placeholder="sk-or-v1-..." autocomplete="off">
               </div>
 
-              <div class="setting-item">
+              <div class="setting-item side">
                 <label class="checkbox-label">
                   <input type="checkbox" id="autocheckToggle">
-                  <span>Enable Auto-refresh</span>
+                  <span>Auto-refresh</span>
                 </label>
-              </div>
-
-              <div class="setting-item">
-                <label>Refresh Interval (minutes):</label>
                 <div class="number-input">
                   <button id="refreshMinus" class="btn-icon">−</button>
                   <span id="refreshValue">5</span>
                   <button id="refreshPlus" class="btn-icon">+</button>
+                  <span class="unit">Minutes</span>
                 </div>
               </div>
 
               <div class="setting-item">
                 <label class="checkbox-label">
                   <input type="checkbox" id="shortcutEnabledToggle">
-                  <span>Enable Global Shortcut</span>
+                  <span>Global Shortcut</span>
                 </label>
-              </div>
-
-              <div class="setting-item">
-                <label for="shortcutInput">Global Shortcut:</label>
-                <input type="text" id="shortcutInput" placeholder="F19" autocomplete="off">
-                <p class="help-text">Example: <code>Command+Shift+Option+Control+F19</code></p>
+                <input type="text" id="shortcutInput" placeholder="F19" autocomplete="off" style="margin-top: 0.5rem;">
+                <p class="help-text">Example: <code>F19</code> or <code>Cmd+Shift+B</code></p>
               </div>
             </div>
 
             <div class="settings-col">
-              <div class="setting-item">
+              <div class="setting-item side">
                 <label>Display Unit:</label>
                 <div class="toggle-group">
                   <button id="unitPercent" class="btn-toggle active">%</button>
@@ -121,7 +114,7 @@
                 </div>
               </div>
 
-              <div id="absTypeSection" class="setting-item">
+              <div id="absTypeSection" class="setting-item side">
                 <label>Value Type:</label>
                 <div class="toggle-group">
                   <button id="typeRemaining" class="btn-toggle active">Remaining</button>
@@ -129,31 +122,40 @@
                 </div>
               </div>
 
-              <div class="setting-item">
+              <div class="setting-item side">
+                <label>Decimals:</label>
+                <div class="number-input">
+                  <button id="decimalMinus" class="btn-icon">−</button>
+                  <span id="decimalValue">0</span>
+                  <button id="decimalPlus" class="btn-icon">+</button>
+                </div>
+              </div>
+
+              <div class="setting-item side">
                 <label class="checkbox-label">
                   <input type="checkbox" id="showUnitToggle">
-                  <span>Show Unit in Menubar</span>
+                  <span>Show Unit</span>
                 </label>
               </div>
 
-              <div class="setting-item">
+              <div class="setting-item side">
                 <label for="startWindowToggle" class="checkbox-label">
                   <input type="checkbox" id="startWindowToggle">
-                  <span>Show Window on App Start</span>
+                  <span>Show on Start</span>
                 </label>
               </div>
 
-              <div class="setting-item">
+              <div class="setting-item side">
                 <label for="alwaysOnTopToggle" class="checkbox-label">
                   <input type="checkbox" id="alwaysOnTopToggle">
                   <span>Always on Top</span>
                 </label>
               </div>
 
-              <div class="setting-item">
+              <div class="setting-item side">
                 <label for="unfocusedOverlayToggle" class="checkbox-label">
                   <input type="checkbox" id="unfocusedOverlayToggle">
-                  <span>Dim when unfocused</span>
+                  <span>Dim Unfocused</span>
                 </label>
               </div>
             </div>
