@@ -91,6 +91,20 @@ body.unfocused .container::after {
 }
 
 
+.header-logo {
+  text-align: center;
+  padding: 0;
+  -webkit-app-region: drag;
+}
+
+.header-logo img {
+  height: 56px;
+  width: auto;
+  -webkit-app-region: no-drag;
+  position: relative;
+  top: 10px;
+}
+
 /* Tab Navigation */
 .nav-tabs {
   display: flex;
@@ -147,6 +161,42 @@ body.unfocused .container::after {
 
 .nav-tab.active {
   color: #1f2937;
+}
+
+.btn-small {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.75rem;
+  min-width: 70px !important;
+}
+
+.footer-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.last-updated-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-subtle {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  line-height: 1;
+}
+
+.btn-subtle:hover {
+  border-color: #e5e7eb;
+  color: #6366f1;
+  background: white;
 }
 
 .balance-footer-info {
@@ -352,25 +402,40 @@ input[type="text"] {
 }
 
 .btn-primary {
-  background: #6366f1;
-  color: white;
-  border: none;
+  background: transparent;
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.05);
   padding: 0.6rem 1.5rem;
   border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
   -webkit-app-region: no-drag;
+  transition: all 0.2s;
+  transform: translateY(-2px);
+}
+
+.btn-primary:hover {
+  background: #6366f1;
+  color: white;
+  border-color: #6366f1;
 }
 
 .btn-secondary {
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.025);
   color: #4b5563;
   padding: 0.6rem 1.5rem;
   border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
   -webkit-app-region: no-drag;
+  transition: all 0.2s;
+  transform: translateY(-2px);
+}
+
+.btn-secondary:hover {
+  background: white;
+  border-color: #e5e7eb;
 }
 
 .btn-reset:hover {
@@ -385,7 +450,7 @@ input[type="text"] {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   padding: 1.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
 }
 
 .balance-item {

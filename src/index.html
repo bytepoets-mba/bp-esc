@@ -8,11 +8,16 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 </head>
 <body>
-  <div class="container">
-    <div id="checkLabel" style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: #6366f1; color: white; padding: 4px 12px; border-radius: 6px; font-size: 11px; font-family: 'SF Mono', monospace; font-weight: bold; z-index: 9999; -webkit-app-region: no-drag; box-shadow: 0 2px 8px rgba(0,0,0,0.2); white-space: nowrap; display: none;">
-      SH: <span id="shValue">0</span> | CH: <span id="chValue">0</span> | WH: <span id="whValue">0</span> | <span id="focusValue">FOCUSED</span>
-    </div>
-    <nav class="nav-tabs">
+    <div class="container">
+      <div id="checkLabel" style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: #6366f1; color: white; padding: 4px 12px; border-radius: 6px; font-size: 11px; font-family: 'SF Mono', monospace; font-weight: bold; z-index: 9999; -webkit-app-region: no-drag; box-shadow: 0 2px 8px rgba(0,0,0,0.2); white-space: nowrap; display: none;">
+        SH: <span id="shValue">0</span> | CH: <span id="chValue">0</span> | WH: <span id="whValue">0</span> | <span id="focusValue">FOCUSED</span>
+      </div>
+      
+      <div class="header-logo">
+        <img src="assets/bp-logo.png" alt="BYTEPOETS Logo" id="bpLogo" />
+      </div>
+
+      <nav class="nav-tabs">
       <div class="nav-tab active" data-tab="balance">
         <span class="material-symbols-rounded">account_balance_wallet</span>OpenRouter
       </div>
@@ -49,13 +54,10 @@
         </div>
 
         <div class="balance-footer-info">
-          <div id="lastUpdated" class="last-updated-text">Last updated: -</div>
-        </div>
-
-        <div class="button-row balance-actions">
-          <button id="quitBtn" class="btn-secondary btn-reset">✕ Quit</button>
-          <button id="refreshBtn" class="btn-secondary">↻ Refresh</button>
-          <button id="hideBtn" class="btn-primary">Hide</button>
+          <div class="last-updated-row">
+            <span id="lastUpdated" class="last-updated-text">Last updated: -</span>
+            <button id="refreshBtn" class="btn-subtle">↻</button>
+          </div>
         </div>
       </div>
 
@@ -168,11 +170,12 @@
       <div class="left">
         <a href="#" onclick="event.preventDefault(); window.__TAURI__.core.invoke('open_external_url', { url: 'https://github.com/bytepoets-mba/bp-esc' })">
           <svg viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
-          GitHub <span id="appVersion"></span>
+          <span id="appVersion"></span>
         </a>
       </div>
-      <div class="center">
-        <img src="assets/bp-logo.png" alt="BYTEPOETS Logo" id="bpLogo" style="-webkit-app-region: no-drag;" />
+      <div class="center footer-actions">
+        <button id="quitBtn" class="btn-secondary btn-reset btn-small">✕ Quit</button>
+        <button id="hideBtn" class="btn-primary btn-small">Hide</button>
       </div>
       <div class="right">
         <a href="#" onclick="event.preventDefault(); window.__TAURI__.core.invoke('open_external_url', { url: 'https://www.gnu.org/licenses/agpl-3.0.html' })">
