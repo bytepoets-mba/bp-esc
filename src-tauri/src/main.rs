@@ -966,6 +966,7 @@ fn update_app_shortcut(app: &AppHandle, shortcut_str: &str, enabled: bool) -> Re
 
 fn main() {
   tauri::Builder::default()
+    .plugin(tauri_plugin_window_state::Builder::default().build())
     .plugin(tauri_plugin_global_shortcut::Builder::new().build())
     .setup(|app| {
       #[cfg(target_os = "macos")]

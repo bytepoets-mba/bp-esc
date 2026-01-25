@@ -23,8 +23,7 @@
         "visible": true,
         "decorations": true,
         "transparent": false,
-        "alwaysOnTop": true,
-        "rememberState": true
+        "alwaysOnTop": true
       }
     ]
   },
