@@ -86,14 +86,61 @@ To distribute the app outside the Mac App Store, it must be signed with a **Deve
 
 ### Dual GitHub Identity (bytepoets-mba)
 
-This repository requires GitHub operations (`gh`) to be performed as the `bytepoets-mba` user. To automate this via `direnv`:
+This project uses the `bytepoets-mba` identity. While Git is handled via SSH aliases, the GitHub CLI (`gh`) and local Git commits need specific configuration to avoid using your global `markus-barta` account.
 
-1.  **Generate a Token**: Create a [Fine-grained Personal Access Token](https://github.com/settings/tokens?type=beta) for the `bytepoets-mba` account with `repo` and `actions` permissions.
-2.  **Set up Secrets**: Create a file named `.env.secrets` in the root of the project (this file is git-ignored):
+#### 1. Git User Identity
+Set local user details to match the repository owner:
+```bash
+git config --local user.name "bytepoets-mba"
+git config --local user.email "markus@bytepoets.com"
+```
+
+#### 2. API Identity (gh CLI)
+The most seamless way to switch `gh` identity per-directory is using `direnv` to load a specific token.
+
+1.  **Generate a Token**: Create a [Fine-grained Personal Access Token](https://github.com/settings/tokens?type=beta) for the `bytepoets-mba` account.
+    *   **Name**: `bp-github-cli-home`
+    *   **Repository access**: Select **"All repositories"** (to use one token for all your BP projects).
+    *   **Permissions**: `Actions` (R/W), `Contents` (R/W), `Workflows` (R/W).
+2.  **Set up Secrets**: Create a file named `.env.secrets` in the root of the project (git-ignored). You can use `.env.secrets.example` as a template:
     ```bash
-    export GH_TOKEN=github_pat_...
+    cp .env.secrets.example .env.secrets
+    # Then edit .env.secrets and add your token
     ```
-3.  **Reload**: Run `direnv allow`. The `gh` CLI will now automatically use this token instead of your global account.
+3.  **Reload**: Run `direnv allow`.
+4.  **Verify**: Run `gh api user --jq '.login'`. It should return `bytepoets-mba`.
+
+#### 3. Verifying the Setup
+You can verify both Git and API identities are correctly overridden by running:
+```bash
+# Verify Git Committer Identity
+git config user.name && git config user.email
+
+# Verify GitHub CLI Identity
+gh api user --jq '.login'
+
+# Verify Repository Context
+gh repo view
+```
+
+#### 4. Solving "Could not resolve to a Repository"
+Because the git remote uses an SSH alias (`github-bp`), `gh` might not automatically recognize it as a GitHub repository. If `gh` commands fail, manually set the default repository:
+```bash
+gh repo set-default bytepoets-mba/bp-esc
+```
+
+#### 4. SSH Configuration (Reference)
+Your `~/.ssh/config` should have an entry like this:
+```text
+Host github-bp
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519_bytepoets
+```
+And the git remote should use this host:
+```bash
+git remote set-url origin git@github-bp:bytepoets-mba/bp-esc.git
+```
 
 #### Local Setup Requirements:
 1. **Certificate:** Must be specifically "Developer ID Application". "Apple Development" or "Mac App Distribution" will fail.
@@ -256,9 +303,6 @@ npm install
 direnv reload
 ```
 
-## Next Steps
+## Project Backlog
 
-See `+pm/backlog/` for upcoming features:
-- 0300: OpenRouter API client
-- 0400: Minimal UI implementation
-- 0500: Error handling
+See `+pm/` for current tasks and progress.

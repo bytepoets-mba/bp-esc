@@ -38,3 +38,4 @@ src-tauri/WixTools/
 # Build outputs
 *.dmg
 *.app
+.env.secrets
