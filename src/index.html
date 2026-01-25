@@ -9,7 +9,7 @@
 </head>
 <body>
     <div class="container">
-    <div id="checkLabel" style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: #6366f1; color: white; padding: 4px 12px; border-radius: 6px; font-size: 11px; font-family: 'SF Mono', monospace; font-weight: bold; z-index: 9999; -webkit-app-region: no-drag; box-shadow: 0 2px 8px rgba(0,0,0,0.2); white-space: nowrap; display: none;">
+    <div id="checkLabel" style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: #006497; color: white; padding: 4px 12px; border-radius: 6px; font-size: 11px; font-family: 'SF Mono', monospace; font-weight: bold; z-index: 9999; -webkit-app-region: no-drag; box-shadow: 0 2px 8px rgba(0,0,0,0.2); white-space: nowrap; display: none;">
       ScrollH: <span id="shValue">0</span> | ClientH: <span id="chValue">0</span> | WinH: <span id="whValue">0</span> | <span id="focusValue">FOCUSED</span>
     </div>
       
@@ -38,6 +38,13 @@
 
       <!-- Balance Display State -->
       <div id="balanceState" class="state hidden">
+        <div class="balance-summary">
+          <div class="pie-container">
+            <canvas id="balancePie" width="50" height="50"></canvas>
+            <div class="pie-label"><span id="exactPercent">-</span>%</div>
+          </div>
+        </div>
+
         <div class="balance-card">
           <div class="balance-item">
             <span class="label">Credit Limit:</span>
@@ -45,7 +52,7 @@
           </div>
           <div class="balance-item">
             <span class="label">Used:</span>
-            <span class="value" id="usageValue">-</span>
+            <span class="value used" id="usageValue">-</span>
           </div>
           <div class="balance-item highlight">
             <span class="label">Remaining:</span>

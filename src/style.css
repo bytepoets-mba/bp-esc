@@ -195,7 +195,7 @@ body.unfocused .container::after {
 
 .btn-subtle.spinning {
   animation: spin 1s linear infinite;
-  color: #6366f1;
+  color: #006497;
   pointer-events: none;
 }
 
@@ -205,7 +205,7 @@ body.unfocused .container::after {
 
 .btn-subtle:hover {
   border-color: #e5e7eb;
-  color: #6366f1;
+  color: #006497;
   background: white;
 }
 
@@ -277,7 +277,7 @@ body.unfocused .container::after {
 }
 
 .footer a:hover {
-  color: #6366f1;
+  color: #006497;
 }
 
 .footer svg {
@@ -431,8 +431,8 @@ input[type="text"] {
 
 .btn-primary {
   background: transparent;
-  color: #6366f1;
-  border: 1px solid rgba(99, 102, 241, 0.05);
+  color: #006497;
+  border: 1px solid rgba(0, 100, 151, 0.05);
   padding: 0.6rem 1.5rem;
   border-radius: 6px;
   font-weight: 600;
@@ -443,9 +443,9 @@ input[type="text"] {
 }
 
 .btn-primary:hover {
-  background: #6366f1;
+  background: #006497;
   color: white;
-  border-color: #6366f1;
+  border-color: #006497;
 }
 
 .btn-secondary {
@@ -492,8 +492,37 @@ input[type="text"] {
   font-weight: 700;
 }
 
+.balance-item .value.used {
+  color: #6b7280;
+}
+
+.balance-summary {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.5rem 0;
+}
+
+.pie-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.pie-label {
+  font-family: 'SF Mono', monospace;
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: #1f2937;
+}
+
+#balancePie {
+  width: 50px;
+  height: 50px;
+}
+
 .highlight .value {
-  color: #6366f1;
+  color: #006497;
   font-size: 1.25rem;
 }
 
@@ -509,7 +538,7 @@ input[type="text"] {
 
 .loader {
   border: 3px solid #f3f4f6;
-  border-top: 3px solid #6366f1;
+  border-top: 3px solid #006497;
   border-radius: 50%;
   width: 30px;
   height: 30px;

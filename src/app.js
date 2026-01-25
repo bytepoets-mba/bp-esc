@@ -219,15 +219,18 @@ window.addEventListener('transitionend', (e) => {
     const hasData = balance && balance.limit !== null && balance.remaining !== null;
     
     // Calculate percentage
-    const percentage = (hasData && balance.limit > 0) 
-        ? Math.floor((balance.remaining / balance.limit) * 100) 
+    const rawPercentage = (hasData && balance.limit > 0) 
+        ? (balance.remaining / balance.limit) * 100 
         : 0;
     
-    // Update label with percentage
-    const remainingLabel = remainingValue.parentElement.querySelector('.label');
-    if (remainingLabel) {
-      remainingLabel.textContent = hasData ? `${percentage}% Remaining:` : 'Remaining:';
+    // Exact percentage display
+    const exactPercentEl = document.getElementById('exactPercent');
+    if (exactPercentEl) {
+      exactPercentEl.textContent = hasData ? rawPercentage.toFixed(1) : '-';
     }
+
+    // Pie chart drawing
+    drawPieChart(rawPercentage, hasData);
 
     // Dynamic value updates with a small fade effect to prevent flashing
     const updateValue = (el, newVal) => {
@@ -248,7 +251,7 @@ window.addEventListener('transitionend', (e) => {
     if (hasData && balance.remaining !== null) {
       if (balance.remaining < 0) remainingValue.style.color = '#dc2626';
       else if (balance.remaining < 5) remainingValue.style.color = '#ea580c';
-      else remainingValue.style.color = '#6366f1';
+      else remainingValue.style.color = '#006497';
     } else {
       remainingValue.style.color = ''; // Reset to default
     }
@@ -262,6 +265,44 @@ window.addEventListener('transitionend', (e) => {
     
     const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     lastUpdated.textContent = 'Last updated: ' + (hasData ? now : '-');
+  }
+
+  function drawPieChart(remainingPct, hasData) {
+    const canvas = document.getElementById('balancePie');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const size = 50 * window.devicePixelRatio;
+    canvas.width = size;
+    canvas.height = size;
+    
+    ctx.clearRect(0, 0, size, size);
+    
+    if (!hasData) {
+      ctx.beginPath();
+      ctx.arc(size/2, size/2, size/2 - 2, 0, 2 * Math.PI);
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.stroke();
+      return;
+    }
+
+    const center = size / 2;
+    const radius = size / 2 - 2;
+    const startAngle = -0.5 * Math.PI; // Top
+    
+    // Remaining (Blue)
+    const remainingAngle = (remainingPct / 100) * 2 * Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(center, center);
+    ctx.arc(center, center, radius, startAngle, startAngle + remainingAngle);
+    ctx.fillStyle = '#006497';
+    ctx.fill();
+    
+    // Used (Dark Grey)
+    ctx.beginPath();
+    ctx.moveTo(center, center);
+    ctx.arc(center, center, radius, startAngle + remainingAngle, startAngle + 2 * Math.PI);
+    ctx.fillStyle = '#6b7280';
+    ctx.fill();
   }
 
   // Reset UI to empty state
