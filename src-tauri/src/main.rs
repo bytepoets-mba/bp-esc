@@ -45,6 +45,8 @@ pub struct AppSettings {
     pub global_shortcut_enabled: bool,
     #[serde(default = "default_false")]
     pub always_on_top: bool,
+    #[serde(default = "default_true")]
+    pub unfocused_overlay: bool,
 }
 
 fn default_refresh_interval() -> u32 { 5 }
@@ -65,6 +67,7 @@ impl Default for AppSettings {
             global_shortcut: "F19".to_string(),
             global_shortcut_enabled: true,
             always_on_top: false,
+            unfocused_overlay: true,
         }
     }
 }

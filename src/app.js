@@ -62,6 +62,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const autocheckToggle = document.getElementById('autocheckToggle');
   const startWindowToggle = document.getElementById('startWindowToggle');
   const alwaysOnTopToggle = document.getElementById('alwaysOnTopToggle');
+  const unfocusedOverlayToggle = document.getElementById('unfocusedOverlayToggle');
   const shortcutInput = document.getElementById('shortcutInput');
   const shortcutEnabledToggle = document.getElementById('shortcutEnabledToggle');
   const resetSettingsBtn = document.getElementById('resetSettingsBtn');
@@ -321,6 +322,7 @@ window.addEventListener('transitionend', (e) => {
     autocheckToggle.checked = currentSettings.auto_refresh_enabled;
     startWindowToggle.checked = currentSettings.show_window_on_start;
     alwaysOnTopToggle.checked = currentSettings.always_on_top;
+    unfocusedOverlayToggle.checked = currentSettings.unfocused_overlay;
 
     shortcutInput.value = currentSettings.global_shortcut || 'F19';
     shortcutEnabledToggle.checked = currentSettings.global_shortcut_enabled;
@@ -352,6 +354,7 @@ window.addEventListener('transitionend', (e) => {
       auto_refresh_enabled: autocheckToggle.checked,
       show_window_on_start: startWindowToggle.checked,
       always_on_top: alwaysOnTopToggle.checked,
+      unfocused_overlay: unfocusedOverlayToggle.checked,
       global_shortcut: shortcutInput.value.trim() || 'F19',
       global_shortcut_enabled: shortcutEnabledToggle.checked,
       show_percentage: unitPercent.classList.contains('active'),
@@ -415,6 +418,14 @@ window.addEventListener('transitionend', (e) => {
   };
   startWindowToggle.onchange = () => saveSettingsAction(true);
   alwaysOnTopToggle.onchange = () => saveSettingsAction(true);
+  unfocusedOverlayToggle.onchange = () => {
+    saveSettingsAction(true);
+    if (!unfocusedOverlayToggle.checked) {
+      document.body.classList.remove('unfocused');
+    } else if (!document.hasFocus()) {
+      document.body.classList.add('unfocused');
+    }
+  };
   apiKeyInputSettings.onblur = () => saveSettingsAction(true);
   shortcutInput.onblur = () => saveSettingsAction(true);
   shortcutEnabledToggle.onchange = () => saveSettingsAction(true);
@@ -509,13 +520,17 @@ window.addEventListener('transitionend', (e) => {
       });
 
       window.addEventListener('blur', () => {
-        document.body.classList.add('unfocused');
+        if (currentSettings?.unfocused_overlay) {
+          document.body.classList.add('unfocused');
+        }
         if (focusLabel) focusLabel.textContent = 'BLURRED';
       });
 
       // Initial state
       if (focusLabel) focusLabel.textContent = document.hasFocus() ? 'FOCUSED' : 'BLURRED';
-      if (!document.hasFocus()) document.body.classList.add('unfocused');
+      if (!document.hasFocus() && currentSettings?.unfocused_overlay) {
+        document.body.classList.add('unfocused');
+      }
 
     } catch (error) {
       console.error('Failed to setup focus listeners:', error);

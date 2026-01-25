@@ -77,10 +77,10 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: #d0d0d0;
+  background: #ffffff;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.7s ease-in-out;
   z-index: 9999;
 }
 
