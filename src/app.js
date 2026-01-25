@@ -209,7 +209,7 @@ window.addEventListener('transitionend', (e) => {
   }
 
   // Display balance
-  async function displayBalance(balance, shouldShowState = true) {
+  async function displayBalance(balance) {
     currentBalance = balance;
     
     // Check if we have valid balance data
@@ -226,9 +226,20 @@ window.addEventListener('transitionend', (e) => {
       remainingLabel.textContent = hasData ? `${percentage}% Remaining:` : 'Remaining:';
     }
 
-    limitValue.textContent = formatCurrency(hasData ? balance.limit : null);
-    usageValue.textContent = formatCurrency(hasData ? balance.usage : null);
-    remainingValue.textContent = formatCurrency(hasData ? balance.remaining : null);
+    // Dynamic value updates with a small fade effect to prevent flashing
+    const updateValue = (el, newVal) => {
+      if (el.textContent !== newVal) {
+        el.style.opacity = '0';
+        setTimeout(() => {
+          el.textContent = newVal;
+          el.style.opacity = '1';
+        }, 150);
+      }
+    };
+
+    updateValue(limitValue, formatCurrency(hasData ? balance.limit : null));
+    updateValue(usageValue, formatCurrency(hasData ? balance.usage : null));
+    updateValue(remainingValue, formatCurrency(hasData ? balance.remaining : null));
     
     // Color code remaining
     if (hasData && balance.remaining !== null) {
@@ -248,7 +259,6 @@ window.addEventListener('transitionend', (e) => {
     
     const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
     lastUpdated.textContent = 'Last updated: ' + (hasData ? now : '-');
-    if (shouldShowState) showState('balance');
   }
 
   // Reset UI to empty state
@@ -258,7 +268,7 @@ window.addEventListener('transitionend', (e) => {
       usage: null,
       remaining: null
     };
-    await displayBalance(emptyBalance, false);
+    await displayBalance(emptyBalance);
   }
 
   // Load balance
@@ -268,20 +278,21 @@ window.addEventListener('transitionend', (e) => {
       return;
     }
     
-    const settingsActive = isSettingsVisible();
-    if (!settingsActive) showState('loading');
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) refreshBtn.classList.add('spinning');
     hideError();
     
     try {
       const balance = await invoke('fetch_balance', { apiKey: currentSettings.api_key });
-      displayBalance(balance, !settingsActive);
+      await displayBalance(balance);
       startAutoRefresh();
     } catch (error) {
       console.error('Failed to fetch balance:', error);
       await resetBalanceDisplay();
-      if (!settingsActive) showState('balance');
       showError(error);
       startAutoRefresh();
+    } finally {
+      if (refreshBtn) refreshBtn.classList.remove('spinning');
     }
   }
 
@@ -532,33 +543,34 @@ window.addEventListener('transitionend', (e) => {
           // Format is valid, test with actual API call
           const apiTest = await testApiKey(currentSettings.api_key);
           
-      if (apiTest.valid) {
-        // API key works - show balance and notify backend
-        await displayBalance(apiTest.balance, true);
-        await invoke('notify_api_key_valid');
-        return;
+          if (apiTest.valid) {
+            // API key works - update data and notify backend
+            await displayBalance(apiTest.balance);
+            await invoke('notify_api_key_valid');
+            showState('balance'); // ONLY show balance on initial successful validation
+            return;
+          } else {
+            // API key format valid but doesn't work
+            await resetBalanceDisplay();
+            await invoke('notify_api_key_invalid');
+            showState('settings');
+            showError('API key validation failed: ' + (apiTest.error || 'Unknown error'));
+            return;
+          }
+        } else {
+          // API key format invalid
+          await resetBalanceDisplay();
+          await invoke('notify_api_key_invalid');
+          showState('settings');
+          showError('Invalid API key format: ' + formatValidation.reason);
+          return;
+        }
       } else {
-        // API key format valid but doesn't work
+        // No API key
         await resetBalanceDisplay();
         await invoke('notify_api_key_invalid');
         showState('settings');
-        showError('API key validation failed: ' + (apiTest.error || 'Unknown error'));
-        return;
       }
-    } else {
-      // API key format invalid
-      await resetBalanceDisplay();
-      await invoke('notify_api_key_invalid');
-      showState('settings');
-      showError('Invalid API key format: ' + formatValidation.reason);
-      return;
-    }
-  } else {
-    // No API key
-    await resetBalanceDisplay();
-    await invoke('notify_api_key_invalid');
-    showState('settings');
-  }
 } catch (error) {
   console.error('Init error:', error);
   await resetBalanceDisplay();

@@ -193,6 +193,16 @@ body.unfocused .container::after {
   line-height: 1;
 }
 
+.btn-subtle.spinning {
+  animation: spin 1s linear infinite;
+  color: #6366f1;
+  pointer-events: none;
+}
+
+.value {
+  transition: opacity 0.15s ease-in-out;
+}
+
 .btn-subtle:hover {
   border-color: #e5e7eb;
   color: #6366f1;
