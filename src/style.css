@@ -1,12 +1,26 @@
+/* Global Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
   -webkit-user-select: none;
-}
-
-::-webkit-scrollbar {
-  display: none;
 }
 
 html {
@@ -22,6 +36,23 @@ body {
   margin: 0;
   overflow: hidden;
   height: auto !important;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .container {
@@ -94,16 +125,7 @@ body {
   -webkit-app-region: no-drag;
 }
 
-/* Hide scrollbar but keep functionality */
-.content-area::-webkit-scrollbar {
-  width: 6px;
-}
-
-.content-area::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 3px;
-}
-
+/* Scrollbar Styling */
 .footer {
   padding: 1rem 2.5rem;
   border-top: 1px solid rgba(0, 0, 0, 0.05);

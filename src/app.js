@@ -61,8 +61,6 @@ window.addEventListener('DOMContentLoaded', () => {
   const showUnitToggle = document.getElementById('showUnitToggle');
   const autocheckToggle = document.getElementById('autocheckToggle');
   const startWindowToggle = document.getElementById('startWindowToggle');
-  const opacitySlider = document.getElementById('opacitySlider');
-  const opacityDisplay = document.getElementById('opacityDisplay');
   const shortcutInput = document.getElementById('shortcutInput');
   const shortcutEnabledToggle = document.getElementById('shortcutEnabledToggle');
   const saveSettingsBtn = document.getElementById('saveSettingsBtn');
@@ -326,12 +324,6 @@ window.addEventListener('transitionend', (e) => {
     autocheckToggle.checked = currentSettings.auto_refresh_enabled;
     startWindowToggle.checked = currentSettings.show_window_on_start;
 
-    if (currentSettings.window_opacity !== undefined) {
-      const opacityPct = Math.round(currentSettings.window_opacity * 100);
-      opacitySlider.value = opacityPct;
-      opacityDisplay.textContent = `${opacityPct}%`;
-    }
-
     shortcutInput.value = currentSettings.global_shortcut || 'F19';
     shortcutEnabledToggle.checked = currentSettings.global_shortcut_enabled;
     
@@ -365,7 +357,6 @@ window.addEventListener('transitionend', (e) => {
       global_shortcut_enabled: shortcutEnabledToggle.checked,
       show_percentage: unitPercent.classList.contains('active'),
       show_remaining: typeRemaining.classList.contains('active'),
-      window_opacity: parseFloat(opacitySlider.value) / 100,
     };
 
     try {
@@ -427,11 +418,6 @@ window.addEventListener('transitionend', (e) => {
   apiKeyInputSettings.onblur = () => saveSettingsAction(true);
   shortcutInput.onblur = () => saveSettingsAction(true);
   shortcutEnabledToggle.onchange = () => saveSettingsAction(true);
-
-  opacitySlider.oninput = () => {
-    opacityDisplay.textContent = `${opacitySlider.value}%`;
-  };
-  opacitySlider.onchange = () => saveSettingsAction(true);
 
   // Done button - save and show balance
   saveSettingsBtn.onclick = async () => {

@@ -43,14 +43,11 @@ pub struct AppSettings {
     pub global_shortcut: String,
     #[serde(default = "default_true")]
     pub global_shortcut_enabled: bool,
-    #[serde(default = "default_opacity")]
-    pub window_opacity: f32,
 }
 
 fn default_refresh_interval() -> u32 { 5 }
 fn default_true() -> bool { true }
 fn default_shortcut() -> String { "F19".to_string() }
-fn default_opacity() -> f32 { 0.9 }
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -64,7 +61,6 @@ impl Default for AppSettings {
             show_window_on_start: true,
             global_shortcut: "F19".to_string(),
             global_shortcut_enabled: true,
-            window_opacity: 0.9,
         }
     }
 }
@@ -123,15 +119,6 @@ fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
     
     // Update global shortcut
     let _ = update_app_shortcut(&app, &settings.global_shortcut, settings.global_shortcut_enabled);
-    
-    // Update window opacity
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.set_shadow(true);
-        // Using JS to set opacity since Rust API might be gated differently or deprecated
-        let _ = window.eval(&format!("window.__TAURI__.window.getCurrentWindow().setOpacity({})", settings.window_opacity));
-        // Also set it on the window object itself for immediate effect
-        let _ = window.eval(&format!("document.body.style.opacity = {}", settings.window_opacity));
-    }
     
     Ok(())
 }
@@ -875,11 +862,6 @@ fn main() {
           // Check settings to determine initial visibility
           match read_settings() {
               Ok(settings) => {
-                  if let Some(window) = app.get_webview_window("main") {
-                      let _ = window.eval(&format!("window.__TAURI__.window.getCurrentWindow().setOpacity({})", settings.window_opacity));
-                      // Also set it on the window object itself for immediate effect
-                      let _ = window.eval(&format!("document.body.style.opacity = {}", settings.window_opacity));
-                  }
                   if settings.api_key.is_some() && settings.show_window_on_start {
                       // Will be shown by frontend after validation
                       let _ = window.show();
