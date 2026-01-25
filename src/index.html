@@ -12,127 +12,143 @@
       SH: <span id="shValue">0</span> | CH: <span id="chValue">0</span> | WH: <span id="whValue">0</span>
     </div>
     <header class="header">
-      <div class="tagline">OpenRouter Balance Checker</div>
+      <div class="tagline">BYTEPOETS - ESC</div>
       <img src="assets/bp-logo.png" alt="BYTEPOETS Logo" id="bpLogo" style="cursor: pointer; -webkit-app-region: no-drag;" />
     </header>
 
-    <!-- Loading State -->
-    <div id="loadingState" class="state hidden">
-      <div class="loader"></div>
-      <p style="text-align: center; color: #6b7280;">Loading...</p>
-    </div>
+    <nav class="nav-tabs">
+      <div class="nav-tab active" data-tab="balance">Balance</div>
+      <div class="nav-tab" data-tab="mite">Mite</div>
+      <div class="nav-tab" data-tab="settings" style="margin-left: auto">Settings</div>
+    </nav>
 
-    <!-- Balance Display State -->
-    <div id="balanceState" class="state hidden">
-      <div class="balance-card">
-        <div class="balance-item">
-          <span class="label">Credit Limit:</span>
-          <span class="value" id="limitValue">-</span>
-        </div>
-        <div class="balance-item">
-          <span class="label">Used:</span>
-          <span class="value" id="usageValue">-</span>
-        </div>
-        <div class="balance-item highlight">
-          <span class="label">Remaining:</span>
-          <span class="value" id="remainingValue">-</span>
-        </div>
+    <main class="content-area">
+      <!-- Loading State -->
+      <div id="loadingState" class="state hidden">
+        <div class="loader"></div>
+        <p style="text-align: center; color: #6b7280;">Loading...</p>
       </div>
 
-      <div class="button-row">
-        <button id="quitBtn" class="btn-secondary btn-reset">✕ Quit</button>
-        <button id="refreshBtn" class="btn-secondary" style="flex:1">↻ Refresh</button>
-        <button id="settingsBtn" class="btn-secondary" style="flex:1">⚙ Settings</button>
-        <button id="hideBtn" class="btn-primary" style="flex:0.5">Hide</button>
-      </div>
-    </div>
-
-    <!-- Settings State -->
-    <div id="settingsState" class="state hidden">
-      <div class="settings-section">
-        <h3 style="text-align: center; margin-bottom: 1.5rem;">Settings</h3>
-        
-        <div class="settings-grid">
-          <div class="settings-col">
-            <div class="setting-item">
-              <label for="apiKeyInputSettings">OpenRouter API Key:</label>
-              <input type="password" id="apiKeyInputSettings" placeholder="sk-or-v1-..." autocomplete="off">
-            </div>
-
-            <div class="setting-item">
-              <label class="checkbox-label">
-                <input type="checkbox" id="autocheckToggle">
-                <span>Enable Auto-refresh</span>
-              </label>
-            </div>
-
-            <div class="setting-item">
-              <label>Refresh Interval (minutes):</label>
-              <div class="number-input">
-                <button id="refreshMinus" class="btn-icon">−</button>
-                <span id="refreshValue">5</span>
-                <button id="refreshPlus" class="btn-icon">+</button>
-              </div>
-            </div>
-
-            <div class="setting-item">
-              <label class="checkbox-label">
-                <input type="checkbox" id="shortcutEnabledToggle">
-                <span>Enable Global Shortcut</span>
-              </label>
-            </div>
-
-            <div class="setting-item">
-              <label for="shortcutInput">Global Shortcut:</label>
-              <input type="text" id="shortcutInput" placeholder="F19" autocomplete="off">
-              <p class="help-text">Example: <code>Command+Shift+Option+Control+F19</code></p>
-            </div>
+      <!-- Balance Display State -->
+      <div id="balanceState" class="state hidden">
+        <div class="balance-card">
+          <div class="balance-item">
+            <span class="label">Credit Limit:</span>
+            <span class="value" id="limitValue">-</span>
           </div>
-
-          <div class="settings-col">
-            <div class="setting-item">
-              <label>Display Unit:</label>
-              <div class="toggle-group">
-                <button id="unitPercent" class="btn-toggle active">%</button>
-                <button id="unitDollar" class="btn-toggle">$</button>
-              </div>
-            </div>
-
-            <div id="absTypeSection" class="setting-item">
-              <label>Value Type:</label>
-              <div class="toggle-group">
-                <button id="typeRemaining" class="btn-toggle active">Remaining</button>
-                <button id="typeUsed" class="btn-toggle">Used</button>
-              </div>
-            </div>
-
-            <div class="setting-item">
-              <label class="checkbox-label">
-                <input type="checkbox" id="showUnitToggle">
-                <span>Show Unit in Menubar</span>
-              </label>
-            </div>
-
-            <div class="setting-item">
-              <label for="startWindowToggle" class="checkbox-label">
-                <input type="checkbox" id="startWindowToggle">
-                <span>Show Window on App Start</span>
-              </label>
-            </div>
-
-            <div class="setting-item">
-              <label for="opacitySlider">Window Opacity: <span id="opacityDisplay">90%</span></label>
-              <input type="range" id="opacitySlider" min="50" max="100" step="1" value="90" style="width: 100%; margin-top: 0.5rem; -webkit-app-region: no-drag; cursor: pointer;">
-            </div>
+          <div class="balance-item">
+            <span class="label">Used:</span>
+            <span class="value" id="usageValue">-</span>
+          </div>
+          <div class="balance-item highlight">
+            <span class="label">Remaining:</span>
+            <span class="value" id="remainingValue">-</span>
           </div>
         </div>
 
         <div class="button-row">
-          <button id="resetSettingsBtn" class="btn-secondary btn-reset">Reset App Data</button>
-          <button id="saveSettingsBtn" class="btn-primary">Done</button>
+          <button id="quitBtn" class="btn-secondary btn-reset">✕ Quit</button>
+          <button id="refreshBtn" class="btn-secondary" style="flex:1">↻ Refresh</button>
+          <button id="hideBtn" class="btn-primary" style="flex:0.5">Hide</button>
         </div>
       </div>
-    </div>
+
+      <!-- Mite Placeholder State -->
+      <div id="miteState" class="state hidden">
+        <div class="balance-card" style="text-align: center; padding: 3rem 1rem;">
+          <div style="font-size: 2rem; margin-bottom: 1rem;">⏱️</div>
+          <h3 style="margin-bottom: 0.5rem;">Mite Time Booking</h3>
+          <p style="color: #6b7280; font-size: 0.9rem;">This feature is coming soon.</p>
+        </div>
+      </div>
+
+      <!-- Settings State -->
+      <div id="settingsState" class="state hidden">
+        <div class="settings-section">
+          <h3 style="text-align: center; margin-bottom: 1.5rem;">Settings</h3>
+          
+          <div class="settings-grid">
+            <div class="settings-col">
+              <div class="setting-item">
+                <label for="apiKeyInputSettings">OpenRouter API Key:</label>
+                <input type="password" id="apiKeyInputSettings" placeholder="sk-or-v1-..." autocomplete="off">
+              </div>
+
+              <div class="setting-item">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="autocheckToggle">
+                  <span>Enable Auto-refresh</span>
+                </label>
+              </div>
+
+              <div class="setting-item">
+                <label>Refresh Interval (minutes):</label>
+                <div class="number-input">
+                  <button id="refreshMinus" class="btn-icon">−</button>
+                  <span id="refreshValue">5</span>
+                  <button id="refreshPlus" class="btn-icon">+</button>
+                </div>
+              </div>
+
+              <div class="setting-item">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="shortcutEnabledToggle">
+                  <span>Enable Global Shortcut</span>
+                </label>
+              </div>
+
+              <div class="setting-item">
+                <label for="shortcutInput">Global Shortcut:</label>
+                <input type="text" id="shortcutInput" placeholder="F19" autocomplete="off">
+                <p class="help-text">Example: <code>Command+Shift+Option+Control+F19</code></p>
+              </div>
+            </div>
+
+            <div class="settings-col">
+              <div class="setting-item">
+                <label>Display Unit:</label>
+                <div class="toggle-group">
+                  <button id="unitPercent" class="btn-toggle active">%</button>
+                  <button id="unitDollar" class="btn-toggle">$</button>
+                </div>
+              </div>
+
+              <div id="absTypeSection" class="setting-item">
+                <label>Value Type:</label>
+                <div class="toggle-group">
+                  <button id="typeRemaining" class="btn-toggle active">Remaining</button>
+                  <button id="typeUsed" class="btn-toggle">Used</button>
+                </div>
+              </div>
+
+              <div class="setting-item">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="showUnitToggle">
+                  <span>Show Unit in Menubar</span>
+                </label>
+              </div>
+
+              <div class="setting-item">
+                <label for="startWindowToggle" class="checkbox-label">
+                  <input type="checkbox" id="startWindowToggle">
+                  <span>Show Window on App Start</span>
+                </label>
+              </div>
+
+              <div class="setting-item">
+                <label for="opacitySlider">Window Opacity: <span id="opacityDisplay">90%</span></label>
+                <input type="range" id="opacitySlider" min="50" max="100" step="1" value="90" style="width: 100%; margin-top: 0.5rem; -webkit-app-region: no-drag; cursor: pointer;">
+              </div>
+            </div>
+          </div>
+
+          <div class="button-row" style="margin-top: 1rem;">
+            <button id="resetSettingsBtn" class="btn-secondary btn-reset">Reset App Data</button>
+            <button id="saveSettingsBtn" class="btn-primary">Done</button>
+          </div>
+        </div>
+      </div>
+    </main>
 
     <footer class="footer">
       <div class="left">

@@ -15,7 +15,30 @@ window.addEventListener('DOMContentLoaded', () => {
   // DOM elements - States
   const loadingState = document.getElementById('loadingState');
   const balanceState = document.getElementById('balanceState');
+  const miteState = document.getElementById('miteState');
   const settingsState = document.getElementById('settingsState');
+  
+  // Tab elements
+  const tabs = document.querySelectorAll('.nav-tab');
+
+  // Tab switching logic
+  tabs.forEach(tab => {
+    tab.onclick = () => {
+      const target = tab.getAttribute('data-tab');
+      
+      // Update tab UI
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      
+      // Show state
+      if (target === 'balance') showState('balance');
+      else if (target === 'mite') showState('mite');
+      else if (target === 'settings') {
+        syncSettingsToUI();
+        showState('settings');
+      }
+    };
+  });
   
   // DOM elements - Display
   const errorDisplay = document.getElementById('errorDisplay');
@@ -45,9 +68,11 @@ window.addEventListener('DOMContentLoaded', () => {
   const saveSettingsBtn = document.getElementById('saveSettingsBtn');
   const resetSettingsBtn = document.getElementById('resetSettingsBtn');
 
+  // Cleanup: Remove old settings button reference
+  // const settingsBtn = document.getElementById('settingsBtn'); 
+  
   // DOM elements - Actions
   const refreshBtn = document.getElementById('refreshBtn');
-  const settingsBtn = document.getElementById('settingsBtn');
   const quitBtn = document.getElementById('quitBtn');
   const hideBtn = document.getElementById('hideBtn');
 
@@ -72,14 +97,24 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // State management
   async function showState(state) {
-    [loadingState, balanceState, settingsState].forEach(s => s.classList.add('hidden'));
+    [loadingState, balanceState, miteState, settingsState].forEach(s => s.classList.add('hidden'));
     
+    // Update active tab UI if state change was programmatic
+    tabs.forEach(t => {
+      if (t.getAttribute('data-tab') === state) t.classList.add('active');
+      else t.classList.remove('active');
+    });
+
     if (state === 'loading') loadingState.classList.remove('hidden');
     else if (state === 'balance') balanceState.classList.remove('hidden');
+    else if (state === 'mite') miteState.classList.remove('hidden');
     else if (state === 'settings') {
       settingsState.classList.remove('hidden');
       if (!apiKeyInputSettings.value) apiKeyInputSettings.focus();
     }
+    
+    // Trigger resize on state change
+    performResize();
   }
 
 // --- PROFESSIONAL SCROLL-HEIGHT AUTO-RESIZE LOGIC ---
@@ -101,24 +136,31 @@ async function performResize() {
     const container = document.querySelector('.container');
     if (!container) return;
     
-    const rect = container.getBoundingClientRect();
-    const ch = Math.ceil(rect.height);
-    const wh = window.innerHeight;
-    const sh = document.documentElement.scrollHeight;
+    // We want the window to be at least 400px tall, 
+    // but grow to fit content up to a max (e.g. 700px)
+    // or just let it be flexible if we want scrolling.
     
-    // Update debug labels
-    const shLabel = document.getElementById('shValue');
-    const chLabel = document.getElementById('chValue');
-    const whLabel = document.getElementById('whValue');
-    if (shLabel) shLabel.textContent = sh;
-    if (chLabel) chLabel.textContent = ch;
-    if (whLabel) whLabel.textContent = wh;
+    const content = document.querySelector('.content-area');
+    const header = document.querySelector('.header');
+    const nav = document.querySelector('.nav-tabs');
+    const footer = document.querySelector('.footer');
     
-    // Use container height exactly.
-    const finalHeight = ch;
+    const hHeight = header?.getBoundingClientRect().height || 0;
+    const nHeight = nav?.getBoundingClientRect().height || 0;
+    const fHeight = footer?.getBoundingClientRect().height || 0;
+    
+    // Measure content height (ignoring current scroll container height)
+    // We want the window to fit the content if possible, up to a reasonable max.
+    const activeState = document.querySelector('.state:not(.hidden)');
+    const stateHeight = activeState?.getBoundingClientRect().height || 0;
+    
+    const totalContentHeight = Math.ceil(hHeight + nHeight + fHeight + stateHeight + 40); // 40px padding buffer
+    
+    // Clamp window height between 400 and 800
+    const finalHeight = Math.min(Math.max(totalContentHeight, 400), 800);
     
     if (Math.abs(lastMeasuredHeight - finalHeight) > 1) {
-      console.log(`📏 Resizing to: ${finalHeight}px`);
+      console.log(`📏 Resizing window to: ${finalHeight}px`);
       
       try {
         await appWindow.setSize(new LogicalSize(800, finalHeight));
@@ -428,10 +470,6 @@ window.addEventListener('transitionend', (e) => {
     });
   };
 
-  settingsBtn.onclick = () => {
-    syncSettingsToUI();
-    showState('settings');
-  };
   refreshBtn.onclick = loadBalance;
   quitBtn.onclick = () => invoke('quit_app');
   hideBtn.onclick = () => invoke('toggle_window_visibility');
