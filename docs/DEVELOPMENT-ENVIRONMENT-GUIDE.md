@@ -142,6 +142,21 @@ And the git remote should use this host:
 git remote set-url origin git@github-bp:bytepoets-mba/bp-esc.git
 ```
 
+### CI & Caching
+
+The project uses `Swatinem/rust-cache@v2` in GitHub Actions to minimize build times.
+
+#### Caching Strategy
+- **Workspace Root**: The cache is configured for the root workspace (`. -> target`). This is important because Tauri's build process artifacts are stored in the root `target/` directory in this workspace setup.
+- **Shared Key**: We use `shared-key: "release-build"`. This allows different release tags to share the same cache, which is critical since tags are often unique and wouldn't hit a cache otherwise.
+- **Persistence**: `add-job-id-key: false` ensures the cache persists across different workflow runs.
+
+#### Troubleshooting "No cache found"
+If a release run reports "No cache found", it is usually due to one of these reasons:
+1. **First Run**: It's the first build after changing the `shared-key` or the workspace path.
+2. **Tag Isolation**: GitHub Actions caches are branch-scoped. A tag push (`v*`) can pull caches from `main`, but not the other way around. 
+3. **Recommendation**: To keep the cache "warm", ensure there is a CI workflow running on the `main` branch that uses the same `shared-key: "release-build"`.
+
 #### Local Setup Requirements:
 1. **Certificate:** Must be specifically "Developer ID Application". "Apple Development" or "Mac App Distribution" will fail.
 2. **Entitlements:** Standard entitlements for Tauri apps (Hardened Runtime) are located in `src-tauri/entitlements/release.entitlements`.
