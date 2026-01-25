@@ -1,8 +1,8 @@
-# BYTEPOETS Employee Self-Care (ESC)
+# BYTEPOETS Employee Self-Care App (ESC)
 
 **Internal Tool - BYTEPOETS GmbH Employees Only**
 
-Desktop macOS application for BYTEPOETS employees to securely monitor OpenRouter API credit balance.
+Desktop macOS application for BYTEPOETS employees to securely monitor OpenRouter API credit balance and other self-care features.
 
 **Completed Milestones** (+pm/done):
 - Tauri desktop setup
