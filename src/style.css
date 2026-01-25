@@ -60,14 +60,16 @@ body {
   border-radius: 0;
   box-shadow: 0 8px 32px rgba(161, 133, 133, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
   width: 100%;
-  height: 100vh;
+  min-height: 100vh;
+  height: auto;
   display: flex;
   flex-direction: column;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-app-region: drag;
   backdrop-filter: blur(10px);
-  overflow: hidden;
+  overflow: visible;
   position: relative;
+  padding-bottom: 20px;
 }
 
 .container::after {

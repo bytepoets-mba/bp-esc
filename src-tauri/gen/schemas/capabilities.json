@@ -1,1 +1,1 @@
-{}
+{"main-capability":{"identifier":"main-capability","description":"Capability for the main window","local":true,"windows":["main"],"permissions":["core:default","core:event:default","core:event:allow-listen","core:window:allow-set-size","core:window:allow-set-focus","core:window:allow-set-title","global-shortcut:allow-is-registered","global-shortcut:allow-register","global-shortcut:allow-unregister"]}}

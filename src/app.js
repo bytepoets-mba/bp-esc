@@ -132,25 +132,8 @@ async function performResize() {
     const container = document.querySelector('.container');
     if (!container) return;
     
-    // We want the window to be at least 400px tall, 
-    // but grow to fit content up to a max (e.g. 700px)
-    // or just let it be flexible if we want scrolling.
-    
-    const content = document.querySelector('.content-area');
-    const header = document.querySelector('.header');
-    const nav = document.querySelector('.nav-tabs');
-    const footer = document.querySelector('.footer');
-    
-    const hHeight = header?.getBoundingClientRect().height || 0;
-    const nHeight = nav?.getBoundingClientRect().height || 0;
-    const fHeight = footer?.getBoundingClientRect().height || 0;
-    
-    // Measure content height (ignoring current scroll container height)
-    // We want the window to fit the content if possible, up to a reasonable max.
-    const activeState = document.querySelector('.state:not(.hidden)');
-    const stateHeight = activeState?.getBoundingClientRect().height || 0;
-    
-    const totalContentHeight = Math.ceil(hHeight + nHeight + fHeight + stateHeight + 40); // 40px padding buffer
+    // Use the container's scrollHeight for the most accurate measurement
+    const totalContentHeight = container.scrollHeight;
     
     // Clamp window height between 400 and 800
     const finalHeight = Math.min(Math.max(totalContentHeight, 400), 800);
