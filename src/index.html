@@ -88,8 +88,14 @@
           <div class="settings-grid">
             <div class="settings-col">
               <div class="setting-item">
-                <label for="apiKeyInputSettings">OpenRouter API Key:</label>
-                <input type="password" id="apiKeyInputSettings" placeholder="sk-or-v1-..." autocomplete="off">
+                <label>OpenRouter API Keys:</label>
+                <div id="apiKeyList" class="api-key-list">
+                  <!-- Keys injected here -->
+                </div>
+                <div class="api-key-add-row" style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+                  <input type="password" id="newApiKeyInput" placeholder="sk-or-v1-..." autocomplete="off" style="flex: 1;">
+                  <button id="addApiKeyBtn" class="btn-primary" style="padding: 0 12px;">Add</button>
+                </div>
               </div>
 
               <div class="setting-item side">

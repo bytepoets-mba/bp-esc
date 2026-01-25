@@ -82,6 +82,89 @@ window.addEventListener('DOMContentLoaded', () => {
   const confirmOk = document.getElementById('confirmOk');
   let confirmCallback = null;
 
+  const apiKeyList = document.getElementById('apiKeyList');
+  const newApiKeyInput = document.getElementById('newApiKeyInput');
+  const addApiKeyBtn = document.getElementById('addApiKeyBtn');
+
+  function renderApiKeyList() {
+    if (!currentSettings || !apiKeyList) return;
+    apiKeyList.innerHTML = '';
+    
+    currentSettings.api_keys.forEach((api, index) => {
+      const row = document.createElement('div');
+      row.className = `api-key-row ${index === currentSettings.active_api_key_index ? 'active' : ''}`;
+      
+      const label = document.createElement('span');
+      label.className = 'api-key-label';
+      label.textContent = api.label || `Key ${index + 1}`;
+      label.onclick = async () => {
+        if (currentSettings.active_api_key_index !== index) {
+          currentSettings.active_api_key_index = index;
+          await saveSettingsAction(true);
+          renderApiKeyList();
+          loadBalance();
+        }
+      };
+
+      const mask = document.createElement('span');
+      mask.className = 'api-key-mask';
+      mask.textContent = '••••' + api.key.slice(-4);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn-icon-small';
+      deleteBtn.innerHTML = '✕';
+      deleteBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (currentSettings.api_keys.length <= 1) {
+          showError('Cannot delete the last API key.');
+          return;
+        }
+        currentSettings.api_keys.splice(index, 1);
+        if (currentSettings.active_api_key_index >= currentSettings.api_keys.length) {
+          currentSettings.active_api_key_index = currentSettings.api_keys.length - 1;
+        }
+        await saveSettingsAction(true);
+        renderApiKeyList();
+        loadBalance();
+      };
+
+      row.appendChild(label);
+      row.appendChild(mask);
+      row.appendChild(deleteBtn);
+      apiKeyList.appendChild(row);
+    });
+  }
+
+  addApiKeyBtn.onclick = async () => {
+    const key = newApiKeyInput.value.trim();
+    if (!key) return;
+    
+    const validation = validateApiKeyFormat(key);
+    if (!validation.valid) {
+      showError('Invalid key format: ' + validation.reason);
+      return;
+    }
+
+    try {
+      const test = await testApiKey(key);
+      if (!test.valid) {
+        showError('Key validation failed: ' + test.error);
+        return;
+      }
+
+      const label = test.balance.label || `Key ${currentSettings.api_keys.length + 1}`;
+      currentSettings.api_keys.push({ key, label });
+      currentSettings.active_api_key_index = currentSettings.api_keys.length - 1;
+      newApiKeyInput.value = '';
+      
+      await saveSettingsAction(true);
+      renderApiKeyList();
+      loadBalance();
+    } catch (e) {
+      showError(e);
+    }
+  };
+
   function showError(message) {
     const ts = new Date().toISOString();
     console.error(`[${ts}] ${message}`);
@@ -394,7 +477,8 @@ window.addEventListener('transitionend', (e) => {
 
   // Load balance
   async function loadBalance() {
-    if (!currentSettings?.api_key) {
+    const activeKey = currentSettings?.api_keys[currentSettings.active_api_key_index]?.key;
+    if (!activeKey) {
       showState('settings');
       return;
     }
@@ -404,7 +488,7 @@ window.addEventListener('transitionend', (e) => {
     hideError();
     
     try {
-      const balance = await invoke('fetch_balance', { apiKey: currentSettings.api_key });
+      const balance = await invoke('fetch_balance', { apiKey: activeKey });
       await displayBalance(balance);
       startAutoRefresh();
     } catch (error) {
@@ -421,7 +505,7 @@ window.addEventListener('transitionend', (e) => {
   function syncSettingsToUI() {
     if (!currentSettings) return;
 
-    apiKeyInputSettings.value = currentSettings.api_key || '';
+    renderApiKeyList();
     refreshValue.textContent = currentSettings.refresh_interval_minutes;
     showUnitToggle.checked = currentSettings.show_unit;
     autocheckToggle.checked = currentSettings.auto_refresh_enabled;
@@ -454,7 +538,6 @@ window.addEventListener('transitionend', (e) => {
   async function saveSettingsAction(silent = false) {
     const newSettings = {
       ...currentSettings,
-      api_key: apiKeyInputSettings.value.trim(),
       refresh_interval_minutes: parseInt(refreshValue.textContent),
       show_unit: showUnitToggle.checked,
       auto_refresh_enabled: autocheckToggle.checked,
@@ -549,7 +632,6 @@ window.addEventListener('transitionend', (e) => {
     }
   };
 
-  apiKeyInputSettings.onblur = () => saveSettingsAction(true);
   shortcutInput.onblur = () => saveSettingsAction(true);
   shortcutEnabledToggle.onchange = () => saveSettingsAction(true);
 
@@ -686,12 +768,13 @@ window.addEventListener('transitionend', (e) => {
       await setupWindowVisibilityListener();
       
       // Validate API key and notify backend
-      if (currentSettings.api_key) {
-        const formatValidation = validateApiKeyFormat(currentSettings.api_key);
+      const activeKey = currentSettings.api_keys[currentSettings.active_api_key_index]?.key;
+      if (activeKey) {
+        const formatValidation = validateApiKeyFormat(activeKey);
         
         if (formatValidation.valid) {
           // Format is valid, test with actual API call
-          const apiTest = await testApiKey(currentSettings.api_key);
+          const apiTest = await testApiKey(activeKey);
           
           if (apiTest.valid) {
             // API key works - update data and notify backend

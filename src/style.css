@@ -55,6 +55,69 @@ body {
   background: rgba(0, 0, 0, 0.2);
 }
 
+.api-key-list {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  max-height: 120px;
+  overflow-y: auto;
+  margin-bottom: 0.5rem;
+}
+
+.api-key-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.api-key-row:last-child {
+  border-bottom: none;
+}
+
+.api-key-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.api-key-row.active {
+  background: rgba(0, 100, 151, 0.1);
+}
+
+.api-key-label {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1f2937;
+}
+
+.api-key-mask {
+  font-family: 'SF Mono', monospace;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.btn-icon-small {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon-small:hover {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
 .container {
   background: rgba(255, 255, 255, 1.0);
   border-radius: 0;

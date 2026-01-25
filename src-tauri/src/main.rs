@@ -24,9 +24,19 @@ use ab_glyph::{FontVec, PxScale};
 // ============================================================================
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ApiKeyConfig {
+    pub key: String,
+    pub label: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppSettings {
     #[serde(default)]
-    pub api_key: Option<String>,
+    pub api_keys: Vec<ApiKeyConfig>,
+    #[serde(default)]
+    pub active_api_key_index: usize,
+    #[serde(default)]
+    pub api_key: Option<String>, // Legacy field for migration
     #[serde(default = "default_refresh_interval")]
     pub refresh_interval_minutes: u32,
     #[serde(default = "default_true")]
@@ -60,6 +70,8 @@ fn default_shortcut() -> String { "F19".to_string() }
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            api_keys: Vec::new(),
+            active_api_key_index: 0,
             api_key: None,
             refresh_interval_minutes: 5,
             show_percentage: true,
@@ -107,21 +119,31 @@ fn save_settings_internal(settings: &AppSettings) -> Result<(), String> {
 #[tauri::command]
 fn read_settings() -> Result<AppSettings, String> {
     let path = get_settings_file_path()?;
-    if !path.exists() {
+    let mut settings = if !path.exists() {
         // Migration: try to read old .env file if it exists
-        let mut settings = AppSettings::default();
+        let mut s = AppSettings::default();
         if let Ok(Some(key)) = read_api_key() {
-            settings.api_key = Some(key);
-            let _ = save_settings_internal(&settings); // Save migrated settings
+            s.api_key = Some(key.clone());
+            s.api_keys.push(ApiKeyConfig { key, label: "OpenRouter".to_string() });
+            let _ = save_settings_internal(&s); // Save migrated settings
         }
-        return Ok(settings);
+        s
+    } else {
+        let contents = fs::read_to_string(&path)
+            .map_err(|e| format!("Failed to read settings: {}", e))?;
+        serde_json::from_str(&contents)
+            .map_err(|e| format!("Failed to parse settings: {}", e))?
+    };
+
+    // Migration for 0.3.0: If we have the legacy api_key but no api_keys list
+    if settings.api_keys.is_empty() {
+        if let Some(key) = settings.api_key.clone() {
+            settings.api_keys.push(ApiKeyConfig { key, label: "OpenRouter".to_string() });
+            let _ = save_settings_internal(&settings);
+        }
     }
     
-    let contents = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read settings: {}", e))?;
-    
-    serde_json::from_str(&contents)
-        .map_err(|e| format!("Failed to parse settings: {}", e))
+    Ok(settings)
 }
 
 #[tauri::command]
