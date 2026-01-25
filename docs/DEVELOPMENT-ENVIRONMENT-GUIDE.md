@@ -171,6 +171,22 @@ The project uses `Swatinem/rust-cache@v2` in GitHub Actions to minimize build ti
 #### Troubleshooting "No cache found"
 If a release run reports "No cache found", it is usually because it's the first build after changing the `shared-key` or the workspace path. Subsequent releases on different tags will still benefit from the `shared-key: "release-build"` setup.
 
+### Usage & Billing (macOS Minutes)
+
+macOS runners are significantly more expensive than Linux runners on GitHub Actions.
+
+- **The 10x Multiplier**: GitHub Free provides 2,000 minutes/month, but macOS consumes these at a **10x rate**.
+- **The Math**: You effectively have **200 real macOS minutes** per month.
+- **Budgeting**: A typical Tauri build takes 10-15 minutes. This means you can afford roughly **15 builds per month** (about 3-4 per week) before hitting the free tier limit.
+
+**Check remaining minutes:**
+Visit the **[GitHub Billing Summary](https://github.com/settings/billing/summary)** page. Look for "GitHub Actions" to see your current month's usage.
+
+**Check the cost of the last release build (via CLI):**
+```bash
+gh api /repos/bytepoets-mba/bp-esc/actions/runs/(gh run list --workflow release.yml --limit 1 --json databaseId --jq '.[0].databaseId')/timing --jq '.billable'
+```
+
 #### Local Setup Requirements:
 1. **Certificate:** Must be specifically "Developer ID Application". "Apple Development" or "Mac App Distribution" will fail.
 2. **Entitlements:** Standard entitlements for Tauri apps (Hardened Runtime) are located in `src-tauri/entitlements/release.entitlements`.
