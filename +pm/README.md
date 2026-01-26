@@ -84,7 +84,7 @@ LNN
 [Dependencies, estimates, notes, etc.]
 
 ## Status
-[Draft | In Progress | Review | Done | Cancelled]
+[Draft | In Progress | Review | Done | Canceled]
 ```
 
 ---
@@ -111,9 +111,9 @@ mv +pm/backlog/A10.abc1234.implement-oauth.md +pm/done/
 
 ### 4. Cancel (if needed)
 ```bash
-# Update status to Cancelled in the file, or move to cancelled/
-mkdir -p +pm/cancelled
-mv +pm/backlog/Z99.xyz9876.abandoned-feature.md +pm/cancelled/
+# Update status to Canceled in the file, or move to canceled/
+mkdir -p +pm/canceled
+mv +pm/backlog/Z99.xyz9876.abandoned-feature.md +pm/canceled/
 ```
 
 ---
