@@ -30,9 +30,9 @@
 
 ### Running in Development Mode
 
-```bash
-# Run Tauri dev server (from project root)
-npm run dev
+```fish
+# Recommended: build frontend assets + run Tauri dev
+npm run build:frontend && npm run dev
 ```
 
 The app will launch with hot-reload enabled.

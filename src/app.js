@@ -61,6 +61,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const showUnitToggle = document.getElementById('showUnitToggle');
   const autocheckToggle = document.getElementById('autocheckToggle');
   const startWindowToggle = document.getElementById('startWindowToggle');
+  const launchAtLoginToggle = document.getElementById('launchAtLoginToggle');
   const alwaysOnTopToggle = document.getElementById('alwaysOnTopToggle');
   const unfocusedOverlayToggle = document.getElementById('unfocusedOverlayToggle');
   const decimalValue = document.getElementById('decimalValue');
@@ -555,6 +556,7 @@ window.addEventListener('transitionend', (e) => {
     showUnitToggle.checked = currentSettings.show_unit;
     autocheckToggle.checked = currentSettings.auto_refresh_enabled;
     startWindowToggle.checked = currentSettings.show_window_on_start;
+    launchAtLoginToggle.checked = currentSettings.launch_at_login;
     alwaysOnTopToggle.checked = currentSettings.always_on_top;
     unfocusedOverlayToggle.checked = currentSettings.unfocused_overlay;
     decimalValue.textContent = currentSettings.decimal_places || 0;
@@ -588,6 +590,7 @@ window.addEventListener('transitionend', (e) => {
       show_unit: showUnitToggle.checked,
       auto_refresh_enabled: autocheckToggle.checked,
       show_window_on_start: startWindowToggle.checked,
+      launch_at_login: launchAtLoginToggle.checked,
       always_on_top: alwaysOnTopToggle.checked,
       unfocused_overlay: unfocusedOverlayToggle.checked,
       decimal_places: parseInt(decimalValue.textContent),
@@ -600,6 +603,20 @@ window.addEventListener('transitionend', (e) => {
 
     try {
       await invoke('save_settings', { settings: newSettings });
+      
+      // Update autostart state via plugin
+      try {
+        const { enable, disable, isEnabled } = window.__TAURI__.autostart;
+        const currentlyEnabled = await isEnabled();
+        if (newSettings.launch_at_login && !currentlyEnabled) {
+          await enable();
+        } else if (!newSettings.launch_at_login && currentlyEnabled) {
+          await disable();
+        }
+      } catch (autostartError) {
+        console.error('Failed to sync autostart via plugin:', autostartError);
+      }
+
       currentSettings = newSettings;
       if (currentBalance) {
         displayBalance(currentBalance, false);
@@ -654,6 +671,7 @@ window.addEventListener('transitionend', (e) => {
     else stopAutoRefresh();
   };
   startWindowToggle.onchange = () => saveSettingsAction(true);
+  launchAtLoginToggle.onchange = () => saveSettingsAction(true);
   alwaysOnTopToggle.onchange = () => saveSettingsAction(true);
   unfocusedOverlayToggle.onchange = () => {
     saveSettingsAction(true);

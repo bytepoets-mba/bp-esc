@@ -1,13 +1,13 @@
 [package]
 name = "bp-esc"
-version = "0.3.4"
+version = "0.3.5"
 description = "BYTEPOETS Employee Self-Care App"
 authors = ["BYTEPOETS GmbH"]
 license = "Proprietary"
 repository = "https://github.com/bytepoets-mba/bp-esc"
 default-run = "bp-esc"
 edition = "2021"
-rust-version = "1.60"
+rust-version = "1.77"
 
 [build-dependencies]
 tauri-build = { version = "2.5", features = [] }
@@ -24,6 +24,7 @@ imageproc = "0.25"
 ab_glyph = "0.2"
 open = "3.2.0"
 tauri-plugin-global-shortcut = "2.0.0-rc"
+tauri-plugin-autostart = "2.0.0-beta.10"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.

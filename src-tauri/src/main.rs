@@ -14,10 +14,12 @@ use tauri::{
     tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
     image::Image
 };
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState, Shortcut};
 use image::Rgba;
-use imageproc::drawing::draw_text_mut;
+use tauri_plugin_autostart::MacosLauncher;
 use ab_glyph::{FontVec, PxScale};
+use imageproc::drawing::draw_text_mut;
 
 // ============================================================================
 // SETTINGS CONFIGURATION
@@ -49,6 +51,8 @@ pub struct AppSettings {
     pub auto_refresh_enabled: bool,
     #[serde(default = "default_true")]
     pub show_window_on_start: bool,
+    #[serde(default = "default_true")]
+    pub launch_at_login: bool,
     #[serde(default = "default_shortcut")]
     pub global_shortcut: String,
     #[serde(default = "default_true")]
@@ -81,6 +85,7 @@ impl Default for AppSettings {
             show_unit: true,
             auto_refresh_enabled: true,
             show_window_on_start: true,
+            launch_at_login: true,
             global_shortcut: "F19".to_string(),
             global_shortcut_enabled: true,
             always_on_top: false,
@@ -159,6 +164,14 @@ fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
     // Update Always on Top
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.set_always_on_top(settings.always_on_top);
+    }
+    
+    // Update Autostart
+    let autostart_manager = app.autolaunch();
+    if settings.launch_at_login {
+        let _ = autostart_manager.enable();
+    } else {
+        let _ = autostart_manager.disable();
     }
     
     Ok(())
@@ -966,6 +979,7 @@ fn update_app_shortcut(app: &AppHandle, shortcut_str: &str, enabled: bool) -> Re
 
 fn main() {
   tauri::Builder::default()
+    .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--quiet"])))
     .plugin(tauri_plugin_window_state::Builder::default().build())
     .plugin(tauri_plugin_global_shortcut::Builder::new().build())
     .setup(|app| {
@@ -1011,6 +1025,14 @@ fn main() {
       // Register global shortcut
       let settings = read_settings().unwrap_or_default();
       let _ = update_app_shortcut(app.app_handle(), &settings.global_shortcut, settings.global_shortcut_enabled);
+      
+      // Sync autostart setting with system
+      let autostart_manager = app.autolaunch();
+      if settings.launch_at_login {
+          let _ = autostart_manager.enable();
+      } else {
+          let _ = autostart_manager.disable();
+      }
       
       // Position window initially (hidden) - simplified without event listeners
       if let Some(window) = app.get_webview_window("main") {
