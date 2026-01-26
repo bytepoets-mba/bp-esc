@@ -9,7 +9,8 @@
     "build:frontend": "mkdir -p dist && cp -r src/index.html src/app.js src/style.css src/assets dist/"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.0.0"
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-autostart": "^2.5.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
