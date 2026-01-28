@@ -227,14 +227,14 @@ body.unfocused .container::after {
   position: absolute;
   bottom: -3px;
   left: -4px;
-  right: -4px;
+  right: -9px;
   height: 3px;
   background: transparent;
   transition: all 0.2s;
 }
 
 .nav-tab.active::after {
-  background: #6366f1;
+  background: #006497;
 }
 
 .material-symbols-rounded {
