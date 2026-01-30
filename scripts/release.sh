@@ -56,17 +56,22 @@ get_version_from_package_json() {
 }
 
 check_version_sync() {
+    local quiet="${1:-false}"
     local tauri_version=$(get_version_from_tauri_conf)
     local cargo_version=$(get_version_from_cargo_toml)
     local package_version=$(get_version_from_package_json)
 
-    print_info "Checking version sync..."
-    echo "  tauri.conf.json: $tauri_version"
-    echo "  Cargo.toml:      $cargo_version"
-    echo "  package.json:    $package_version"
+    if [[ "$quiet" != "true" ]]; then
+        print_info "Checking version sync..."
+        echo "  tauri.conf.json: $tauri_version"
+        echo "  Cargo.toml:      $cargo_version"
+        echo "  package.json:    $package_version"
+    fi
 
     if [[ "$tauri_version" == "$cargo_version" ]] && [[ "$tauri_version" == "$package_version" ]]; then
-        print_success "Versions are in sync: $tauri_version"
+        if [[ "$quiet" != "true" ]]; then
+            print_success "Versions are in sync: $tauri_version"
+        fi
         echo "$tauri_version"
         return 0
     else
@@ -135,9 +140,8 @@ check_tag_exists() {
     print_info "Checking if tag $tag already exists..."
     git fetch --tags --quiet
     
-    if git tag -l "$tag" | grep -q "$tag"; then
+    if git tag -l "$tag" | grep -q "^${tag}$"; then
         print_error "Tag $tag already exists"
-        git tag -l "$tag"
         return 1
     fi
     
@@ -224,7 +228,9 @@ main() {
     echo ""
     
     # Step 2: Check version sync
-    version=$(check_version_sync) || exit 1
+    print_info "Checking version sync..."
+    version=$(check_version_sync true) || exit 1
+    print_success "Versions are in sync: $version"
     echo ""
     
     # Step 3: Check tag doesn't exist
@@ -234,15 +240,15 @@ main() {
     echo ""
     
     # Step 4: Confirm with user
-    print_warning "About to release version: $version"
     echo ""
+    print_warning "About to release version: $version"
     read -p "Continue? [y/N] " -n 1 -r
+    echo ""
     echo ""
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         print_info "Release cancelled"
         exit 0
     fi
-    echo ""
     
     # Step 5: Create and push tag
     create_and_push_tag "$version"
