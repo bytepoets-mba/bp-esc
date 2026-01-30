@@ -1,0 +1,39 @@
+name: Cache Warming
+
+on:
+  workflow_dispatch:
+
+jobs:
+  warm-cache:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin, aarch64-apple-darwin
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "release-build"
+          workspaces: ". -> target"
+          add-job-id-key: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build:frontend
+
+      - name: Build Tauri (debug mode for cache warming)
+        run: npx tauri build --bundles app --target universal-apple-darwin --debug
+        env:
+          CI: true

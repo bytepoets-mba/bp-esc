@@ -14,6 +14,75 @@ This directory contains scripts for managing backlog items with unique, collisio
 
 ## Available Scripts
 
+### `release.sh`
+
+Automated release pipeline for BP-ESC with version sync checking.
+
+**Usage**:
+```bash
+# Full release process
+./scripts/release.sh
+
+# Check version sync only
+./scripts/release.sh --check
+
+# Force sync all version files
+./scripts/release.sh --sync 0.3.7
+
+# Show help
+./scripts/release.sh --help
+```
+
+**Features**:
+- Checks git status (fails if uncommitted changes)
+- Validates version sync across `tauri.conf.json`, `Cargo.toml`, `package.json`
+- Fetches tags and verifies tag doesn't exist
+- Creates and pushes git tag
+- Opens GitHub Actions in browser
+- Monitors CI run with `gh run watch`
+- Opens releases page when complete
+
+**Requirements**:
+- GitHub CLI (`gh`) authenticated
+- Node.js installed
+- Clean working directory
+- Zen browser (for opening URLs)
+
+**See also**: `docs/manual-release.md`
+
+---
+
+### `warm-cache.sh`
+
+Triggers cache warming workflow to speed up future releases.
+
+**Usage**:
+```bash
+# Warm cache on main branch
+./scripts/warm-cache.sh
+
+# Show help
+./scripts/warm-cache.sh --help
+```
+
+**Features**:
+- Checks current branch (warns if not on `main`)
+- Triggers GitHub Actions workflow via API
+- Opens workflow in browser
+- Monitors workflow with `gh run watch`
+- Reports completion
+
+**When to use**:
+- After updating Rust dependencies (`Cargo.lock` changes)
+- Typically once per month or less
+- Saves 3-5 minutes on future releases
+
+**Cost**: ~100 GitHub Actions minutes per run (macOS multiplier)
+
+**See also**: `docs/manual-warm-cache.md`
+
+---
+
 ### `lib/generate-hash.sh`
 
 Generates unique 7-character hex hash for backlog items.
