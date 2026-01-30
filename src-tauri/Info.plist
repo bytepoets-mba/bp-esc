@@ -25,7 +25,7 @@
 	
 	<!-- Sparkle Update Configuration -->
 	<key>SUFeedURL</key>
-	<string>https://bytepoets-mba.github.io/bp-esc/appcast.xml</string>
+	<string>https://github.com/bytepoets-mba/bp-esc/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>l6lDxyzIiSEDuBCJXnPEutvm5JJwbkM2t8+NyD8B2NM=</string>
 	<key>SUEnableAutomaticChecks</key>

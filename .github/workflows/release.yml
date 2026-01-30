@@ -97,23 +97,23 @@ jobs:
           curl -L -o generate_appcast https://github.com/sparkle-project/Sparkle/releases/download/2.8.1/generate_appcast
           chmod +x generate_appcast
           
-          # Create docs directory if it doesn't exist
-          mkdir -p docs
+          # Create output directory
+          mkdir -p appcast-output
+          
+          # Copy .zip to output directory for appcast generation
+          PRODUCT_NAME=$(node -e "console.log(require('./src-tauri/tauri.conf.json').productName)")
+          cp "target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.zip" appcast-output/
           
           # Generate appcast.xml with EdDSA signature
           ./generate_appcast \
             --ed-key-file <(echo "${{ secrets.SPARKLE_PRIVATE_KEY }}") \
-            --download-url-prefix "https://github.com/bytepoets-mba/bp-esc/releases/download/" \
+            --download-url-prefix "https://github.com/bytepoets-mba/bp-esc/releases/download/${{ github.ref_name }}/" \
             --link "https://github.com/bytepoets-mba/bp-esc" \
-            --full-release-notes-url "https://github.com/bytepoets-mba/bp-esc/releases" \
-            docs/appcast.xml
-
-      - name: Deploy Appcast to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
-          keep_files: false
+            --full-release-notes-url "https://github.com/bytepoets-mba/bp-esc/releases/tag/${{ github.ref_name }}" \
+            appcast-output/
+          
+          # Move appcast.xml to root for release attachment
+          mv appcast-output/appcast.xml .
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -121,6 +121,7 @@ jobs:
           files: |
             target/universal-apple-darwin/release/bundle/dmg/*.dmg
             target/universal-apple-darwin/release/bundle/macos/*.zip
+            appcast.xml
           draft: true
           generate_release_notes: true
         env:
