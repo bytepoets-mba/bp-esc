@@ -206,22 +206,32 @@ The Sparkle framework (v2.8.1) is used for native macOS auto-updates. Integratio
 
 **2. Code Signing Requirements (CRITICAL):**
 
-Sparkle.framework contains embedded binaries that MUST be code-signed with hardened runtime BEFORE the main app build:
+Sparkle.framework contains embedded binaries that MUST be code-signed with hardened runtime BEFORE the main app build.
+
+**CRITICAL: Use the actual keychain identity, not a hardcoded string!**
 
 ```bash
-# These binaries exist inside Sparkle.framework and need signing:
-# - Versions/B/XPCServices/Updater.xpc
-# - Versions/B/Autoupdate
-# - The framework itself
+# Get the actual signing identity from keychain (same method Tauri uses)
+SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
 
-codesign --force --deep --sign "Developer ID Application: BYTEPOETS GmbH" \
+# Sign Sparkle binaries with that identity
+codesign --force --deep --sign "$SIGNING_IDENTITY" \
+  --options runtime \
+  "src-tauri/Sparkle.framework/Versions/B/XPCServices/Updater.xpc"
+
+codesign --force --deep --sign "$SIGNING_IDENTITY" \
+  --options runtime \
+  "src-tauri/Sparkle.framework/Versions/B/Autoupdate"
+
+codesign --force --deep --sign "$SIGNING_IDENTITY" \
   --options runtime \
   "src-tauri/Sparkle.framework"
 ```
 
 **Why this matters:**
 - If Sparkle binaries are NOT signed with hardened runtime, Apple notarization will REJECT with `status: Invalid`
-- The error won't be obvious - notarization just fails
+- If you hardcode the certificate name (e.g., "Developer ID Application: BYTEPOETS GmbH"), you'll get "The specified item could not be found in the keychain" because the imported certificate might have a different exact name
+- Must query the keychain for the actual identity (same as Tauri does internally)
 - Must sign BEFORE building the app (Tauri bundles the framework)
 - Cannot sign after - too late
 
@@ -276,6 +286,9 @@ GitHub Pages requires paid plan for private repos. Solution: host `appcast.xml` 
 
 ❌ **Don't:** Skip signing Sparkle framework before build  
 ✅ **Do:** Sign with hardened runtime BEFORE Tauri builds
+
+❌ **Don't:** Hardcode certificate identity name (e.g., "Developer ID Application: BYTEPOETS GmbH")  
+✅ **Do:** Query keychain with `security find-identity -v -p codesigning`
 
 ❌ **Don't:** Make stapling failures block the release  
 ✅ **Do:** Allow stapling to fail gracefully (app still works)
