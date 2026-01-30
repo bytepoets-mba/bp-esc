@@ -55,6 +55,36 @@ jobs:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
+      - name: Code Sign Sparkle Framework Binaries
+        if: env.APPLE_CERTIFICATE != ''
+        run: |
+          # Sparkle framework contains binaries that need hardened runtime signing
+          SPARKLE_FRAMEWORK="src-tauri/Sparkle.framework"
+          
+          echo "🔐 Code signing Sparkle binaries with hardened runtime..."
+          
+          # Sign AutoUpdate.app (if exists)
+          if [ -d "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Updater.xpc" ]; then
+            codesign --force --deep --sign "Developer ID Application: BYTEPOETS GmbH" \
+              --options runtime \
+              "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Updater.xpc"
+          fi
+          
+          if [ -d "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate" ]; then
+            codesign --force --deep --sign "Developer ID Application: BYTEPOETS GmbH" \
+              --options runtime \
+              "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate"
+          fi
+          
+          # Sign the framework itself
+          codesign --force --deep --sign "Developer ID Application: BYTEPOETS GmbH" \
+            --options runtime \
+            "$SPARKLE_FRAMEWORK"
+          
+          echo "✓ Sparkle framework signed"
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+
       - name: Build Tauri app
         run: |
           npm run build:frontend
