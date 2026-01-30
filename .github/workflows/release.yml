@@ -61,23 +61,34 @@ jobs:
           # Sparkle framework contains binaries that need hardened runtime signing
           SPARKLE_FRAMEWORK="src-tauri/Sparkle.framework"
           
+          echo "🔐 Finding signing identity in keychain..."
+          # Get the actual signing identity from the keychain (same method Tauri uses)
+          SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+          
+          if [ -z "$SIGNING_IDENTITY" ]; then
+            echo "❌ No Developer ID Application certificate found in keychain"
+            exit 1
+          fi
+          
+          echo "✓ Using identity: $SIGNING_IDENTITY"
           echo "🔐 Code signing Sparkle binaries with hardened runtime..."
           
-          # Sign AutoUpdate.app (if exists)
+          # Sign Updater.xpc (if exists)
           if [ -d "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Updater.xpc" ]; then
-            codesign --force --deep --sign "Developer ID Application: BYTEPOETS GmbH" \
+            codesign --force --deep --sign "$SIGNING_IDENTITY" \
               --options runtime \
               "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Updater.xpc"
           fi
           
+          # Sign Autoupdate (if exists)
           if [ -d "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate" ]; then
-            codesign --force --deep --sign "Developer ID Application: BYTEPOETS GmbH" \
+            codesign --force --deep --sign "$SIGNING_IDENTITY" \
               --options runtime \
               "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate"
           fi
           
           # Sign the framework itself
-          codesign --force --deep --sign "Developer ID Application: BYTEPOETS GmbH" \
+          codesign --force --deep --sign "$SIGNING_IDENTITY" \
             --options runtime \
             "$SPARKLE_FRAMEWORK"
           
