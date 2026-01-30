@@ -206,44 +206,76 @@ The Sparkle framework (v2.8.1) is used for native macOS auto-updates. Integratio
 
 **2. Code Signing Requirements (CRITICAL):**
 
-Sparkle.framework contains embedded binaries that MUST be code-signed with hardened runtime BEFORE the main app build.
+Sparkle.framework contains embedded binaries that MUST be code-signed with hardened runtime AFTER Tauri builds the app.
 
-**CRITICAL: Use the actual keychain identity, not a hardcoded string!**
+**CRITICAL: Sign AFTER build, inside the app bundle!**
 
 ```bash
 # Get the actual signing identity from keychain (same method Tauri uses)
 SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
 
-# Sign Sparkle binaries with that identity
-codesign --force --deep --sign "$SIGNING_IDENTITY" \
-  --options runtime \
-  "src-tauri/Sparkle.framework/Versions/B/XPCServices/Updater.xpc"
+# Path to framework INSIDE the built app bundle
+APP_BUNDLE="target/universal-apple-darwin/release/bundle/macos/BP-ESC.app"
+SPARKLE="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 
-codesign --force --deep --sign "$SIGNING_IDENTITY" \
+# Sign in correct order (DO NOT use --deep flag!)
+# 1. Installer.xpc
+codesign --force --sign "$SIGNING_IDENTITY" \
   --options runtime \
-  "src-tauri/Sparkle.framework/Versions/B/Autoupdate"
+  "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
 
-codesign --force --deep --sign "$SIGNING_IDENTITY" \
+# 2. Downloader.xpc (preserve entitlements for Sparkle 2.6+)
+codesign --force --sign "$SIGNING_IDENTITY" \
   --options runtime \
-  "src-tauri/Sparkle.framework"
+  --preserve-metadata=entitlements \
+  "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
+
+# 3. Autoupdate
+codesign --force --sign "$SIGNING_IDENTITY" \
+  --options runtime \
+  "$SPARKLE/Versions/B/Autoupdate"
+
+# 4. Framework itself
+codesign --force --sign "$SIGNING_IDENTITY" \
+  --options runtime \
+  "$SPARKLE"
+
+# 5. Re-sign app bundle (NO --deep!)
+codesign --force --sign "$SIGNING_IDENTITY" \
+  --options runtime \
+  --entitlements src-tauri/entitlements/release.entitlements \
+  "$APP_BUNDLE"
 ```
 
 **Why this matters:**
-- If Sparkle binaries are NOT signed with hardened runtime, Apple notarization will REJECT with `status: Invalid`
-- If you hardcode the certificate name (e.g., "Developer ID Application: BYTEPOETS GmbH"), you'll get "The specified item could not be found in the keychain" because the imported certificate might have a different exact name
-- Must query the keychain for the actual identity (same as Tauri does internally)
-- Must sign BEFORE building the app (Tauri bundles the framework)
-- Cannot sign after - too late
+- Tauri builds and signs the app, but doesn't sign Sparkle's internal binaries with hardened runtime
+- Must sign AFTER build, targeting the framework INSIDE the app bundle (not the standalone framework)
+- If you hardcode the certificate name, you'll get "item could not be found in keychain" - must query keychain
+- NEVER use `--deep` flag - it corrupts XPC service signatures
+- Must re-sign app bundle after modifying internal components
 
-**3. CI Workflow Order:**
+**3. CI Workflow Order (CRITICAL - DO NOT CHANGE):**
+
+Based on real-world production implementation (VibeMeter, June 2025):
+
 ```yaml
-1. Download Sparkle framework
-2. Code sign Sparkle binaries (with hardened runtime)
-3. Build Tauri app (bundles signed framework)
-4. Code sign main app
+1. Download Sparkle framework to src-tauri/
+2. Build Tauri app (bundles framework into .app)
+3. Re-sign Sparkle binaries INSIDE the app bundle:
+   a. Installer.xpc (with --options runtime)
+   b. Downloader.xpc (with --options runtime --preserve-metadata=entitlements)
+   c. Autoupdate (with --options runtime)
+   d. Sparkle.framework (with --options runtime)
+4. Re-sign the app bundle (with --options runtime, NO --deep flag)
 5. Notarize
 6. Staple (optional, may fail - that's OK)
 ```
+
+**Why this order:**
+- Tauri builds and signs the app, but doesn't know to sign Sparkle's internal binaries with hardened runtime
+- We must re-sign AFTER build, targeting the framework INSIDE the app bundle
+- Never use `--deep` flag - it corrupts XPC service signatures
+- Re-sign app bundle last to update its signature after modifying internal components
 
 **4. Environment Variable for Rust Build:**
 
@@ -284,11 +316,17 @@ GitHub Pages requires paid plan for private repos. Solution: host `appcast.xml` 
 ❌ **Don't:** Try to download `generate_appcast` separately - URL doesn't exist  
 ✅ **Do:** Extract it from the Sparkle archive
 
-❌ **Don't:** Skip signing Sparkle framework before build  
-✅ **Do:** Sign with hardened runtime BEFORE Tauri builds
+❌ **Don't:** Sign Sparkle framework BEFORE Tauri builds  
+✅ **Do:** Sign AFTER build, inside the app bundle at `Contents/Frameworks/`
+
+❌ **Don't:** Use `--deep` flag when signing (corrupts XPC signatures)  
+✅ **Do:** Sign each component individually in correct order
 
 ❌ **Don't:** Hardcode certificate identity name (e.g., "Developer ID Application: BYTEPOETS GmbH")  
 ✅ **Do:** Query keychain with `security find-identity -v -p codesigning`
+
+❌ **Don't:** Forget to re-sign app bundle after modifying Sparkle  
+✅ **Do:** Re-sign app bundle last (without `--deep`)
 
 ❌ **Don't:** Make stapling failures block the release  
 ✅ **Do:** Allow stapling to fail gracefully (app still works)
@@ -301,6 +339,15 @@ GitHub Pages requires paid plan for private repos. Solution: host `appcast.xml` 
 Each failed release attempt costs ~100 GitHub Actions minutes (10x macOS multiplier).  
 With Sparkle integration issues, we burned through ~500 minutes learning these lessons.  
 **Lesson:** Test locally first, fix upfront before CI.
+
+**9. References:**
+
+This implementation is based on real-world production code from:
+- [VibeMeter by Peter Steinberger](https://github.com/steipete/VibeMeter) (June 2025)
+- [Sparkle Framework Documentation](https://sparkle-project.org/documentation/)
+- [Code Signing and Notarization: Sparkle and Tears](https://steipete.me/posts/2025/code-signing-and-notarization-sparkle-and-tears)
+
+The VibeMeter implementation successfully ships notarized macOS apps with Sparkle auto-updates and provided the proven pattern we follow.
 
 #### GitHub Secrets for CI/CD:
 The following secrets must be set in the repository for the `Release` workflow to function:
