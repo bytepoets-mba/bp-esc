@@ -88,15 +88,8 @@ jobs:
             exit 1
           fi
           
-          echo "🔐 Finding signing identity in keychain..."
-          # Get the actual signing identity from the keychain (same method Tauri uses)
-          SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
-          
-          if [ -z "$SIGNING_IDENTITY" ]; then
-            echo "❌ No Developer ID Application certificate found in keychain"
-            exit 1
-          fi
-          
+          # Use the SAME signing identity that Tauri used (passed via env var)
+          SIGNING_IDENTITY="$APPLE_SIGNING_IDENTITY"
           echo "✓ Using identity: $SIGNING_IDENTITY"
           
           # Determine version directory (B is standard for Sparkle 2.x, but check both)
@@ -168,6 +161,7 @@ jobs:
           echo "✓ Sparkle framework and app re-signed successfully"
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_SIGNING_IDENTITY: "Developer ID Application: BYTEPOETS GmbH"
 
       - name: Notarize App Bundle
         if: env.APPLE_ID != ''
