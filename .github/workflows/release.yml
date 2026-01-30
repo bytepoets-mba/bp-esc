@@ -82,10 +82,45 @@ jobs:
       - name: Build DMG via node-appdmg
         run: node scripts/build-dmg.js
 
+      - name: Zip App for Sparkle
+        run: |
+          PRODUCT_NAME=$(node -e "console.log(require('./src-tauri/tauri.conf.json').productName)")
+          APP_PATH="target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.app"
+          ZIP_PATH="target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.zip"
+          
+          echo "📦 Creating Sparkle update zip..."
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+
+      - name: Generate Appcast
+        run: |
+          # Download Sparkle's generate_appcast tool
+          curl -L -o generate_appcast https://github.com/sparkle-project/Sparkle/releases/download/2.8.1/generate_appcast
+          chmod +x generate_appcast
+          
+          # Create docs directory if it doesn't exist
+          mkdir -p docs
+          
+          # Generate appcast.xml with EdDSA signature
+          ./generate_appcast \
+            --ed-key-file <(echo "${{ secrets.SPARKLE_PRIVATE_KEY }}") \
+            --download-url-prefix "https://github.com/bytepoets-mba/bp-esc/releases/download/" \
+            --link "https://github.com/bytepoets-mba/bp-esc" \
+            --full-release-notes-url "https://github.com/bytepoets-mba/bp-esc/releases" \
+            docs/appcast.xml
+
+      - name: Deploy Appcast to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          keep_files: false
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          files: |
+            target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            target/universal-apple-darwin/release/bundle/macos/*.zip
           draft: true
           generate_release_notes: true
         env:

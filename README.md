@@ -17,6 +17,7 @@ Desktop macOS application for BYTEPOETS employees to securely monitor OpenRouter
 - **Secure Storage**: API key in `~/.config/bpesc-balance/.env` (755 dir, 600 file)
 - **Live Balances**: Limit/Used/Remaining (🟢 >$5, 🟠 <$5, 🔴 <0)
 - **Auto-Refresh**: 5min toggle (background-safe)
+- **Auto-Updates**: Native macOS Sparkle updates (checks every 24h)
 - **UX Flow**: Startup auto-load → Balance or input → Controls
 - **Controls**: 🔄 Refresh | ⚙️ Edit Key | ✕ Quit
 - **Validation**: `sk-` prefix, len≥20 (client/server)
@@ -50,14 +51,34 @@ Your API key is stored locally in a `.env` file. Ensure this file is not shared 
 
 ## Version Management
 
-Version is managed as Single Source of Truth via Cargo workspace in root `Cargo.toml`.
+Versions must be synced across three files:
+- `src-tauri/tauri.conf.json`
+- `src-tauri/Cargo.toml`
+- `package.json`
 
-**To bump version:**
-1. Edit `[workspace.package].version` in `Cargo.toml`
-2. Sync `package.json` "version" manually (dev-only file)
-3. Build: `export TAURI_VERSION=0.2.0 && npm run build`
+**Automated scripts:**
+```bash
+# Check version sync
+./scripts/release.sh --check
 
-**Runtime:** JS `invoke('get_app_version')` returns `CARGO_PKG_VERSION`
+# Force sync all files to specific version
+./scripts/release.sh --sync 0.4.0
+
+# Full release (checks sync, tags, pushes, monitors CI)
+./scripts/release.sh
+```
+
+See `docs/manual-release.md` for details.
+
+## Auto-Updates
+
+BP-ESC uses Sparkle for native macOS auto-updates:
+- Checks for updates every 24 hours
+- Native macOS update dialog with progress bar
+- EdDSA signed updates for security
+- Manual check: Settings → "Check for Updates"
+
+See `docs/SPARKLE-AUTO-UPDATE.md` for technical details.
 
 ## Security Note
 

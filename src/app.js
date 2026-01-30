@@ -77,6 +77,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const hideBtn = document.getElementById('hideBtn');
   const prevKeyBtn = document.getElementById('prevKeyBtn');
   const nextKeyBtn = document.getElementById('nextKeyBtn');
+  const checkForUpdatesBtn = document.getElementById('checkForUpdatesBtn');
 
   // DOM elements - Confirm Dialog
   const confirmDialog = document.getElementById('confirmDialog');
@@ -888,6 +889,26 @@ window.addEventListener('transitionend', (e) => {
     }
   }
 
+  // Setup Sparkle update checker (macOS only)
+  function setupUpdateChecker() {
+    if (!checkForUpdatesBtn) return;
+    
+    checkForUpdatesBtn.onclick = async () => {
+      try {
+        // Check if Sparkle updater is available
+        if (typeof window.__TAURI_PLUGIN_SPARKLE_UPDATER__ !== 'undefined') {
+          const { checkForUpdates } = await import('tauri-plugin-sparkle-updater-api');
+          await checkForUpdates();
+        } else {
+          showError('Auto-update not available in dev mode');
+        }
+      } catch (error) {
+        console.error('Update check failed:', error);
+        showError('Failed to check for updates: ' + error);
+      }
+    };
+  }
+
   // Init
   async function init() {
     try {
@@ -904,6 +925,9 @@ window.addEventListener('transitionend', (e) => {
       
       // Setup Rust auto-refresh listener (works even when window hidden)
       await setupRustAutoRefreshListener();
+      
+      // Setup update checker (macOS only)
+      setupUpdateChecker();
       
       // Validate API key and notify backend
       const activeKey = currentSettings.api_keys[currentSettings.active_api_key_index]?.key;

@@ -1082,10 +1082,17 @@ fn update_app_shortcut(app: &AppHandle, shortcut_str: &str, enabled: bool) -> Re
 }
 
 fn main() {
-  tauri::Builder::default()
+  let mut builder = tauri::Builder::default()
     .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--quiet"])))
     .plugin(tauri_plugin_window_state::Builder::default().build())
-    .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+    .plugin(tauri_plugin_global_shortcut::Builder::new().build());
+  
+  #[cfg(target_os = "macos")]
+  {
+    builder = builder.plugin(tauri_plugin_sparkle_updater::init());
+  }
+  
+  builder
     .manage(AutoRefreshState::new())
     .setup(|app| {
       #[cfg(target_os = "macos")]

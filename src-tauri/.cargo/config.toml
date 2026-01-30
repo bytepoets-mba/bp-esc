@@ -1,0 +1,2 @@
+[env]
+SPARKLE_FRAMEWORK_PATH = { value = "", relative = true }
