@@ -55,47 +55,6 @@ jobs:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
-      - name: Code Sign Sparkle Framework Binaries
-        if: env.APPLE_CERTIFICATE != ''
-        run: |
-          # Sparkle framework contains binaries that need hardened runtime signing
-          SPARKLE_FRAMEWORK="src-tauri/Sparkle.framework"
-          
-          echo "🔐 Finding signing identity in keychain..."
-          # Get the actual signing identity from the keychain (same method Tauri uses)
-          SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
-          
-          if [ -z "$SIGNING_IDENTITY" ]; then
-            echo "❌ No Developer ID Application certificate found in keychain"
-            exit 1
-          fi
-          
-          echo "✓ Using identity: $SIGNING_IDENTITY"
-          echo "🔐 Code signing Sparkle binaries with hardened runtime..."
-          
-          # Sign Updater.xpc (if exists)
-          if [ -d "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Updater.xpc" ]; then
-            codesign --force --deep --sign "$SIGNING_IDENTITY" \
-              --options runtime \
-              "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Updater.xpc"
-          fi
-          
-          # Sign Autoupdate (if exists)
-          if [ -d "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate" ]; then
-            codesign --force --deep --sign "$SIGNING_IDENTITY" \
-              --options runtime \
-              "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate"
-          fi
-          
-          # Sign the framework itself
-          codesign --force --deep --sign "$SIGNING_IDENTITY" \
-            --options runtime \
-            "$SPARKLE_FRAMEWORK"
-          
-          echo "✓ Sparkle framework signed"
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-
       - name: Build Tauri app
         run: |
           npm run build:frontend
@@ -107,6 +66,70 @@ jobs:
           APPLE_SIGNING_IDENTITY: "Developer ID Application: BYTEPOETS GmbH"
           # This is critical for Notarization
           ENABLE_HARDENED_RUNTIME: true
+
+      - name: Re-sign Sparkle Framework Binaries
+        if: env.APPLE_CERTIFICATE != ''
+        run: |
+          PRODUCT_NAME=$(node -e "console.log(require('./src-tauri/tauri.conf.json').productName)")
+          APP_BUNDLE="target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.app"
+          SPARKLE_FRAMEWORK="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+          
+          echo "🔐 Finding signing identity in keychain..."
+          # Get the actual signing identity from the keychain (same method Tauri uses)
+          SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+          
+          if [ -z "$SIGNING_IDENTITY" ]; then
+            echo "❌ No Developer ID Application certificate found in keychain"
+            exit 1
+          fi
+          
+          echo "✓ Using identity: $SIGNING_IDENTITY"
+          echo "🔐 Re-signing Sparkle binaries with hardened runtime (order matters!)..."
+          
+          # Sign in correct order: XPC services first, then Autoupdate, then framework
+          # DO NOT use --deep flag (it corrupts XPC signatures)
+          
+          # 1. Sign Installer.xpc
+          if [ -d "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Installer.xpc" ]; then
+            echo "  → Signing Installer.xpc"
+            codesign --force --sign "$SIGNING_IDENTITY" \
+              --options runtime \
+              "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Installer.xpc"
+          fi
+          
+          # 2. Sign Downloader.xpc (preserve entitlements for Sparkle 2.6+)
+          if [ -d "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Downloader.xpc" ]; then
+            echo "  → Signing Downloader.xpc"
+            codesign --force --sign "$SIGNING_IDENTITY" \
+              --options runtime \
+              --preserve-metadata=entitlements \
+              "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Downloader.xpc"
+          fi
+          
+          # 3. Sign Autoupdate
+          if [ -f "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate" ]; then
+            echo "  → Signing Autoupdate"
+            codesign --force --sign "$SIGNING_IDENTITY" \
+              --options runtime \
+              "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate"
+          fi
+          
+          # 4. Sign the framework itself
+          echo "  → Signing Sparkle.framework"
+          codesign --force --sign "$SIGNING_IDENTITY" \
+            --options runtime \
+            "$SPARKLE_FRAMEWORK"
+          
+          # 5. Re-sign the app bundle (without --deep to preserve our XPC signatures)
+          echo "  → Re-signing app bundle"
+          codesign --force --sign "$SIGNING_IDENTITY" \
+            --options runtime \
+            --entitlements src-tauri/entitlements/release.entitlements \
+            "$APP_BUNDLE"
+          
+          echo "✓ Sparkle framework and app re-signed successfully"
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
 
       - name: Notarize App Bundle
         if: env.APPLE_ID != ''
