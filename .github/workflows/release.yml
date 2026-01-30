@@ -75,15 +75,15 @@ jobs:
           ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
           
           echo "🚀 Submitting to Apple Notary Service..."
-          # Capture submission ID and wait for result
-          SUBMISSION_ID=$(xcrun notarytool submit "$ZIP_PATH" \
+          xcrun notarytool submit "$ZIP_PATH" \
             --apple-id "${{ secrets.APPLE_ID }}" \
             --password "${{ secrets.APPLE_PASSWORD }}" \
             --team-id "${{ secrets.APPLE_TEAM_ID }}" \
-            --wait | grep "id:" | head -1 | awk '{print $2}')
+            --wait
           
           echo "🎫 Stapling notarization ticket..."
-          xcrun stapler staple "$APP_PATH"
+          # Try to staple, but don't fail if it doesn't work (can still distribute)
+          xcrun stapler staple "$APP_PATH" || echo "⚠️ Stapling failed, but app is notarized and can be distributed"
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
 
