@@ -58,6 +58,17 @@ check_branch() {
 trigger_workflow() {
     print_info "Triggering cache warming workflow on main branch..."
     
+    if gh workflow run cache-warming.yml --ref main 2>&1 | grep -q "403"; then
+        print_error "GitHub CLI lacks workflow permission"
+        echo ""
+        print_info "Fix with: gh auth refresh -h github.com -s workflow"
+        echo ""
+        print_info "Or trigger manually via web UI:"
+        echo "  https://github.com/bytepoets-mba/bp-esc/actions/workflows/cache-warming.yml"
+        echo "  Click 'Run workflow' → Select 'main' → Click 'Run workflow'"
+        return 1
+    fi
+    
     if gh workflow run cache-warming.yml --ref main; then
         print_success "Workflow triggered successfully"
         return 0
