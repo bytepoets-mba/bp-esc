@@ -192,6 +192,103 @@ gh api /repos/bytepoets-mba/bp-esc/actions/runs/(gh run list --workflow release.
 2. **Entitlements:** Standard entitlements for Tauri apps (Hardened Runtime) are located in `src-tauri/entitlements/release.entitlements`.
 3. **Hardened Runtime:** Always build with `ENABLE_HARDENED_RUNTIME=true` for production.
 
+#### Sparkle Framework Integration (Auto-Updates)
+
+**Critical Lessons Learned:**
+
+The Sparkle framework (v2.8.1) is used for native macOS auto-updates. Integration requires specific handling for notarization to succeed.
+
+**1. Framework Location:**
+- Sparkle.framework is NOT committed to git (in `.gitignore`)
+- CI must download it from: `https://github.com/sparkle-project/Sparkle/releases/download/2.8.1/Sparkle-2.8.1.tar.xz`
+- Extract to `src-tauri/Sparkle.framework`
+- Also extract tools from `bin/` → `src-tauri/sparkle-bin/` (contains `generate_appcast`, `generate_keys`)
+
+**2. Code Signing Requirements (CRITICAL):**
+
+Sparkle.framework contains embedded binaries that MUST be code-signed with hardened runtime BEFORE the main app build:
+
+```bash
+# These binaries exist inside Sparkle.framework and need signing:
+# - Versions/B/XPCServices/Updater.xpc
+# - Versions/B/Autoupdate
+# - The framework itself
+
+codesign --force --deep --sign "Developer ID Application: BYTEPOETS GmbH" \
+  --options runtime \
+  "src-tauri/Sparkle.framework"
+```
+
+**Why this matters:**
+- If Sparkle binaries are NOT signed with hardened runtime, Apple notarization will REJECT with `status: Invalid`
+- The error won't be obvious - notarization just fails
+- Must sign BEFORE building the app (Tauri bundles the framework)
+- Cannot sign after - too late
+
+**3. CI Workflow Order:**
+```yaml
+1. Download Sparkle framework
+2. Code sign Sparkle binaries (with hardened runtime)
+3. Build Tauri app (bundles signed framework)
+4. Code sign main app
+5. Notarize
+6. Staple (optional, may fail - that's OK)
+```
+
+**4. Environment Variable for Rust Build:**
+
+The plugin looks for Sparkle.framework in the workspace. Set in `.cargo/config.toml`:
+```toml
+[env]
+SPARKLE_FRAMEWORK_PATH = { value = "", relative = true }
+```
+
+This tells the build system to look in the current directory (where src-tauri/Sparkle.framework exists).
+
+**5. Appcast Generation:**
+
+The `generate_appcast` tool is inside the Sparkle archive (`bin/generate_appcast`), NOT a separate download:
+
+```bash
+# Extract tools when downloading framework
+tar -xf Sparkle-2.8.1.tar.xz -C /tmp
+cp -R /tmp/bin/* src-tauri/sparkle-bin/
+chmod +x src-tauri/sparkle-bin/*
+
+# Later, generate appcast
+./src-tauri/sparkle-bin/generate_appcast \
+  --ed-key-file <(echo "$PRIVATE_KEY") \
+  --download-url-prefix "https://github.com/org/repo/releases/download/v1.0.0/" \
+  output-dir/
+```
+
+**6. Private Repos & GitHub Releases:**
+
+GitHub Pages requires paid plan for private repos. Solution: host `appcast.xml` in GitHub Releases:
+- Feed URL: `https://github.com/org/repo/releases/latest/download/appcast.xml`
+- CI attaches `appcast.xml` to each release as an asset
+- Works with private repos on free plan
+
+**7. Common Mistakes:**
+
+❌ **Don't:** Try to download `generate_appcast` separately - URL doesn't exist  
+✅ **Do:** Extract it from the Sparkle archive
+
+❌ **Don't:** Skip signing Sparkle framework before build  
+✅ **Do:** Sign with hardened runtime BEFORE Tauri builds
+
+❌ **Don't:** Make stapling failures block the release  
+✅ **Do:** Allow stapling to fail gracefully (app still works)
+
+❌ **Don't:** Assume GitHub Actions cache works across tag refs  
+✅ **Do:** Use `main` branch for cache warming, tags restore from there
+
+**8. Cost Implications:**
+
+Each failed release attempt costs ~100 GitHub Actions minutes (10x macOS multiplier).  
+With Sparkle integration issues, we burned through ~500 minutes learning these lessons.  
+**Lesson:** Test locally first, fix upfront before CI.
+
 #### GitHub Secrets for CI/CD:
 The following secrets must be set in the repository for the `Release` workflow to function:
 - `APPLE_CERTIFICATE`: Base64 encoded `.p12` file containing the Developer ID Application certificate and private key.
