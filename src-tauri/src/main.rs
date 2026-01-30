@@ -6,10 +6,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::os::unix::fs::PermissionsExt; // macOS is Unix
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use tauri::{
-    AppHandle, Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter,
+    AppHandle, Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter, State,
     menu::{Menu, MenuItemBuilder},
     tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
     image::Image
@@ -20,6 +21,98 @@ use image::Rgba;
 use tauri_plugin_autostart::MacosLauncher;
 use ab_glyph::{FontVec, PxScale};
 use imageproc::drawing::draw_text_mut;
+use tokio::time::{interval, Interval};
+use tokio::sync::Mutex as TokioMutex;
+
+// ============================================================================
+// AUTO-REFRESH STATE
+// ============================================================================
+
+pub struct AutoRefreshState {
+    interval: Arc<TokioMutex<Option<Interval>>>,
+    is_running: Arc<Mutex<bool>>,
+}
+
+impl AutoRefreshState {
+    fn new() -> Self {
+        Self {
+            interval: Arc::new(TokioMutex::new(None)),
+            is_running: Arc::new(Mutex::new(false)),
+        }
+    }
+}
+
+/// Start the auto-refresh timer in the background
+async fn start_auto_refresh_timer(app: AppHandle, state: State<'_, AutoRefreshState>) -> Result<(), String> {
+    let settings = read_settings()?;
+    
+    if !settings.auto_refresh_enabled {
+        return Ok(());
+    }
+    
+    let interval_minutes = settings.refresh_interval_minutes.max(1);
+    let interval_duration = Duration::from_secs((interval_minutes * 60) as u64);
+    
+    // Stop existing timer if any
+    stop_auto_refresh_timer(&state)?;
+    
+    // Create new interval
+    let mut interval_guard = state.interval.lock().await;
+    let new_interval: Interval = interval(interval_duration);
+    *interval_guard = Some(new_interval);
+    drop(interval_guard);
+    
+    // Mark as running
+    *state.is_running.lock().map_err(|e| e.to_string())? = true;
+    let is_running = state.is_running.clone();
+    let interval_arc = state.interval.clone();
+    
+    // Spawn the timer task
+    tokio::spawn(async move {
+        loop {
+            // Check if we should stop
+            if !*is_running.lock().unwrap() {
+                break;
+            }
+            
+            // Get the interval and tick
+            let should_tick = {
+                let mut guard = interval_arc.lock().await;
+                if let Some(ref mut int) = *guard {
+                    int.tick().await;
+                    true
+                } else {
+                    false
+                }
+            };
+            
+            if !should_tick {
+                break;
+            }
+            
+            // Check if still enabled before emitting
+            if let Ok(settings) = read_settings() {
+                if settings.auto_refresh_enabled {
+                    // Emit event to frontend to refresh balance
+                    let _ = app.emit("rust-auto-refresh", ());
+                }
+            }
+        }
+    });
+    
+    Ok(())
+}
+
+/// Stop the auto-refresh timer
+fn stop_auto_refresh_timer(state: &AutoRefreshState) -> Result<(), String> {
+    *state.is_running.lock().map_err(|e| e.to_string())? = false;
+    Ok(())
+}
+
+#[tauri::command]
+async fn restart_auto_refresh(app: AppHandle, state: State<'_, AutoRefreshState>) -> Result<(), String> {
+    start_auto_refresh_timer(app, state).await
+}
 
 // ============================================================================
 // SETTINGS CONFIGURATION
@@ -173,6 +266,17 @@ fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
     } else {
         let _ = autostart_manager.disable();
     }
+    
+    // Restart auto-refresh timer with new settings
+    let app_clone = app.clone();
+    tokio::spawn(async move {
+        // Small delay to ensure settings are saved
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let app_handle = app_clone.clone();
+        if let Some(state) = app_clone.try_state::<AutoRefreshState>() {
+            let _ = start_auto_refresh_timer(app_handle, state).await;
+        }
+    });
     
     Ok(())
 }
@@ -982,11 +1086,21 @@ fn main() {
     .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--quiet"])))
     .plugin(tauri_plugin_window_state::Builder::default().build())
     .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+    .manage(AutoRefreshState::new())
     .setup(|app| {
       #[cfg(target_os = "macos")]
       {
         app.set_activation_policy(ActivationPolicy::Accessory);
       }
+      
+      // Start the auto-refresh timer
+      let app_handle = app.app_handle().clone();
+      tauri::async_runtime::spawn(async move {
+        let app_clone = app_handle.clone();
+        if let Some(state) = app_handle.try_state::<AutoRefreshState>() {
+          let _ = start_auto_refresh_timer(app_clone, state).await;
+        }
+      });
       
       // Create tray menu
       let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
@@ -1083,7 +1197,8 @@ fn main() {
         open_external_url,
         toggle_window_visibility,
         notify_api_key_valid,
-        notify_api_key_invalid
+        notify_api_key_invalid,
+        restart_auto_refresh
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

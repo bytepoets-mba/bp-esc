@@ -273,7 +273,7 @@ dependencies = [
 
 [[package]]
 name = "bp-esc"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "ab_glyph",
  "dirs 5.0.1",
@@ -288,6 +288,7 @@ dependencies = [
  "tauri-plugin-autostart",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-window-state",
+ "tokio",
 ]
 
 [[package]]

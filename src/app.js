@@ -10,7 +10,6 @@ window.addEventListener('DOMContentLoaded', () => {
   // State
   let currentSettings = null;
   let currentBalance = null;
-  let autoRefreshTimer = null;
 
   // DOM elements - States
   const loadingState = document.getElementById('loadingState');
@@ -313,23 +312,8 @@ window.addEventListener('transitionend', (e) => {
     return !settingsState.classList.contains('hidden');
   }
 
-  // Auto-refresh management
-  function stopAutoRefresh() {
-    if (autoRefreshTimer) {
-      clearTimeout(autoRefreshTimer);
-      autoRefreshTimer = null;
-    }
-  }
-
-  function startAutoRefresh() {
-    stopAutoRefresh();
-    if (!currentSettings?.auto_refresh_enabled) return;
-    
-    const intervalMs = (currentSettings.refresh_interval_minutes || 5) * 60 * 1000;
-    autoRefreshTimer = setTimeout(() => {
-      loadBalance();
-    }, intervalMs);
-  }
+  // Auto-refresh is now handled by Rust backend timer
+  // This ensures updates work even when window is hidden
 
   // Format currency
   function formatCurrency(value) {
@@ -536,12 +520,10 @@ window.addEventListener('transitionend', (e) => {
       const balance = await invoke('fetch_balance', { apiKey: activeKey });
       addLog('Balance fetch successful');
       await displayBalance(balance);
-      startAutoRefresh();
     } catch (error) {
       addLog(`Balance fetch failed: ${error}`, 'error');
       await resetBalanceDisplay();
       showError(error);
-      startAutoRefresh();
     } finally {
       if (refreshBtn) refreshBtn.classList.remove('spinning');
     }
@@ -667,8 +649,7 @@ window.addEventListener('transitionend', (e) => {
   showUnitToggle.onchange = () => saveSettingsAction(true);
   autocheckToggle.onchange = async () => {
     await saveSettingsAction(true);
-    if (currentSettings.auto_refresh_enabled) startAutoRefresh();
-    else stopAutoRefresh();
+    // Rust backend will automatically restart timer with new settings
   };
   startWindowToggle.onchange = () => saveSettingsAction(true);
   launchAtLoginToggle.onchange = () => saveSettingsAction(true);
@@ -708,7 +689,6 @@ window.addEventListener('transitionend', (e) => {
         await invoke('reset_settings');
         currentSettings = await invoke('read_settings');
         currentBalance = null;
-        stopAutoRefresh();
         syncSettingsToUI();
         showState('settings');
       } catch (error) {
@@ -836,6 +816,19 @@ window.addEventListener('transitionend', (e) => {
     }
   }
 
+  // Setup event listener for auto-refresh from Rust backend
+  async function setupRustAutoRefreshListener() {
+    try {
+      await window.__TAURI__.event.listen('rust-auto-refresh', () => {
+        console.log('📍 Received rust-auto-refresh event');
+        addLog('Auto-refresh triggered by Rust backend timer');
+        loadBalance();
+      });
+    } catch (error) {
+      console.error('Failed to setup Rust auto-refresh listener:', error);
+    }
+  }
+
   // Validate API key format
   function validateApiKeyFormat(key) {
     if (!key || key.trim() === '') {
@@ -908,6 +901,9 @@ window.addEventListener('transitionend', (e) => {
 
       // Setup event listener for window control
       await setupWindowVisibilityListener();
+      
+      // Setup Rust auto-refresh listener (works even when window hidden)
+      await setupRustAutoRefreshListener();
       
       // Validate API key and notify backend
       const activeKey = currentSettings.api_keys[currentSettings.active_api_key_index]?.key;
