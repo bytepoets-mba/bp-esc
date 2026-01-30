@@ -54,30 +54,16 @@ jobs:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
-      - name: Build Tauri app
-        run: |
-          npm run build:frontend
-          npx tauri build --bundles app --target universal-apple-darwin
-        env:
-          CI: true
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: "Developer ID Application: BYTEPOETS GmbH"
-          # This is critical for Notarization
-          ENABLE_HARDENED_RUNTIME: true
-
-      - name: Re-sign Sparkle Framework Binaries
+      - name: Pre-sign Sparkle Framework
         run: |
           set -e
           
-          PRODUCT_NAME=$(node -e "console.log(require('./src-tauri/tauri.conf.json').productName)")
-          APP_BUNDLE="target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.app"
-          SPARKLE_FRAMEWORK="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+          SPARKLE_FRAMEWORK="src-tauri/Sparkle.framework"
           
           echo "🔐 Listing available signing identities..."
           security find-identity -v -p codesigning
           
-          # Get the signing identity (now properly imported by apple-actions)
+          # Get the signing identity
           SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/')
           
           if [ -z "$SIGNING_IDENTITY" ]; then
@@ -86,18 +72,18 @@ jobs:
           fi
           
           echo "✓ Using identity: $SIGNING_IDENTITY"
+          echo "🔐 Pre-signing Sparkle binaries BEFORE Tauri build..."
           
-          echo "🔐 Re-signing Sparkle binaries with hardened runtime..."
-          
-          # Sign Updater.app (the one Apple complained about)
+          # Sign Updater.app
           if [ -d "$SPARKLE_FRAMEWORK/Versions/B/Updater.app" ]; then
             echo "  → Signing Updater.app"
             codesign --force --sign "$SIGNING_IDENTITY" \
               --options runtime --timestamp \
+              --deep \
               "$SPARKLE_FRAMEWORK/Versions/B/Updater.app"
           fi
           
-          # Sign Autoupdate (the other one Apple complained about)
+          # Sign Autoupdate
           if [ -f "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate" ]; then
             echo "  → Signing Autoupdate"
             codesign --force --sign "$SIGNING_IDENTITY" \
@@ -111,14 +97,24 @@ jobs:
             --options runtime --timestamp \
             "$SPARKLE_FRAMEWORK"
           
-          # Re-sign the app bundle
-          echo "  → Re-signing app bundle"
-          codesign --force --sign "$SIGNING_IDENTITY" \
-            --options runtime --timestamp \
-            --entitlements src-tauri/entitlements/release.entitlements \
-            "$APP_BUNDLE"
+          # Verify
+          echo "🔍 Verifying Sparkle signature..."
+          codesign --verify --verbose "$SPARKLE_FRAMEWORK"
           
-          echo "✓ All binaries re-signed"
+          echo "✓ Sparkle framework pre-signed"
+
+      - name: Build Tauri app
+        run: |
+          npm run build:frontend
+          npx tauri build --bundles app --target universal-apple-darwin
+        env:
+          CI: true
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: "Developer ID Application: BYTEPOETS GmbH"
+          ENABLE_HARDENED_RUNTIME: true
+
+      # NO re-signing after build - Tauri seals the pre-signed framework
 
       - name: Notarize App Bundle
         if: env.APPLE_ID != ''
