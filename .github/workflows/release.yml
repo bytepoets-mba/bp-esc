@@ -43,7 +43,10 @@ jobs:
           curl -L -o /tmp/sparkle.tar.xz "https://github.com/sparkle-project/Sparkle/releases/download/2.8.1/Sparkle-2.8.1.tar.xz"
           tar -xf /tmp/sparkle.tar.xz -C /tmp
           cp -R /tmp/Sparkle.framework .
-          echo "Sparkle framework installed"
+          mkdir -p sparkle-bin
+          cp -R /tmp/bin/* sparkle-bin/
+          chmod +x sparkle-bin/*
+          echo "Sparkle framework and tools installed"
 
       - name: Import Apple Certificate
         if: env.APPLE_CERTIFICATE != ''
@@ -101,10 +104,6 @@ jobs:
 
       - name: Generate Appcast
         run: |
-          # Download Sparkle's generate_appcast tool
-          curl -L -o generate_appcast https://github.com/sparkle-project/Sparkle/releases/download/2.8.1/generate_appcast
-          chmod +x generate_appcast
-          
           # Create output directory
           mkdir -p appcast-output
           
@@ -112,8 +111,8 @@ jobs:
           PRODUCT_NAME=$(node -e "console.log(require('./src-tauri/tauri.conf.json').productName)")
           cp "target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.zip" appcast-output/
           
-          # Generate appcast.xml with EdDSA signature
-          ./generate_appcast \
+          # Generate appcast.xml with EdDSA signature using the tool we downloaded earlier
+          ./src-tauri/sparkle-bin/generate_appcast \
             --ed-key-file <(echo "${{ secrets.SPARKLE_PRIVATE_KEY }}") \
             --download-url-prefix "https://github.com/bytepoets-mba/bp-esc/releases/download/${{ github.ref_name }}/" \
             --link "https://github.com/bytepoets-mba/bp-esc" \
