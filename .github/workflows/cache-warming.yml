@@ -30,6 +30,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Download Sparkle Framework
+        run: |
+          cd src-tauri
+          curl -L -o /tmp/sparkle.tar.xz "https://github.com/sparkle-project/Sparkle/releases/download/2.8.1/Sparkle-2.8.1.tar.xz"
+          tar -xf /tmp/sparkle.tar.xz -C /tmp
+          cp -R /tmp/Sparkle.framework .
+          echo "Sparkle framework installed"
+
       - name: Build frontend
         run: npm run build:frontend
 
