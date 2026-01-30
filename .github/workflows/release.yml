@@ -70,9 +70,23 @@ jobs:
       - name: Re-sign Sparkle Framework Binaries
         if: env.APPLE_CERTIFICATE != ''
         run: |
+          set -e  # Exit on any error
+          
           PRODUCT_NAME=$(node -e "console.log(require('./src-tauri/tauri.conf.json').productName)")
           APP_BUNDLE="target/universal-apple-darwin/release/bundle/macos/$PRODUCT_NAME.app"
           SPARKLE_FRAMEWORK="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+          
+          # Verify app bundle exists
+          if [ ! -d "$APP_BUNDLE" ]; then
+            echo "❌ App bundle not found at: $APP_BUNDLE"
+            exit 1
+          fi
+          
+          # Verify Sparkle framework exists
+          if [ ! -d "$SPARKLE_FRAMEWORK" ]; then
+            echo "❌ Sparkle framework not found at: $SPARKLE_FRAMEWORK"
+            exit 1
+          fi
           
           echo "🔐 Finding signing identity in keychain..."
           # Get the actual signing identity from the keychain (same method Tauri uses)
@@ -84,41 +98,62 @@ jobs:
           fi
           
           echo "✓ Using identity: $SIGNING_IDENTITY"
+          
+          # Determine version directory (B is standard for Sparkle 2.x, but check both)
+          if [ -d "$SPARKLE_FRAMEWORK/Versions/B" ]; then
+            VERSION_DIR="Versions/B"
+          elif [ -d "$SPARKLE_FRAMEWORK/Versions/A" ]; then
+            VERSION_DIR="Versions/A"
+          else
+            echo "❌ Could not find Sparkle version directory (Versions/A or Versions/B)"
+            exit 1
+          fi
+          
+          echo "✓ Found Sparkle at: $VERSION_DIR"
           echo "🔐 Re-signing Sparkle binaries with hardened runtime (order matters!)..."
           
           # Sign in correct order: XPC services first, then Autoupdate, then framework
           # DO NOT use --deep flag (it corrupts XPC signatures)
           
           # 1. Sign Installer.xpc
-          if [ -d "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Installer.xpc" ]; then
+          if [ -d "$SPARKLE_FRAMEWORK/$VERSION_DIR/XPCServices/Installer.xpc" ]; then
             echo "  → Signing Installer.xpc"
             codesign --force --sign "$SIGNING_IDENTITY" \
               --options runtime \
-              "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Installer.xpc"
+              "$SPARKLE_FRAMEWORK/$VERSION_DIR/XPCServices/Installer.xpc"
+          else
+            echo "  ⚠ Installer.xpc not found (may not be needed)"
           fi
           
           # 2. Sign Downloader.xpc (preserve entitlements for Sparkle 2.6+)
-          if [ -d "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Downloader.xpc" ]; then
+          if [ -d "$SPARKLE_FRAMEWORK/$VERSION_DIR/XPCServices/Downloader.xpc" ]; then
             echo "  → Signing Downloader.xpc"
             codesign --force --sign "$SIGNING_IDENTITY" \
               --options runtime \
               --preserve-metadata=entitlements \
-              "$SPARKLE_FRAMEWORK/Versions/B/XPCServices/Downloader.xpc"
+              "$SPARKLE_FRAMEWORK/$VERSION_DIR/XPCServices/Downloader.xpc"
+          else
+            echo "  ⚠ Downloader.xpc not found (may not be needed)"
           fi
           
           # 3. Sign Autoupdate
-          if [ -f "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate" ]; then
+          if [ -f "$SPARKLE_FRAMEWORK/$VERSION_DIR/Autoupdate" ]; then
             echo "  → Signing Autoupdate"
             codesign --force --sign "$SIGNING_IDENTITY" \
               --options runtime \
-              "$SPARKLE_FRAMEWORK/Versions/B/Autoupdate"
+              "$SPARKLE_FRAMEWORK/$VERSION_DIR/Autoupdate"
+          else
+            echo "  ⚠ Autoupdate not found (may not be needed)"
           fi
           
-          # 4. Sign the framework itself
+          # 4. Sign the framework itself (REQUIRED)
           echo "  → Signing Sparkle.framework"
           codesign --force --sign "$SIGNING_IDENTITY" \
             --options runtime \
             "$SPARKLE_FRAMEWORK"
+          
+          # Verify framework signature
+          codesign --verify --verbose "$SPARKLE_FRAMEWORK"
           
           # 5. Re-sign the app bundle (without --deep to preserve our XPC signatures)
           echo "  → Re-signing app bundle"
@@ -126,6 +161,9 @@ jobs:
             --options runtime \
             --entitlements src-tauri/entitlements/release.entitlements \
             "$APP_BUNDLE"
+          
+          # Verify app signature
+          codesign --verify --verbose "$APP_BUNDLE"
           
           echo "✓ Sparkle framework and app re-signed successfully"
         env:
