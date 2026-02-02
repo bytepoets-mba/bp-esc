@@ -171,7 +171,28 @@ monitor_ci() {
     print_info "A Draft Release will be created upon completion"
     echo ""
     
-    if gh run watch; then
+    local version="$1"
+    local tag="v$version"
+    local run_id=""
+    local attempts=30
+    local delay=10
+
+    print_info "Waiting for CI run to start for $tag..."
+    for ((i=1; i<=attempts; i++)); do
+        run_id=$(gh run list --limit 20 --json databaseId,headBranch,displayTitle --jq "map(select(.headBranch == \"$tag\" or (.displayTitle | contains(\"$tag\")))) | .[0].databaseId // empty")
+        if [[ -n "$run_id" ]]; then
+            break
+        fi
+        sleep "$delay"
+    done
+
+    if [[ -z "$run_id" ]]; then
+        print_error "No CI run found for $tag"
+        print_info "Check GitHub Actions for workflow triggers"
+        return 1
+    fi
+
+    if gh run watch "$run_id"; then
         print_success "CI run completed successfully"
         
         print_info "Opening releases page in Zen browser..."
@@ -255,7 +276,7 @@ main() {
     echo ""
     
     # Step 6: Monitor CI
-    monitor_ci
+    monitor_ci "$version"
 }
 
 main "$@"
