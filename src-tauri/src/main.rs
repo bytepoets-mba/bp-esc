@@ -248,7 +248,7 @@ fn read_settings() -> Result<AppSettings, String> {
 }
 
 #[tauri::command]
-fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
+async fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
     save_settings_internal(&settings)?;
     
     // Update global shortcut
@@ -268,15 +268,10 @@ fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
     }
     
     // Restart auto-refresh timer with new settings
-    let app_clone = app.clone();
-    tokio::spawn(async move {
-        // Small delay to ensure settings are saved
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        let app_handle = app_clone.clone();
-        if let Some(state) = app_clone.try_state::<AutoRefreshState>() {
-            let _ = start_auto_refresh_timer(app_handle, state).await;
-        }
-    });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    if let Some(state) = app.clone().try_state::<AutoRefreshState>() {
+        let _ = start_auto_refresh_timer(app, state).await;
+    }
     
     Ok(())
 }
