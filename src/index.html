@@ -42,33 +42,72 @@
       <!-- Balance Display State -->
       <div id="balanceState" class="state hidden">
         <div class="balance-summary">
-          <button id="prevKeyBtn" class="btn-subtle key-nav-btn left">
-            <span class="material-symbols-rounded">chevron_left</span>
-          </button>
-          
-          <div class="pie-container">
-            <div id="apiKeyLabelDisplay" class="pie-label-left">-</div>
-            <canvas id="balancePie" width="50" height="50"></canvas>
-            <div class="pie-label"><span id="exactPercent">-</span>%</div>
-          </div>
+          <div class="balance-overview">
+            <div class="hex-zone">
+              <button id="prevKeyBtn" class="btn-subtle key-nav-btn left" aria-label="Previous key">
+                <span class="material-symbols-rounded nav-icon">chevron_left</span>
+              </button>
 
-          <button id="nextKeyBtn" class="btn-subtle key-nav-btn right">
-            <span class="material-symbols-rounded">chevron_right</span>
-          </button>
-        </div>
+              <div class="balance-hex">
+                <div class="hex-caption" id="percentCaption">used</div>
+                <div class="hex-row">
+                  <div class="hex-side hex-side-left">
+                    <div id="apiKeyLabelDisplay" class="key-label">-</div>
+                  </div>
+                  <canvas id="balancePie" width="50" height="50"></canvas>
+                  <div class="hex-side hex-side-right">
+                    <div class="hex-percent"><span id="exactPercent">-</span>%</div>
+                  </div>
+                </div>
+              </div>
 
-        <div class="balance-card">
-          <div class="balance-item">
-            <span class="label">Credit Limit:</span>
-            <span class="value" id="limitValue">-</span>
-          </div>
-          <div class="balance-item">
-            <span class="label">Used:</span>
-            <span class="value used" id="usageValue">-</span>
-          </div>
-          <div class="balance-item highlight">
-            <span class="label">Remaining:</span>
-            <span class="value" id="remainingValue">-</span>
+              <button id="nextKeyBtn" class="btn-subtle key-nav-btn right" aria-label="Next key">
+                <span class="material-symbols-rounded nav-icon">chevron_right</span>
+              </button>
+            </div>
+
+            <div class="balance-cards">
+              <div class="balance-card">
+                <div class="balance-card-header">
+                  <span>Credit Limit</span>
+                  <span class="badge" id="monthBadge">This month</span>
+                </div>
+                <div class="balance-item">
+                  <span class="label">Limit</span>
+                  <span class="value" id="limitValue">-</span>
+                </div>
+                <div class="balance-item">
+                  <span class="label">Used</span>
+                  <span class="value used" id="usageValue">-</span>
+                </div>
+                <div class="balance-item highlight">
+                  <span class="label">Remaining</span>
+                  <span class="value" id="remainingValue">-</span>
+                </div>
+              </div>
+
+              <div class="usage-breakdown">
+                <div class="usage-header">
+                  <span>Usage Breakdown</span>
+                  <span id="pacePill" class="pace-pill pace-pill--neutral">
+                    <span class="pace-dot"></span>
+                    <span id="paceText">-</span>
+                  </span>
+                </div>
+                <div class="usage-row">
+                  <span>Pace</span>
+                  <span id="paceDetails">-</span>
+                </div>
+                <div class="usage-row">
+                  <span>Today</span>
+                  <span id="usageDaily">-</span>
+                </div>
+                <div class="usage-row">
+                  <span>This Week</span>
+                  <span id="usageWeekly">-</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

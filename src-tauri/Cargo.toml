@@ -26,6 +26,7 @@ open = "3.2.0"
 tauri-plugin-global-shortcut = "2.0.0-rc"
 tauri-plugin-autostart = "2.0.0-beta.10"
 tokio = { version = "1", features = ["time"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-plugin-sparkle-updater = "0.2"

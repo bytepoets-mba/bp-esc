@@ -44,6 +44,12 @@ window.addEventListener('DOMContentLoaded', () => {
   const limitValue = document.getElementById('limitValue');
   const usageValue = document.getElementById('usageValue');
   const remainingValue = document.getElementById('remainingValue');
+  const usageDailyValue = document.getElementById('usageDaily');
+  const usageWeeklyValue = document.getElementById('usageWeekly');
+  const paceText = document.getElementById('paceText');
+  const pacePill = document.getElementById('pacePill');
+  const paceDetails = document.getElementById('paceDetails');
+  const percentCaption = document.getElementById('percentCaption');
   const lastUpdated = document.getElementById('lastUpdated');
   const appVersion = document.getElementById('appVersion');
 
@@ -340,7 +346,7 @@ window.addEventListener('transitionend', (e) => {
     return `$${value.toFixed(2)}`;
   }
 
-  function animateHexagon(targetPct) {
+  function animateHexagon(targetPct, paceRatio = null, paceStatus = null) {
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
     
     const duration = 1200; // ms
@@ -355,7 +361,7 @@ window.addEventListener('transitionend', (e) => {
       const ease = 1 - Math.pow(1 - progress, 3);
       
       currentAnimatedPct = startPct + (targetPct - startPct) * ease;
-      drawPieChart(currentAnimatedPct, true);
+      drawPieChart(currentAnimatedPct, true, paceRatio, paceStatus);
 
       if (progress < 1) {
         animationFrameId = requestAnimationFrame(step);
@@ -379,22 +385,36 @@ window.addEventListener('transitionend', (e) => {
     }
     
     // Check if we have valid balance data
-    const hasData = balance && balance.limit !== null && balance.remaining !== null;
+    const hasData = balance && balance.limit != null && (balance.remaining_monthly != null || balance.usage_monthly != null);
+    const monthlyUsage = balance?.usage_monthly ?? null;
+    const monthlyRemaining = balance?.remaining_monthly ?? (balance?.limit != null && monthlyUsage != null ? balance.limit - monthlyUsage : null);
+    const paceRatio = balance?.pace_ratio ?? null;
+    const paceStatus = balance?.pace_status ?? null;
+    const limitValueRaw = balance?.limit ?? null;
     
     // Calculate percentage
-    const rawPercentage = (hasData && balance.limit > 0) 
-        ? (balance.remaining / balance.limit) * 100 
-        : 0;
+    const usageRatio = (hasData && limitValueRaw > 0 && monthlyUsage != null)
+      ? (monthlyUsage / limitValueRaw) * 100
+      : 0;
+    const remainingRatio = (hasData && limitValueRaw > 0 && monthlyRemaining != null)
+      ? (monthlyRemaining / limitValueRaw) * 100
+      : 0;
+    const rawPercentage = currentSettings?.show_remaining ? remainingRatio : usageRatio;
     
     // Exact percentage display
     const exactPercentEl = document.getElementById('exactPercent');
     if (exactPercentEl) {
-      exactPercentEl.textContent = hasData ? rawPercentage.toFixed(1) : '-';
+      const decimals = Math.max(0, Math.min(2, currentSettings?.decimal_places ?? 1));
+      exactPercentEl.textContent = hasData ? rawPercentage.toFixed(decimals) : '-';
+    }
+
+    if (percentCaption) {
+      percentCaption.textContent = currentSettings?.show_remaining ? 'remaining' : 'used';
     }
 
     // Pie chart drawing with animation
     if (hasData) {
-      animateHexagon(rawPercentage);
+      animateHexagon(rawPercentage, paceRatio, paceStatus);
     } else {
       currentAnimatedPct = 0;
       drawPieChart(0, false);
@@ -412,16 +432,40 @@ window.addEventListener('transitionend', (e) => {
     };
 
     updateValue(limitValue, formatCurrency(hasData ? balance.limit : null));
-    updateValue(usageValue, formatCurrency(hasData ? balance.usage : null));
-    updateValue(remainingValue, formatCurrency(hasData ? balance.remaining : null));
+    updateValue(usageValue, formatCurrency(hasData ? monthlyUsage : null));
+    updateValue(remainingValue, formatCurrency(hasData ? monthlyRemaining : null));
+    updateValue(usageDailyValue, formatCurrency(hasData ? balance.usage_daily : null));
+    updateValue(usageWeeklyValue, formatCurrency(hasData ? balance.usage_weekly : null));
     
     // Color code remaining
-    if (hasData && balance.remaining !== null) {
-      if (balance.remaining < 0) remainingValue.style.color = '#dc2626';
-      else if (balance.remaining < 5) remainingValue.style.color = '#ea580c';
+    if (hasData && monthlyRemaining !== null) {
+      if (monthlyRemaining < 0) remainingValue.style.color = '#dc2626';
+      else if (monthlyRemaining < 5) remainingValue.style.color = '#ea580c';
       else remainingValue.style.color = '#006497';
     } else {
       remainingValue.style.color = ''; // Reset to default
+    }
+
+    if (pacePill && paceText && paceDetails) {
+      pacePill.classList.remove('pace-pill--ahead', 'pace-pill--on-track', 'pace-pill--behind', 'pace-pill--neutral');
+      const status = paceStatus || 'neutral';
+      const labelMap = {
+        ahead: 'Over pace',
+        behind: 'Slightly over',
+        on_track: 'On pace',
+        neutral: '-'
+      };
+      pacePill.classList.add(`pace-pill--${status}`);
+      paceText.textContent = labelMap[status] || '-';
+
+      if (paceRatio != null) {
+        const decimals = Math.max(0, Math.min(2, currentSettings?.decimal_places ?? 1));
+        const pacePercent = (paceRatio * 100).toFixed(decimals);
+        const usedPercent = usageRatio.toFixed(decimals);
+        paceDetails.textContent = `${pacePercent}% expected. ${usedPercent}% used`;
+      } else {
+        paceDetails.textContent = '-';
+      }
     }
     
     // Update menubar icon
@@ -435,7 +479,7 @@ window.addEventListener('transitionend', (e) => {
     lastUpdated.textContent = 'Last updated: ' + (hasData ? now : '-');
   }
 
-  function drawPieChart(remainingPct, hasData) {
+  function drawPieChart(displayPct, hasData, paceRatio = null, paceStatus = null) {
     const canvas = document.getElementById('balancePie');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -475,11 +519,33 @@ window.addEventListener('transitionend', (e) => {
     ctx.save();
     pathHex(ctx);
     ctx.clip();
-    const fillPct = Math.max(0, Math.min(100, remainingPct)) / 100;
+    const fillPct = Math.max(0, Math.min(100, displayPct)) / 100;
     const fillY = yOff + hexHeight * (1 - fillPct);
     ctx.fillStyle = '#006497';
     ctx.fillRect(0, fillY, size, size);
     ctx.restore();
+
+    if (paceRatio !== null) {
+      const paceFill = Math.max(0, Math.min(1, paceRatio));
+      const paceY = yOff + hexHeight * (1 - paceFill);
+      const paceColor = paceStatus === 'ahead'
+        ? 'rgba(239, 68, 68, 0.75)'
+        : paceStatus === 'behind'
+        ? 'rgba(234, 179, 8, 0.85)'
+        : 'rgba(16, 185, 129, 0.7)';
+
+      ctx.save();
+      pathHex(ctx);
+      ctx.clip();
+      ctx.strokeStyle = paceColor;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 2]);
+      ctx.beginPath();
+      ctx.moveTo(xOff + 2, paceY);
+      ctx.lineTo(xOff + hexWidth - 2, paceY);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // 2. Real Inner Shadow
     ctx.save();
@@ -915,16 +981,22 @@ window.addEventListener('transitionend', (e) => {
     
     checkForUpdatesBtn.onclick = async () => {
       try {
-        // Check if Sparkle updater is available
-        if (typeof window.__TAURI_PLUGIN_SPARKLE_UPDATER__ !== 'undefined') {
-          const { checkForUpdates } = await import('tauri-plugin-sparkle-updater-api');
-          await checkForUpdates();
-        } else {
-          showError('Auto-update not available in dev mode');
+        const isMac = /Mac/i.test(navigator.userAgent);
+        if (!isMac) {
+          showError('Auto-update is only available on macOS');
+          return;
         }
+
+        const { checkForUpdates } = await import('tauri-plugin-sparkle-updater-api');
+        await checkForUpdates();
       } catch (error) {
         console.error('Update check failed:', error);
-        showError('Failed to check for updates: ' + error);
+        const message = String(error?.message || error);
+        if (message.toLowerCase().includes('dev mode')) {
+          showError('Auto-update not available in dev mode');
+          return;
+        }
+        showError('Failed to check for updates: ' + message);
       }
     };
   }

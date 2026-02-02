@@ -9,6 +9,7 @@ use std::os::unix::fs::PermissionsExt; // macOS is Unix
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
+use chrono::{Datelike, TimeZone, Utc};
 use tauri::{
     AppHandle, Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter, State,
     menu::{Menu, MenuItemBuilder},
@@ -524,7 +525,13 @@ fn save_api_key(key: String) -> Result<(), String> {
 pub struct BalanceData {
     pub limit: Option<f64>,
     pub usage: Option<f64>,
+    pub usage_daily: Option<f64>,
+    pub usage_weekly: Option<f64>,
+    pub usage_monthly: Option<f64>,
     pub remaining: Option<f64>,
+    pub remaining_monthly: Option<f64>,
+    pub pace_ratio: Option<f64>,
+    pub pace_status: Option<String>,
     pub label: Option<String>,
 }
 
@@ -539,6 +546,10 @@ struct OpenRouterResponse {
 struct OpenRouterData {
     limit: Option<f64>,
     usage: Option<f64>,
+    usage_daily: Option<f64>,
+    usage_weekly: Option<f64>,
+    usage_monthly: Option<f64>,
+    limit_remaining: Option<f64>,
     #[serde(default)]
     label: Option<String>,
 }
@@ -611,16 +622,64 @@ async fn fetch_balance(app: AppHandle, api_key: String) -> Result<BalanceData, S
             "API response missing data. Please try again.".to_string()
         })?;
     
-    // Calculate remaining balance
+    // Calculate remaining balance (legacy) and monthly remaining
     let remaining = match (data.limit, data.usage) {
         (Some(limit), Some(usage)) => Some(limit - usage),
+        _ => None,
+    };
+    let usage_monthly = match (data.limit, data.limit_remaining) {
+        (Some(limit), Some(limit_remaining)) => Some(limit - limit_remaining),
+        _ => data.usage_monthly,
+    };
+    let remaining_monthly = match (data.limit, usage_monthly) {
+        (Some(limit), Some(usage_monthly)) => Some(limit - usage_monthly),
+        _ => data.limit_remaining,
+    };
+
+    // Pace ratio: how far through the month we are (0..1)
+    let now = Utc::now();
+    let day_of_month = now.day() as f64;
+    let days_in_month = {
+        let year = now.year();
+        let month = now.month();
+        let first_next_month = if month == 12 {
+            Utc.with_ymd_and_hms(year + 1, 1, 1, 0, 0, 0).unwrap()
+        } else {
+            Utc.with_ymd_and_hms(year, month + 1, 1, 0, 0, 0).unwrap()
+        };
+        let last_this_month = first_next_month - chrono::Duration::days(1);
+        last_this_month.day() as f64
+    };
+    let pace_ratio = if days_in_month > 0.0 {
+        Some(((day_of_month - 1.0) / days_in_month).clamp(0.0, 1.0))
+    } else {
+        None
+    };
+
+    let pace_status = match (pace_ratio, data.limit, usage_monthly) {
+        (Some(pace), Some(limit), Some(usage_monthly)) if limit > 0.0 => {
+            let usage_ratio = (usage_monthly / limit).clamp(0.0, 1.5);
+            if usage_ratio > pace + 0.12 {
+                Some("ahead".to_string())
+            } else if usage_ratio > pace + 0.03 {
+                Some("behind".to_string())
+            } else {
+                Some("on_track".to_string())
+            }
+        }
         _ => None,
     };
     
     Ok(BalanceData {
         limit: data.limit,
         usage: data.usage,
+        usage_daily: data.usage_daily,
+        usage_weekly: data.usage_weekly,
+        usage_monthly,
         remaining,
+        remaining_monthly,
+        pace_ratio,
+        pace_status,
         label: data.label,
     })
 }
@@ -758,9 +817,9 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
         let val = if let Some(limit) = balance.limit {
             if limit > 0.0 {
                 if settings.show_remaining {
-                    (balance.remaining.unwrap_or(0.0) / limit) * 100.0
+                    (balance.remaining_monthly.or(balance.remaining).unwrap_or(0.0) / limit) * 100.0
                 } else {
-                    (balance.usage.unwrap_or(0.0) / limit) * 100.0
+                    (balance.usage_monthly.or(balance.usage).unwrap_or(0.0) / limit) * 100.0
                 }
             } else {
                 0.0
@@ -772,9 +831,9 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
     } else {
         // Absolute $ logic: directly from balance
         if settings.show_remaining {
-            balance.remaining.unwrap_or(0.0)
+            balance.remaining_monthly.or(balance.remaining).unwrap_or(0.0)
         } else {
-            balance.usage.unwrap_or(0.0)
+            balance.usage_monthly.or(balance.usage).unwrap_or(0.0)
         }
     };
     
@@ -786,8 +845,8 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
         display_value.floor()
     };
     
-    // Check if we have valid data (remaining balance exists if we fetched successfully)
-    let has_data = balance.remaining.is_some();
+    // Check if we have valid data (monthly or legacy balance exists)
+    let has_data = balance.remaining_monthly.is_some() || balance.usage_monthly.is_some() || balance.remaining.is_some();
     
     let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance)?;
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
@@ -889,26 +948,21 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     ];
 
     // Calculate fill level (rising from bottom)
-    // Percentage used for the fill should be the remaining balance %
+    // Percentage used for the fill should be the selected balance %
     let fill_pct = if has_data {
-        if settings.show_percentage {
-            (value as f32 / 100.0).clamp(0.0, 1.0)
-        } else {
-            // For absolute $, we calculate fill based on the current balance vs limit
-            if let Some(limit) = balance.limit {
-                if limit > 0.0 {
-                    let fill_val = if settings.show_remaining {
-                        balance.remaining.unwrap_or(0.0)
-                    } else {
-                        balance.usage.unwrap_or(0.0)
-                    };
-                    (fill_val as f32 / limit as f32).clamp(0.0, 1.0)
+        if let Some(limit) = balance.limit {
+            if limit > 0.0 {
+                let fill_val = if settings.show_remaining {
+                    balance.remaining_monthly.or(balance.remaining).unwrap_or(0.0)
                 } else {
-                    1.0f32
-                }
+                    balance.usage_monthly.or(balance.usage).unwrap_or(0.0)
+                };
+                (fill_val as f32 / limit as f32).clamp(0.0, 1.0)
             } else {
                 1.0f32
             }
+        } else {
+            1.0f32
         }
     } else {
         0.0f32
@@ -917,6 +971,16 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     let border_thickness = (HEX_BORDER_PTS * scale) as i32;
     let white = Rgba([255, 255, 255, 255]);
     let transparent = Rgba([0, 0, 0, 0]);
+    let pace_color = match balance.pace_status.as_deref() {
+        Some("ahead") => Rgba([239, 68, 68, 190]),
+        Some("behind") => Rgba([234, 179, 8, 210]),
+        Some("on_track") => Rgba([16, 185, 129, 180]),
+        _ => Rgba([148, 163, 184, 120]),
+    };
+    let pace_ratio = balance.pace_ratio.unwrap_or(0.0).clamp(0.0, 1.0) as f32;
+    let pace_y = hex_y_offset + hex_height * (1.0 - pace_ratio);
+    let pace_band = (1.2 * scale).max(1.0) as f32;
+    let pace_has = balance.pace_ratio.is_some();
 
     // Rasterize Hexagon
     for y in 0..canvas_height {
@@ -936,6 +1000,44 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
                     } else {
                         img.put_pixel(x, y, transparent);
                     }
+
+                    if pace_has {
+                        let y_f = y as f32;
+                        if (y_f - pace_y).abs() <= pace_band {
+                            img.put_pixel(x, y, pace_color);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if pace_has {
+        let center_x = (hex_x_offset + hex_width / 2.0) as i32;
+        let center_y = pace_y.round() as i32;
+        let dot_radius = (2.2 * scale).max(1.8) as i32;
+        for dy in -dot_radius..=dot_radius {
+            for dx in -dot_radius..=dot_radius {
+                if dx * dx + dy * dy <= dot_radius * dot_radius {
+                    let px = center_x + dx;
+                    let py = center_y + dy;
+                    if px >= 0 && py >= 0 && (px as u32) < canvas_width && (py as u32) < canvas_height {
+                        img.put_pixel(px as u32, py as u32, pace_color);
+                    }
+                }
+            }
+        }
+
+        for dx in -(dot_radius + 1)..=(dot_radius + 1) {
+            let px = center_x + dx;
+            let py_top = center_y - dot_radius - 2;
+            let py_bottom = center_y + dot_radius + 2;
+            if px >= 0 && (px as u32) < canvas_width {
+                if py_top >= 0 && (py_top as u32) < canvas_height {
+                    img.put_pixel(px as u32, py_top as u32, pace_color);
+                }
+                if py_bottom >= 0 && (py_bottom as u32) < canvas_height {
+                    img.put_pixel(px as u32, py_bottom as u32, pace_color);
                 }
             }
         }
@@ -1104,7 +1206,18 @@ fn main() {
       let menu = Menu::with_items(app, &[&show_hide, &quit])?;
       
       // Create tray icon
-      let initial_icon = generate_hybrid_menubar_icon(0.0, true, false, true, &AppSettings::default(), &BalanceData { limit: None, usage: None, remaining: None, label: None }).ok();
+  let initial_icon = generate_hybrid_menubar_icon(0.0, true, false, true, &AppSettings::default(), &BalanceData {
+      limit: None,
+      usage: None,
+      usage_daily: None,
+      usage_weekly: None,
+      usage_monthly: None,
+      remaining: None,
+      remaining_monthly: None,
+      pace_ratio: None,
+      pace_status: None,
+      label: None,
+  }).ok();
       let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(initial_icon.unwrap_or_else(|| Image::from_bytes(include_bytes!("../icons/32x32.png")).unwrap()))
         .menu(&menu)
