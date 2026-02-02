@@ -267,12 +267,6 @@ async fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), Stri
         let _ = autostart_manager.disable();
     }
     
-    // Restart auto-refresh timer with new settings
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    if let Some(state) = app.clone().try_state::<AutoRefreshState>() {
-        let _ = start_auto_refresh_timer(app, state).await;
-    }
-    
     Ok(())
 }
 // MENUBAR ICON CONFIGURATION

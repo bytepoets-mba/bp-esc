@@ -135,11 +135,29 @@ window.addEventListener('DOMContentLoaded', () => {
       };
 
       row.onclick = async () => {
+        console.log('Row clicked, index:', index, 'current active:', currentSettings.active_api_key_index);
         if (currentSettings.active_api_key_index !== index) {
           currentSettings.active_api_key_index = index;
-          await saveSettingsAction(true);
+          currentBalance = null;
+          console.log('Saving settings with new index:', currentSettings.active_api_key_index);
+          try {
+            await invoke('save_settings', { settings: currentSettings });
+            console.log('Settings saved successfully');
+          } catch (e) {
+            console.error('Failed to save settings:', e);
+            showError('Failed to save: ' + e);
+          }
+          console.log('Re-rendering list');
           renderApiKeyList();
-          loadBalance();
+          console.log('Loading balance');
+          try {
+            await loadBalance();
+            console.log('Balance loaded');
+          } catch (e) {
+            console.error('Failed to load balance:', e);
+          }
+        } else {
+          console.log('Clicked same key, no change');
         }
       };
 
@@ -708,17 +726,19 @@ window.addEventListener('transitionend', (e) => {
   prevKeyBtn.onclick = async () => {
     if (!currentSettings || currentSettings.api_keys.length <= 1) return;
     currentSettings.active_api_key_index = (currentSettings.active_api_key_index - 1 + currentSettings.api_keys.length) % currentSettings.api_keys.length;
-    await saveSettingsAction(true);
+    currentBalance = null; // Clear cached balance so old data isn't redisplayed
     renderApiKeyList();
-    loadBalance();
+    await invoke('save_settings', { settings: currentSettings });
+    await loadBalance();
   };
 
   nextKeyBtn.onclick = async () => {
     if (!currentSettings || currentSettings.api_keys.length <= 1) return;
     currentSettings.active_api_key_index = (currentSettings.active_api_key_index + 1) % currentSettings.api_keys.length;
-    await saveSettingsAction(true);
+    currentBalance = null; // Clear cached balance so old data isn't redisplayed
     renderApiKeyList();
-    loadBalance();
+    await invoke('save_settings', { settings: currentSettings });
+    await loadBalance();
   };
 
   // Toggle debug info on logo double click
