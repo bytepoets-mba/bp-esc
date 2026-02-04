@@ -131,118 +131,141 @@
       <!-- Settings State -->
       <div id="settingsState" class="state hidden">
         <div class="settings-section">
-          <h3 style="text-align: center; margin-bottom: 1.5rem;">Settings</h3>
+          <div class="settings-sub-tabs" style="display: flex; gap: 1.5rem; margin-bottom: 1.5rem; justify-content: center;">
+            <button class="settings-sub-tab active" data-sub-tab="general">
+              <span class="material-symbols-rounded">settings</span>General
+            </button>
+            <button class="settings-sub-tab" data-sub-tab="openrouter">
+              <span class="material-symbols-rounded">key</span>OpenRouter
+            </button>
+          </div>
           
-          <div class="settings-grid">
-            <div class="settings-col">
+          <!-- OpenRouter Sub-Tab -->
+          <div id="openrouterTab" class="settings-sub-content hidden">
+            <div class="settings-grid" style="grid-template-columns: 1fr;">
               <div class="setting-item">
                 <label>OpenRouter API Keys:</label>
                 <div id="apiKeyList" class="api-key-list">
                   <!-- Keys injected here -->
                 </div>
-                <p class="help-text">Tip: Double-click a label to set a <strong>Custom Alias</strong></p>
                 <div class="api-key-add-row" style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
                   <input type="password" id="newApiKeyInput" placeholder="sk-or-v1-..." autocomplete="off" style="flex: 1;">
                   <button id="addApiKeyBtn" class="btn-primary" style="padding: 0 12px;">Add</button>
                 </div>
               </div>
-
-              <div class="setting-item side">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="autocheckToggle">
-                  <span>Auto-refresh</span>
-                </label>
-                <div class="number-input">
-                  <button id="refreshMinus" class="btn-icon">−</button>
-                  <span id="refreshValue">5</span>
-                  <button id="refreshPlus" class="btn-icon">+</button>
-                  <span class="unit">Minutes</span>
-                </div>
-              </div>
-
-              <div class="setting-item">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="shortcutEnabledToggle">
-                  <span>Global Shortcut</span>
-                </label>
-                <input type="text" id="shortcutInput" placeholder="F19" autocomplete="off" style="margin-top: 0.5rem;">
-                <p class="help-text">Example: <code>F19</code>, <code>Cmd+Shift+B</code>, <code>Ctrl+Alt+S</code></p>
-              </div>
-
-              <div class="setting-item side">
-                <label for="debugLoggingToggle" class="checkbox-label">
-                  <input type="checkbox" id="debugLoggingToggle">
-                  <span>Enable Log File</span>
-                </label>
-              </div>
             </div>
-
-            <div class="settings-col">
-              <div class="setting-item side">
-                <label>Display Unit:</label>
-                <div class="toggle-group">
-                  <button id="unitPercent" class="btn-toggle active">%</button>
-                  <button id="unitDollar" class="btn-toggle">$</button>
+            
+            <div class="settings-grid">
+              <div class="settings-col">
+                <div class="setting-item side">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="autocheckToggle">
+                    <span>Auto-refresh</span>
+                  </label>
+                  <div class="number-input">
+                    <button id="refreshMinus" class="btn-icon">−</button>
+                    <span id="refreshValue">5</span>
+                    <button id="refreshPlus" class="btn-icon">+</button>
+                    <span class="unit">Minutes</span>
+                  </div>
                 </div>
-              </div>
 
-              <div id="absTypeSection" class="setting-item side">
-                <label>Value Type:</label>
-                <div class="toggle-group">
-                  <button id="typeRemaining" class="btn-toggle active">Remaining</button>
-                  <button id="typeUsed" class="btn-toggle">Used</button>
+              </div>
+              
+              <div class="settings-col">
+                <div class="setting-item side">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="showUnitToggle">
+                    <span>Show Unit</span>
+                  </label>
                 </div>
-              </div>
 
-              <div class="setting-item side">
-                <label>Decimals:</label>
-                <div class="number-input">
-                  <button id="decimalMinus" class="btn-icon">−</button>
-                  <span id="decimalValue">0</span>
-                  <button id="decimalPlus" class="btn-icon">+</button>
+                <div class="setting-item side">
+                  <label>Display Unit:</label>
+                  <div class="toggle-group">
+                    <button id="unitPercent" class="btn-toggle active">%</button>
+                    <button id="unitDollar" class="btn-toggle">$</button>
+                  </div>
                 </div>
-              </div>
 
-              <div class="setting-item side">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="showUnitToggle">
-                  <span>Show Unit</span>
-                </label>
-              </div>
+                <div id="absTypeSection" class="setting-item side">
+                  <label>Value Type:</label>
+                  <div class="toggle-group">
+                    <button id="typeRemaining" class="btn-toggle active">Remaining</button>
+                    <button id="typeUsed" class="btn-toggle">Used</button>
+                  </div>
+                </div>
 
-              <div class="setting-item side">
-                <label for="startWindowToggle" class="checkbox-label">
-                  <input type="checkbox" id="startWindowToggle">
-                  <span>Show on Start</span>
-                </label>
-              </div>
+                <div class="setting-item side">
+                  <label>Decimals:</label>
+                  <div class="number-input">
+                    <button id="decimalMinus" class="btn-icon">−</button>
+                    <span id="decimalValue">0</span>
+                    <button id="decimalPlus" class="btn-icon">+</button>
+                  </div>
+                </div>
 
-              <div class="setting-item side">
-                <label for="launchAtLoginToggle" class="checkbox-label">
-                  <input type="checkbox" id="launchAtLoginToggle">
-                  <span>Launch at Login</span>
-                </label>
-              </div>
-
-              <div class="setting-item side">
-                <label for="alwaysOnTopToggle" class="checkbox-label">
-                  <input type="checkbox" id="alwaysOnTopToggle">
-                  <span>Always on Top</span>
-                </label>
-              </div>
-
-              <div class="setting-item side">
-                <label for="unfocusedOverlayToggle" class="checkbox-label">
-                  <input type="checkbox" id="unfocusedOverlayToggle">
-                  <span>Dim Unfocused</span>
-                </label>
               </div>
             </div>
           </div>
+          </div>
+          
+          <!-- General Sub-Tab -->
+          <div id="generalTab" class="settings-sub-content">
+            <div class="settings-grid">
+              <div class="settings-col">
+                <div class="setting-item">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="shortcutEnabledToggle">
+                    <span>Global Shortcut</span>
+                  </label>
+                  <input type="text" id="shortcutInput" placeholder="F19" autocomplete="off" style="margin-top: 0.5rem;">
+                  <p class="help-text">Example: <code>F19</code>, <code>Cmd+Shift+B</code>, <code>Ctrl+Alt+S</code></p>
+                </div>
 
-          <div class="button-row" style="margin-top: 2rem; justify-content: center; gap: 12px;">
-            <button id="checkForUpdatesBtn" class="btn-primary">Check for Updates</button>
-            <button id="resetSettingsBtn" class="btn-secondary btn-reset">Reset App Data</button>
+                <div class="setting-item side">
+                  <label for="startWindowToggle" class="checkbox-label">
+                    <input type="checkbox" id="startWindowToggle">
+                    <span>Show on Start</span>
+                  </label>
+                </div>
+
+                <div class="setting-item side">
+                  <label for="launchAtLoginToggle" class="checkbox-label">
+                    <input type="checkbox" id="launchAtLoginToggle">
+                    <span>Launch at Login</span>
+                  </label>
+                </div>
+
+                <div class="setting-item side">
+                  <label for="alwaysOnTopToggle" class="checkbox-label">
+                    <input type="checkbox" id="alwaysOnTopToggle">
+                    <span>Always on Top</span>
+                  </label>
+                </div>
+
+                <div class="setting-item side">
+                  <label for="unfocusedOverlayToggle" class="checkbox-label">
+                    <input type="checkbox" id="unfocusedOverlayToggle">
+                    <span>Dim Unfocused</span>
+                  </label>
+                </div>
+              </div>
+              
+              <div class="settings-col">
+                <div class="setting-item side">
+                  <label for="debugLoggingToggle" class="checkbox-label">
+                    <input type="checkbox" id="debugLoggingToggle">
+                    <span>Enable Log File</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            
+            <div class="button-row" style="margin-top: 2rem; justify-content: center; gap: 12px;">
+              <button id="checkForUpdatesBtn" class="btn-primary">Check for Updates</button>
+              <button id="resetSettingsBtn" class="btn-secondary btn-reset">Reset App Data</button>
+            </div>
           </div>
         </div>
       </div>

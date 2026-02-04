@@ -59,7 +59,8 @@ body {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: 8px;
-  max-height: 120px;
+  max-height: 200px;
+  min-height: 160px;
   overflow-y: auto;
   margin-bottom: 0.5rem;
 }
@@ -72,6 +73,7 @@ body {
   cursor: pointer;
   transition: background 0.2s;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  position: relative;
 }
 
 .api-key-row:last-child {
@@ -338,6 +340,7 @@ body.unfocused .container::after {
   overflow-y: auto;
   padding: 1.5rem 2.5rem;
   -webkit-app-region: no-drag;
+  min-height: 0;
 }
 
 /* Scrollbar Styling */
@@ -1098,4 +1101,146 @@ input[type="text"] {
 
 .btn-danger:hover {
   background: #b91c1c;
+}
+
+/* API Key Drag Handle */
+.api-key-drag-handle {
+  cursor: grab;
+  opacity: 0.3;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.api-key-drag-handle:active {
+  cursor: grabbing;
+}
+
+.api-key-row:hover .api-key-drag-handle {
+  opacity: 0.6;
+}
+
+.api-key-drag-handle .material-symbols-rounded {
+  font-size: 18px;
+  color: #6b7280;
+}
+
+/* API Key Edit Icon */
+.api-key-edit-icon {
+  opacity: 0;
+  transition: opacity 0.2s;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.api-key-row:hover .api-key-edit-icon {
+  opacity: 0.5;
+}
+
+.api-key-edit-icon:hover {
+  opacity: 1 !important;
+  background: rgba(0, 100, 151, 0.1);
+}
+
+.api-key-edit-icon .material-symbols-rounded {
+  font-size: 14px;
+  color: #006497;
+}
+
+/* Drag and Drop Styles */
+.api-key-row.drag-over {
+  background: rgba(0, 100, 151, 0.2) !important;
+  border: 2px solid #006497;
+  box-shadow: 0 0 0 2px rgba(0, 100, 151, 0.2);
+}
+
+.api-key-row.drag-over-before::before,
+.api-key-row.drag-over-after::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 3px;
+  background: #006497;
+  border-radius: 2px;
+}
+
+.api-key-row.drag-over-before::before {
+  top: -2px;
+}
+
+.api-key-row.drag-over-after::after {
+  bottom: -2px;
+}
+
+.api-key-row.dragging {
+  opacity: 0.5;
+}
+
+.api-key-row[draggable="true"] {
+  cursor: move;
+}
+
+.api-key-add-row {
+  align-items: center;
+}
+
+.api-key-add-row input,
+.api-key-add-row button {
+  height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+/* Settings Sub-Tabs */
+.settings-sub-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  justify-content: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding-bottom: 0.5rem;
+}
+
+.settings-sub-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6b7280;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  -webkit-app-region: no-drag;
+}
+
+.settings-sub-tab:hover {
+  background: rgba(0, 0, 0, 0.03);
+  color: #374151;
+}
+
+.settings-sub-tab.active {
+  background: rgba(0, 100, 151, 0.1);
+  color: #006497;
+}
+
+.settings-sub-tab .material-symbols-rounded {
+  font-size: 16px;
+}
+
+/* Settings Sub-Content */
+.settings-sub-content {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.settings-sub-content.hidden {
+  display: none;
 }

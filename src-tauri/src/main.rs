@@ -811,7 +811,7 @@ fn calculate_text_width(text: &str, font: &FontVec, scale: PxScale) -> i32 {
 
 /// Update system tray icon with current balance percentage or absolute value
 #[tauri::command]
-fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, settings: AppSettings) -> Result<(), String> {
+fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, settings: AppSettings, active_key_label: String) -> Result<(), String> {
     let display_value = if settings.show_percentage {
         // Percentage logic: relative to limit
         let val = if let Some(limit) = balance.limit {
@@ -845,19 +845,22 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
         display_value.floor()
     };
     
-    // Check if we have valid data (monthly or legacy balance exists)
-    let has_data = balance.remaining_monthly.is_some() || balance.usage_monthly.is_some() || balance.remaining.is_some();
+    // Check if we have valid data (monthly, legacy, or limit/usage exists)
+    let has_data = balance.remaining_monthly.is_some()
+        || balance.usage_monthly.is_some()
+        || balance.remaining.is_some()
+        || balance.usage.is_some()
+        || balance.limit.is_some();
     
-    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance)?;
+    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance, &active_key_label)?;
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
         tray.set_icon(Some(icon))
             .map_err(|e| format!("Failed to update tray icon: {}", e))?;
         
         #[cfg(target_os = "macos")]
         {
-            // If unit is hidden, we want full color logo (non-template)
-            // If unit is shown, it's a cutout (template)
-            tray.set_icon_as_template(settings.show_unit)
+            // Use full-color rendering to preserve hex fill + emoji label
+            tray.set_icon_as_template(false)
                 .map_err(|e| format!("Failed to set icon template mode: {}", e))?;
         }
     }
@@ -865,7 +868,7 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
 }
 
 /// Generate hybrid menubar icon with logo and normal white text
-fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings, balance: &BalanceData) -> Result<Image<'static>, String> {
+fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings, balance: &BalanceData, _active_key_label: &str) -> Result<Image<'static>, String> {
     let scale = MENUBAR_RENDER_SCALE;
     
     // Load Logo
@@ -971,6 +974,7 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     let border_thickness = (HEX_BORDER_PTS * scale) as i32;
     let white = Rgba([255, 255, 255, 255]);
     let transparent = Rgba([0, 0, 0, 0]);
+    let fill_white = Rgba([255, 255, 255, 128]); // 50% transparent white for fill
     let pace_color = match balance.pace_status.as_deref() {
         Some("ahead") => Rgba([239, 68, 68, 190]),
         Some("behind") => Rgba([234, 179, 8, 210]),
@@ -996,7 +1000,7 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
                     let relative_y = (y as f32 - hex_y_offset) / hex_height;
                     let inverted_fill = 1.0f32 - fill_pct;
                     if relative_y > inverted_fill {
-                        img.put_pixel(x, y, white);
+                        img.put_pixel(x, y, fill_white);
                     } else {
                         img.put_pixel(x, y, transparent);
                     }
@@ -1042,6 +1046,9 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
             }
         }
     }
+    
+    // Draw first letter of active API key label in center of hexagon
+    // Disabled for now to avoid rendering issues with emoji on some macOS trays.
     
     if !has_data {
         let rgba = img.into_raw();
@@ -1217,7 +1224,7 @@ fn main() {
       pace_ratio: None,
       pace_status: None,
       label: None,
-  }).ok();
+  }, "").ok();
       let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(initial_icon.unwrap_or_else(|| Image::from_bytes(include_bytes!("../icons/32x32.png")).unwrap()))
         .menu(&menu)

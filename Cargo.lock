@@ -291,6 +291,7 @@ dependencies = [
  "tauri-plugin-sparkle-updater",
  "tauri-plugin-window-state",
  "tokio",
+ "unicode-segmentation",
 ]
 
 [[package]]

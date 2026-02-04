@@ -39,6 +39,34 @@ window.addEventListener('DOMContentLoaded', () => {
     };
   });
   
+  // Settings Sub-Tab switching logic
+  const settingsSubTabs = document.querySelectorAll('.settings-sub-tab');
+  const openrouterTab = document.getElementById('openrouterTab');
+  const generalTab = document.getElementById('generalTab');
+  const defaultSubTab = document.querySelector('.settings-sub-tab[data-sub-tab="general"]');
+  const openrouterSubTab = document.querySelector('.settings-sub-tab[data-sub-tab="openrouter"]');
+
+  const setSettingsSubTab = (target) => {
+    settingsSubTabs.forEach(t => t.classList.remove('active'));
+    
+    if (target === 'general') {
+      generalTab.classList.remove('hidden');
+      openrouterTab.classList.add('hidden');
+      if (defaultSubTab) defaultSubTab.classList.add('active');
+    } else {
+      openrouterTab.classList.remove('hidden');
+      generalTab.classList.add('hidden');
+      if (openrouterSubTab) openrouterSubTab.classList.add('active');
+    }
+  };
+
+  settingsSubTabs.forEach(subTab => {
+    subTab.onclick = () => {
+      const target = subTab.getAttribute('data-sub-tab');
+      setSettingsSubTab(target);
+    };
+  });
+  
   // DOM elements - Display
   const errorDisplay = document.getElementById('errorDisplay');
   const limitValue = document.getElementById('limitValue');
@@ -103,17 +131,29 @@ window.addEventListener('DOMContentLoaded', () => {
     currentSettings.api_keys.forEach((api, index) => {
       const row = document.createElement('div');
       row.className = `api-key-row ${index === currentSettings.active_api_key_index ? 'active' : ''}`;
+      row.draggable = true;
+      row.setAttribute('data-index', index);
       
       const indicator = document.createElement('div');
       indicator.className = 'api-key-indicator';
       row.appendChild(indicator);
       
+      // Drag handle
+      const dragHandle = document.createElement('span');
+      dragHandle.className = 'api-key-drag-handle';
+      dragHandle.innerHTML = '<span class="material-symbols-rounded">drag_indicator</span>';
+      dragHandle.setAttribute('draggable', 'false');
+      row.appendChild(dragHandle);
+      
       const label = document.createElement('span');
       label.className = 'api-key-label';
       label.textContent = api.label || `Key ${index + 1}`;
       
-      // Double click to rename
-      label.ondblclick = (e) => {
+      // Edit pencil icon (hover only)
+      const editIcon = document.createElement('span');
+      editIcon.className = 'api-key-edit-icon';
+      editIcon.innerHTML = '<span class="material-symbols-rounded">edit</span>';
+      editIcon.onclick = (e) => {
         e.stopPropagation();
         const input = document.createElement('input');
         input.type = 'text';
@@ -138,6 +178,12 @@ window.addEventListener('DOMContentLoaded', () => {
         label.replaceWith(input);
         input.focus();
         input.select();
+      };
+      
+      // Double click to rename (fallback)
+      label.ondblclick = (e) => {
+        e.stopPropagation();
+        editIcon.click();
       };
 
       row.onclick = async () => {
@@ -190,9 +236,101 @@ window.addEventListener('DOMContentLoaded', () => {
       };
 
       row.appendChild(label);
+      row.appendChild(editIcon);
       row.appendChild(mask);
       row.appendChild(deleteBtn);
       apiKeyList.appendChild(row);
+    });
+    
+    // Setup drag and drop events
+    setupDragAndDrop();
+  }
+
+  // Setup drag and drop for API key reordering
+  function setupDragAndDrop() {
+    const apiKeyRows = document.querySelectorAll('.api-key-row');
+    const apiKeyList = document.getElementById('apiKeyList');
+
+    if (!apiKeyList) return;
+
+    let dragSrcEl = null;
+
+    function handleDragStart(e) {
+      dragSrcEl = this;
+      this.classList.add('dragging');
+      this.style.opacity = '0.4';
+      this.style.cursor = 'grabbing';
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      const rect = this.getBoundingClientRect();
+      const offsetY = e.clientY - rect.top;
+      const isAfter = offsetY > rect.height / 2;
+
+      this.classList.toggle('drag-over-before', !isAfter);
+      this.classList.toggle('drag-over-after', isAfter);
+      return false;
+    }
+
+    function handleDragEnter() {
+      this.classList.add('drag-over');
+    }
+
+    function handleDragLeave() {
+      this.classList.remove('drag-over', 'drag-over-before', 'drag-over-after');
+    }
+
+    async function handleDrop(e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!dragSrcEl || dragSrcEl === this) return false;
+
+      const srcIndex = Number(dragSrcEl.dataset.index);
+      const rect = this.getBoundingClientRect();
+      const offsetY = e.clientY - rect.top;
+      const isAfter = offsetY > rect.height / 2;
+      const rawDestIndex = Number(this.dataset.index);
+      const destIndex = isAfter ? rawDestIndex + 1 : rawDestIndex;
+
+      if (Number.isNaN(srcIndex) || Number.isNaN(destIndex)) return false;
+
+      const adjustedDestIndex = srcIndex < destIndex ? destIndex - 1 : destIndex;
+      if (adjustedDestIndex === srcIndex) return false;
+      const movedItem = currentSettings.api_keys.splice(srcIndex, 1)[0];
+      currentSettings.api_keys.splice(adjustedDestIndex, 0, movedItem);
+
+      if (currentSettings.active_api_key_index === srcIndex) {
+        currentSettings.active_api_key_index = adjustedDestIndex;
+      } else if (currentSettings.active_api_key_index > srcIndex && currentSettings.active_api_key_index <= adjustedDestIndex) {
+        currentSettings.active_api_key_index--;
+      } else if (currentSettings.active_api_key_index < srcIndex && currentSettings.active_api_key_index >= adjustedDestIndex) {
+        currentSettings.active_api_key_index++;
+      }
+
+      await saveSettingsAction(true);
+      renderApiKeyList();
+      return false;
+    }
+
+    function handleDragEnd() {
+      this.style.opacity = '';
+      this.style.cursor = '';
+      this.classList.remove('dragging');
+
+      const items = document.querySelectorAll('.api-key-row');
+      items.forEach(item => item.classList.remove('drag-over', 'drag-over-before', 'drag-over-after'));
+    }
+
+    apiKeyRows.forEach(row => {
+      row.addEventListener('dragstart', handleDragStart, false);
+      row.addEventListener('dragstart', (e) => { e.dataTransfer && (e.dataTransfer.effectAllowed = 'move'); }, false);
+      row.addEventListener('dragenter', handleDragEnter, false);
+      row.addEventListener('dragover', handleDragOver, false);
+      row.addEventListener('dragleave', handleDragLeave, false);
+      row.addEventListener('drop', handleDrop, false);
+      row.addEventListener('dragend', handleDragEnd, false);
     });
   }
 
@@ -286,7 +424,7 @@ async function performResize() {
     if (chLabel) chLabel.textContent = container.clientHeight;
     if (whLabel) whLabel.textContent = window.innerHeight;
 
-    const finalHeight = Math.min(Math.max(totalContentHeight, 400), 800);
+    const finalHeight = Math.min(Math.max(totalContentHeight + 60, 520), 900);
     
     // One call, let the OS handle the physics
     await appWindow.setSize(new LogicalSize(800, finalHeight));
@@ -470,7 +608,8 @@ window.addEventListener('transitionend', (e) => {
     
     // Update menubar icon
     try {
-      await invoke('update_menubar_display', { balance, settings: currentSettings });
+      const activeKeyLabel = currentSettings?.api_keys[currentSettings.active_api_key_index]?.label || '';
+      await invoke('update_menubar_display', { balance, settings: currentSettings, active_key_label: activeKeyLabel });
     } catch (error) {
       console.error('Failed to update menubar icon:', error);
     }
