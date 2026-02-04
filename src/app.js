@@ -414,7 +414,8 @@ async function performResize() {
     const container = document.querySelector('.container');
     if (!container) return;
 
-    const totalContentHeight = container.scrollHeight;
+    // Get content height from body which includes footer
+    const totalContentHeight = document.body.scrollHeight;
 
     // Update debug labels if visible
     const shLabel = document.getElementById('shValue');
@@ -424,7 +425,8 @@ async function performResize() {
     if (chLabel) chLabel.textContent = container.clientHeight;
     if (whLabel) whLabel.textContent = window.innerHeight;
 
-    const finalHeight = Math.min(Math.max(totalContentHeight + 60, 520), 900);
+    // Calculate final height including fixed 65px footer
+    const finalHeight = Math.min(Math.max(totalContentHeight + 65, 520), 900);
     
     // One call, let the OS handle the physics
     await appWindow.setSize(new LogicalSize(800, finalHeight));
