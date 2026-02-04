@@ -621,7 +621,10 @@ window.addEventListener('transitionend', (e) => {
         const decimals = Math.max(0, Math.min(2, currentSettings?.decimal_places ?? 1));
         const pacePercent = (paceRatio * 100).toFixed(decimals);
         const usedPercent = usageRatio.toFixed(decimals);
-        paceDetails.textContent = `${pacePercent}% expected. ${usedPercent}% used`;
+        const difference = (pacePercent-usedPercent).toFixed(decimals);
+        const sign = difference > 0 ? '+' : '-';
+        const sign2 = difference > 0 ? 'extra' : 'over';
+        paceDetails.textContent = `${sign}${Math.abs(difference)}% ${sign2}`;
       } else {
         paceDetails.textContent = '-';
       }
