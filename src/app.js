@@ -11,6 +11,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // State
   let currentSettings = null;
   let currentBalance = null;
+  let sortableInstance = null; // SortableJS instance for API key reordering
 
   // DOM elements - States
   const loadingState = document.getElementById('loadingState');
@@ -127,12 +128,18 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function renderApiKeyList() {
     if (!currentSettings || !apiKeyList) return;
+    
+    // Destroy existing SortableJS instance before re-rendering
+    if (sortableInstance) {
+      sortableInstance.destroy();
+      sortableInstance = null;
+    }
+    
     apiKeyList.innerHTML = '';
     
     currentSettings.api_keys.forEach((api, index) => {
       const row = document.createElement('div');
       row.className = `api-key-row ${index === currentSettings.active_api_key_index ? 'active' : ''}`;
-      row.draggable = true;
       row.setAttribute('data-index', index);
       
       const indicator = document.createElement('div');
@@ -143,7 +150,6 @@ window.addEventListener('DOMContentLoaded', () => {
       const dragHandle = document.createElement('span');
       dragHandle.className = 'api-key-drag-handle';
       dragHandle.innerHTML = '<span class="material-symbols-rounded">drag_indicator</span>';
-      dragHandle.setAttribute('draggable', 'false');
       row.appendChild(dragHandle);
       
       const label = document.createElement('span');
@@ -243,115 +249,92 @@ window.addEventListener('DOMContentLoaded', () => {
       apiKeyList.appendChild(row);
     });
     
-    // Setup drag and drop events
-    setupDragAndDrop();
+    // Initialize SortableJS for drag-and-drop reordering
+    initSortable();
   }
 
-  // Setup drag and drop for API key reordering
-  function setupDragAndDrop() {
-    const apiKeyRows = document.querySelectorAll('.api-key-row');
-    const apiKeyList = document.getElementById('apiKeyList');
-
-    if (!apiKeyList) return;
-
-    let dragSrcEl = null;
-
-    function handleDragStart(e) {
-      dragSrcEl = this;
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', this.getAttribute('data-index'));
-      this.classList.add('dragging');
-      this.style.opacity = '0.4';
+  // Initialize SortableJS for API key reordering
+  function initSortable() {
+    console.log('[SortableJS] initSortable called');
+    console.log('[SortableJS] apiKeyList:', apiKeyList);
+    console.log('[SortableJS] Sortable available:', typeof Sortable);
+    
+    if (!apiKeyList) {
+      console.error('[SortableJS] apiKeyList is null!');
+      return;
     }
-
-    function handleDragOver(e) {
-      if (e.preventDefault) {
-        e.preventDefault();
-      }
-      e.dataTransfer.dropEffect = 'move';
+    if (typeof Sortable === 'undefined') {
+      console.error('[SortableJS] Sortable library not loaded!');
+      return;
+    }
+    
+    const handles = apiKeyList.querySelectorAll('.api-key-drag-handle');
+    console.log('[SortableJS] Found drag handles:', handles.length);
+    
+    sortableInstance = new Sortable(apiKeyList, {
+      animation: 150,
+      handle: '.api-key-drag-handle',
+      ghostClass: 'api-key-ghost',
+      chosenClass: 'api-key-chosen',
+      dragClass: 'api-key-drag',
+      forceFallback: true,  // Force fallback to JS-based drag (better cross-platform)
       
-      const rect = this.getBoundingClientRect();
-      const offsetY = e.clientY - rect.top;
-      const isAfter = offsetY > rect.height / 2;
-
-      this.classList.toggle('drag-over-before', !isAfter);
-      this.classList.toggle('drag-over-after', isAfter);
+      onStart: function(evt) {
+        console.log('[SortableJS] onStart - dragging item:', evt.oldIndex);
+      },
       
-      return false;
-    }
-
-    function handleDragEnter(e) {
-      this.classList.add('drag-over');
-    }
-
-    function handleDragLeave(e) {
-      this.classList.remove('drag-over', 'drag-over-before', 'drag-over-after');
-    }
-
-    async function handleDrop(e) {
-      if (e.stopPropagation) {
-        e.stopPropagation();
-      }
-      e.preventDefault();
-
-      if (!dragSrcEl || dragSrcEl === this) return false;
-
-      const srcIndex = parseInt(e.dataTransfer.getData('text/plain'));
-      const rawDestIndex = parseInt(this.getAttribute('data-index'));
+      onMove: function(evt) {
+        console.log('[SortableJS] onMove - from:', evt.dragged, 'to:', evt.related);
+        return true; // allow move
+      },
       
-      const rect = this.getBoundingClientRect();
-      const offsetY = e.clientY - rect.top;
-      const isAfter = offsetY > rect.height / 2;
-      const destIndex = isAfter ? rawDestIndex + 1 : rawDestIndex;
-
-      if (isNaN(srcIndex) || isNaN(destIndex)) return false;
-
-      // Adjust destination index if it's after the source
-      const adjustedDestIndex = srcIndex < destIndex ? destIndex - 1 : destIndex;
-      if (adjustedDestIndex === srcIndex) return false;
-
-      // Perform move in data
-      const newKeys = [...currentSettings.api_keys];
-      const [movedItem] = newKeys.splice(srcIndex, 1);
-      newKeys.splice(adjustedDestIndex, 0, movedItem);
-
-      // Update active key index
-      let newActiveIndex = currentSettings.active_api_key_index;
-      if (currentSettings.active_api_key_index === srcIndex) {
-        newActiveIndex = adjustedDestIndex;
-      } else if (currentSettings.active_api_key_index > srcIndex && currentSettings.active_api_key_index <= adjustedDestIndex) {
-        newActiveIndex--;
-      } else if (currentSettings.active_api_key_index < srcIndex && currentSettings.active_api_key_index >= adjustedDestIndex) {
-        newActiveIndex++;
+      onEnd: function(evt) {
+        const oldIndex = evt.oldIndex;
+        const newIndex = evt.newIndex;
+        
+        console.log(`[SortableJS] onEnd fired: ${oldIndex} -> ${newIndex}`);
+        
+        if (oldIndex === newIndex) {
+          console.log('[SortableJS] Same position, skipping');
+          return;
+        }
+        
+        // Reorder the api_keys array to match DOM order
+        const [movedItem] = currentSettings.api_keys.splice(oldIndex, 1);
+        currentSettings.api_keys.splice(newIndex, 0, movedItem);
+        
+        console.log('[SortableJS] Array reordered:', currentSettings.api_keys.map(k => k.label));
+        
+        // Update active key index to follow the active item
+        const oldActiveIndex = currentSettings.active_api_key_index;
+        if (oldActiveIndex === oldIndex) {
+          currentSettings.active_api_key_index = newIndex;
+        } else if (oldIndex < oldActiveIndex && newIndex >= oldActiveIndex) {
+          currentSettings.active_api_key_index--;
+        } else if (oldIndex > oldActiveIndex && newIndex <= oldActiveIndex) {
+          currentSettings.active_api_key_index++;
+        }
+        
+        console.log(`[SortableJS] Active index: ${oldActiveIndex} -> ${currentSettings.active_api_key_index}`);
+        
+        // Update data-index attributes on DOM elements (SortableJS already moved them)
+        const rows = apiKeyList.querySelectorAll('.api-key-row');
+        rows.forEach((row, i) => {
+          row.setAttribute('data-index', i);
+          row.classList.toggle('active', i === currentSettings.active_api_key_index);
+        });
+        
+        // Save to backend
+        invoke('save_settings', { settings: currentSettings })
+          .then(() => console.log('[SortableJS] Settings saved'))
+          .catch(e => {
+            console.error('[SortableJS] Save failed:', e);
+            showError('Failed to save: ' + e);
+          });
       }
-
-      currentSettings.api_keys = newKeys;
-      currentSettings.active_api_key_index = newActiveIndex;
-
-      console.log('Drop successful, saving settings. New key count:', currentSettings.api_keys.length);
-      await saveSettingsAction(true);
-      renderApiKeyList();
-      return false;
-    }
-
-    function handleDragEnd() {
-      this.style.opacity = '';
-      this.style.cursor = '';
-      this.classList.remove('dragging');
-
-      const items = document.querySelectorAll('.api-key-row');
-      items.forEach(item => item.classList.remove('drag-over', 'drag-over-before', 'drag-over-after'));
-    }
-
-    apiKeyRows.forEach(row => {
-      row.addEventListener('dragstart', handleDragStart, false);
-      row.addEventListener('dragstart', (e) => { e.dataTransfer && (e.dataTransfer.effectAllowed = 'move'); }, false);
-      row.addEventListener('dragenter', handleDragEnter, false);
-      row.addEventListener('dragover', handleDragOver, false);
-      row.addEventListener('dragleave', handleDragLeave, false);
-      row.addEventListener('drop', handleDrop, false);
-      row.addEventListener('dragend', handleDragEnd, false);
     });
+    
+    console.log('[SortableJS] Instance created:', sortableInstance);
   }
 
   addApiKeyBtn.onclick = async () => {

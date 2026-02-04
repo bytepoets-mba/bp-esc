@@ -1152,38 +1152,23 @@ input[type="text"] {
   color: #006497;
 }
 
-/* Drag and Drop Styles */
-.api-key-row.drag-over {
-  background: rgba(0, 100, 151, 0.2) !important;
-  border: 2px solid #006497;
-  box-shadow: 0 0 0 2px rgba(0, 100, 151, 0.2);
+/* SortableJS Drag and Drop Styles */
+.api-key-ghost {
+  opacity: 0.4;
+  background: rgba(0, 100, 151, 0.1);
+  border: 2px dashed #006497;
 }
 
-.api-key-row.drag-over-before::before,
-.api-key-row.drag-over-after::after {
-  content: '';
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  height: 3px;
-  background: #006497;
-  border-radius: 2px;
+.api-key-chosen {
+  background: rgba(0, 100, 151, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.api-key-row.drag-over-before::before {
-  top: -2px;
-}
-
-.api-key-row.drag-over-after::after {
-  bottom: -2px;
-}
-
-.api-key-row.dragging {
-  opacity: 0.5;
-}
-
-.api-key-row[draggable="true"] {
-  cursor: move;
+.api-key-drag {
+  opacity: 1 !important;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  transform: scale(1.02);
 }
 
 .api-key-add-row {
