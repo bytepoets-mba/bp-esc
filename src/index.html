@@ -148,9 +148,9 @@
                 <div id="apiKeyList" class="api-key-list">
                   <!-- Keys injected here -->
                 </div>
-                <div class="api-key-add-row" style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
-                  <input type="password" id="newApiKeyInput" placeholder="sk-or-v1-..." autocomplete="off" style="flex: 1;">
-                  <button id="addApiKeyBtn" class="btn-primary" style="padding: 0 12px;">Add</button>
+                <div class="api-key-add-row" style="margin-top: 0.5rem;">
+                  <input type="password" id="newApiKeyInput" placeholder="sk-or-v1-..." autocomplete="off">
+                  <button id="addApiKeyBtn" class="btn-primary">Add</button>
                 </div>
               </div>
             </div>
@@ -170,6 +170,14 @@
                   </div>
                 </div>
 
+                <div id="absTypeSection" class="setting-item side">
+                  <label>Show Value:</label>
+                  <div class="toggle-group">
+                    <button id="typeRemaining" class="btn-toggle active">Remaining</button>
+                    <button id="typeUsed" class="btn-toggle">Used</button>
+                  </div>
+                </div>
+
               </div>
               
               <div class="settings-col">
@@ -185,14 +193,6 @@
                   <div class="toggle-group">
                     <button id="unitPercent" class="btn-toggle active">%</button>
                     <button id="unitDollar" class="btn-toggle">$</button>
-                  </div>
-                </div>
-
-                <div id="absTypeSection" class="setting-item side">
-                  <label>Value Type:</label>
-                  <div class="toggle-group">
-                    <button id="typeRemaining" class="btn-toggle active">Remaining</button>
-                    <button id="typeUsed" class="btn-toggle">Used</button>
                   </div>
                 </div>
 

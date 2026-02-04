@@ -258,58 +258,77 @@ window.addEventListener('DOMContentLoaded', () => {
 
     function handleDragStart(e) {
       dragSrcEl = this;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', this.getAttribute('data-index'));
       this.classList.add('dragging');
       this.style.opacity = '0.4';
-      this.style.cursor = 'grabbing';
     }
 
     function handleDragOver(e) {
-      e.preventDefault();
+      if (e.preventDefault) {
+        e.preventDefault();
+      }
+      e.dataTransfer.dropEffect = 'move';
+      
       const rect = this.getBoundingClientRect();
       const offsetY = e.clientY - rect.top;
       const isAfter = offsetY > rect.height / 2;
 
       this.classList.toggle('drag-over-before', !isAfter);
       this.classList.toggle('drag-over-after', isAfter);
+      
       return false;
     }
 
-    function handleDragEnter() {
+    function handleDragEnter(e) {
       this.classList.add('drag-over');
     }
 
-    function handleDragLeave() {
+    function handleDragLeave(e) {
       this.classList.remove('drag-over', 'drag-over-before', 'drag-over-after');
     }
 
     async function handleDrop(e) {
+      if (e.stopPropagation) {
+        e.stopPropagation();
+      }
       e.preventDefault();
-      e.stopPropagation();
 
       if (!dragSrcEl || dragSrcEl === this) return false;
 
-      const srcIndex = Number(dragSrcEl.dataset.index);
+      const srcIndex = parseInt(e.dataTransfer.getData('text/plain'));
+      const rawDestIndex = parseInt(this.getAttribute('data-index'));
+      
       const rect = this.getBoundingClientRect();
       const offsetY = e.clientY - rect.top;
       const isAfter = offsetY > rect.height / 2;
-      const rawDestIndex = Number(this.dataset.index);
       const destIndex = isAfter ? rawDestIndex + 1 : rawDestIndex;
 
-      if (Number.isNaN(srcIndex) || Number.isNaN(destIndex)) return false;
+      if (isNaN(srcIndex) || isNaN(destIndex)) return false;
 
+      // Adjust destination index if it's after the source
       const adjustedDestIndex = srcIndex < destIndex ? destIndex - 1 : destIndex;
       if (adjustedDestIndex === srcIndex) return false;
-      const movedItem = currentSettings.api_keys.splice(srcIndex, 1)[0];
-      currentSettings.api_keys.splice(adjustedDestIndex, 0, movedItem);
 
+      // Perform move in data
+      const newKeys = [...currentSettings.api_keys];
+      const [movedItem] = newKeys.splice(srcIndex, 1);
+      newKeys.splice(adjustedDestIndex, 0, movedItem);
+
+      // Update active key index
+      let newActiveIndex = currentSettings.active_api_key_index;
       if (currentSettings.active_api_key_index === srcIndex) {
-        currentSettings.active_api_key_index = adjustedDestIndex;
+        newActiveIndex = adjustedDestIndex;
       } else if (currentSettings.active_api_key_index > srcIndex && currentSettings.active_api_key_index <= adjustedDestIndex) {
-        currentSettings.active_api_key_index--;
+        newActiveIndex--;
       } else if (currentSettings.active_api_key_index < srcIndex && currentSettings.active_api_key_index >= adjustedDestIndex) {
-        currentSettings.active_api_key_index++;
+        newActiveIndex++;
       }
 
+      currentSettings.api_keys = newKeys;
+      currentSettings.active_api_key_index = newActiveIndex;
+
+      console.log('Drop successful, saving settings. New key count:', currentSettings.api_keys.length);
       await saveSettingsAction(true);
       renderApiKeyList();
       return false;
@@ -667,7 +686,9 @@ window.addEventListener('transitionend', (e) => {
     ctx.restore();
 
     if (paceRatio !== null) {
-      const paceFill = Math.max(0, Math.min(1, paceRatio));
+      // If showing remaining, we expect to have (1 - paceRatio) left
+      const effectivePace = currentSettings?.show_remaining ? (1.0 - paceRatio) : paceRatio;
+      const paceFill = Math.max(0, Math.min(1, effectivePace));
       const paceY = yOff + hexHeight * (1 - paceFill);
       const paceColor = paceStatus === 'ahead'
         ? 'rgba(239, 68, 68, 0.75)'
