@@ -1179,6 +1179,13 @@ fn update_app_shortcut(app: &AppHandle, shortcut_str: &str, enabled: bool) -> Re
     Ok(())
 }
 
+#[tauri::command]
+async fn set_window_height(window: tauri::Window, height: f64) -> Result<(), String> {
+    use tauri::LogicalSize;
+    window.set_size(LogicalSize::new(800.0, height))
+        .map_err(|e| e.to_string())
+}
+
 fn main() {
   let mut builder = tauri::Builder::default()
     .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--quiet"])))
@@ -1314,8 +1321,11 @@ fn main() {
         toggle_window_visibility,
         notify_api_key_valid,
         notify_api_key_invalid,
-        restart_auto_refresh
+        restart_auto_refresh,
+        set_window_height
     ])
+
+
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }

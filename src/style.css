@@ -25,7 +25,7 @@
 
 html {
   background: transparent !important;
-  overflow: visible;
+  overflow: hidden;
   height: auto !important;
 }
 
@@ -34,7 +34,7 @@ body {
   display: block;
   padding: 0;
   margin: 0;
-  overflow: visible;
+  overflow: hidden;
   height: auto !important;
 }
 
@@ -337,10 +337,10 @@ body.unfocused .container::after {
 
 .content-area {
   flex: 1;
-  overflow-y: auto;
+  overflow: visible;
   padding: 1.5rem 2.5rem;
   -webkit-app-region: no-drag;
-  min-height: 0;
+  min-height: auto;
 }
 
 /* Scrollbar Styling */

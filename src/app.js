@@ -5,6 +5,7 @@ window.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
+
   const invoke = window.__TAURI__.core?.invoke || window.__TAURI__.invoke;
   
   // State
@@ -403,19 +404,19 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
 // --- SIMPLE AUTO-RESIZE LOGIC ---
+const RESIZE_HEIGHT_OFFSET = 25;
 let resizeTimeout = null;
 let currentAnimatedPct = 0;
 let animationFrameId = null;
 
 async function performResize() {
   try {
-    const { getCurrentWindow, LogicalSize } = window.__TAURI__.window;
-    const appWindow = getCurrentWindow();
     const container = document.querySelector('.container');
     if (!container) return;
 
-    // Get content height from body which includes footer
-    const totalContentHeight = document.body.scrollHeight;
+    // Use offsetHeight of body for a stable measurement of the content
+    // We add a small buffer (4px) to avoid rounding-related clipping
+    const totalContentHeight = document.body.offsetHeight;
 
     // Update debug labels if visible
     const shLabel = document.getElementById('shValue');
@@ -425,11 +426,10 @@ async function performResize() {
     if (chLabel) chLabel.textContent = container.clientHeight;
     if (whLabel) whLabel.textContent = window.innerHeight;
 
-    // Calculate final height including fixed 65px footer
-    const finalHeight = Math.min(Math.max(totalContentHeight + 65, 520), 900);
-    
-    // One call, let the OS handle the physics
-    await appWindow.setSize(new LogicalSize(800, finalHeight));
+    if (totalContentHeight === 0) return;
+
+    // Call Rust command to set inner height (robustly handles chrome)
+    await invoke('set_window_height', { height: totalContentHeight + RESIZE_HEIGHT_OFFSET });
   } catch (e) {
     // console.error('Resize failed:', e);
   }
