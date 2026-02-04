@@ -736,6 +736,14 @@ input[type="text"] {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #6b7280;
+  position: relative;
+  z-index: 10;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.hex-caption:hover {
+  color: #006497;
 }
 
 .balance-cards {
@@ -751,7 +759,6 @@ input[type="text"] {
   top: 0;
   bottom: 0;
   padding: 0 !important;
-  width: 50%;
   border-radius: 12px;
   font-size: 14px !important;
   color: #8f9bb0 !important;
@@ -761,7 +768,7 @@ input[type="text"] {
   background: transparent;
   border: none;
   cursor: pointer;
-  z-index: 10;
+  z-index: 5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -769,12 +776,13 @@ input[type="text"] {
 
 .key-nav-btn.left {
   left: 0;
+  right: calc(50% + 45px); /* Stop before center caption */
   justify-content: flex-start;
   padding-left: 0 !important;
 }
 
 .key-nav-btn.right {
-  left: 50%;
+  left: calc(50% + 45px); /* Start after center caption */
   right: 0;
   justify-content: flex-end;
   padding-right: 0 !important;

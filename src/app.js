@@ -193,10 +193,12 @@ window.addEventListener('DOMContentLoaded', () => {
         editIcon.click();
       };
 
-      row.onclick = async () => {
-        console.log('Row clicked, index:', index, 'current active:', currentSettings.active_api_key_index);
-        if (currentSettings.active_api_key_index !== index) {
-          currentSettings.active_api_key_index = index;
+      row.onclick = async function() {
+        // Read current index from data attribute (may have changed after drag reorder)
+        const currentIndex = parseInt(this.getAttribute('data-index'));
+        console.log('Row clicked, index:', currentIndex, 'current active:', currentSettings.active_api_key_index);
+        if (currentSettings.active_api_key_index !== currentIndex) {
+          currentSettings.active_api_key_index = currentIndex;
           currentBalance = null;
           console.log('Saving settings with new index:', currentSettings.active_api_key_index);
           try {
@@ -227,13 +229,15 @@ window.addEventListener('DOMContentLoaded', () => {
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'btn-icon-small';
       deleteBtn.innerHTML = '✕';
-      deleteBtn.onclick = async (e) => {
+      deleteBtn.onclick = async function(e) {
         e.stopPropagation();
         if (currentSettings.api_keys.length <= 1) {
           showError('Cannot delete the last API key.');
           return;
         }
-        currentSettings.api_keys.splice(index, 1);
+        // Read current index from parent row (may have changed after drag reorder)
+        const currentIndex = parseInt(row.getAttribute('data-index'));
+        currentSettings.api_keys.splice(currentIndex, 1);
         if (currentSettings.active_api_key_index >= currentSettings.api_keys.length) {
           currentSettings.active_api_key_index = currentSettings.api_keys.length - 1;
         }
@@ -525,6 +529,11 @@ window.addEventListener('transitionend', (e) => {
     if (labelDisplay) {
       labelDisplay.textContent = activeKeyLabel || '-';
     }
+    
+    // Hide nav buttons if only one key
+    const hasMultipleKeys = currentSettings?.api_keys?.length > 1;
+    prevKeyBtn.style.display = hasMultipleKeys ? '' : 'none';
+    nextKeyBtn.style.display = hasMultipleKeys ? '' : 'none';
     
     // Check if we have valid balance data
     const hasData = balance && balance.limit != null && (balance.remaining_monthly != null || balance.usage_monthly != null);
@@ -872,11 +881,27 @@ window.addEventListener('transitionend', (e) => {
     typeRemaining.classList.add('active');
     typeUsed.classList.remove('active');
     await saveSettingsAction(true);
+    if (currentBalance) displayBalance(currentBalance, false);
   };
   typeUsed.onclick = async () => {
     typeRemaining.classList.remove('active');
     typeUsed.classList.add('active');
     await saveSettingsAction(true);
+    if (currentBalance) displayBalance(currentBalance, false);
+  };
+  
+  // Click on "remaining/used" caption toggles the setting
+  percentCaption.onclick = async () => {
+    // Toggle the setting
+    if (typeRemaining.classList.contains('active')) {
+      typeRemaining.classList.remove('active');
+      typeUsed.classList.add('active');
+    } else {
+      typeRemaining.classList.add('active');
+      typeUsed.classList.remove('active');
+    }
+    await saveSettingsAction(true);
+    if (currentBalance) displayBalance(currentBalance, false);
   };
 
   showUnitToggle.onchange = () => saveSettingsAction(true);
