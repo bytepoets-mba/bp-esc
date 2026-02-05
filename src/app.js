@@ -16,7 +16,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // DOM elements - States
   const loadingState = document.getElementById('loadingState');
   const balanceState = document.getElementById('balanceState');
-  const miteState = document.getElementById('miteState');
+  const timeState = document.getElementById('timeState');
   const settingsState = document.getElementById('settingsState');
   
   // Tab elements
@@ -33,7 +33,7 @@ window.addEventListener('DOMContentLoaded', () => {
       
       // Show state
       if (target === 'balance') showState('balance');
-      else if (target === 'mite') showState('mite');
+      else if (target === 'time') showState('time');
       else if (target === 'settings') {
         syncSettingsToUI();
         showState('settings');
@@ -397,7 +397,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // State management
   async function showState(state) {
-    [loadingState, balanceState, miteState, settingsState].forEach(s => s.classList.add('hidden'));
+    [loadingState, balanceState, timeState, settingsState].forEach(s => s.classList.add('hidden'));
     
     // Update active tab UI if state change was programmatic
     tabs.forEach(t => {
@@ -407,7 +407,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (state === 'loading') loadingState.classList.remove('hidden');
     else if (state === 'balance') balanceState.classList.remove('hidden');
-    else if (state === 'mite') miteState.classList.remove('hidden');
+    else if (state === 'time') timeState.classList.remove('hidden');
     else if (state === 'settings') {
       settingsState.classList.remove('hidden');
       if (!apiKeyInputSettings.value) apiKeyInputSettings.focus();
