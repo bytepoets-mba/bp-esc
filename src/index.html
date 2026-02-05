@@ -87,7 +87,7 @@
                 </div>
               </div>
 
-              <div class="usage-breakdown">
+              <div class="usage-breakdown" id="usageBreakdown">
                 <div class="usage-header">
                   <span>Usage</span>
                   <span id="pacePill" class="pace-pill pace-pill--neutral">
@@ -160,30 +160,6 @@
               <div class="settings-col">
                 <div class="setting-item side">
                   <label class="checkbox-label">
-                    <input type="checkbox" id="autocheckToggle">
-                    <span>Auto-refresh</span>
-                  </label>
-                  <div class="number-input">
-                    <button id="refreshMinus" class="btn-icon">−</button>
-                    <span id="refreshValue">5</span>
-                    <button id="refreshPlus" class="btn-icon">+</button>
-                    <span class="unit">Minutes</span>
-                  </div>
-                </div>
-
-                <div id="absTypeSection" class="setting-item side">
-                  <label>Show Value:</label>
-                  <div class="toggle-group">
-                    <button id="typeRemaining" class="btn-toggle active">Remaining</button>
-                    <button id="typeUsed" class="btn-toggle">Used</button>
-                  </div>
-                </div>
-
-              </div>
-              
-              <div class="settings-col">
-                <div class="setting-item side">
-                  <label class="checkbox-label">
                     <input type="checkbox" id="showUnitToggle">
                     <span>Show Unit</span>
                   </label>
@@ -206,6 +182,45 @@
                   </div>
                 </div>
 
+                <div id="absTypeSection" class="setting-item side">
+                  <label>Show Value:</label>
+                  <div class="toggle-group">
+                    <button id="typeRemaining" class="btn-toggle active">Remaining</button>
+                    <button id="typeUsed" class="btn-toggle">Used</button>
+                  </div>
+                </div>
+
+              </div>
+
+              <div class="settings-col">
+                <div class="setting-item side">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="autocheckToggle">
+                    <span>Auto-refresh</span>
+                  </label>
+                  <div class="number-input">
+                    <button id="refreshMinus" class="btn-icon">−</button>
+                    <span id="refreshValue">5</span>
+                    <button id="refreshPlus" class="btn-icon">+</button>
+                    <span class="unit">Minutes</span>
+                  </div>
+                </div>
+
+                <div class="setting-item">
+                  <label class="subheader">Pace thresholds</label>
+                  <div class="number-input">
+                    <button id="paceWarnMinus" class="btn-icon">−</button>
+                    <span id="paceWarnValue">15</span>
+                    <button id="paceWarnPlus" class="btn-icon">+</button>
+                    <span class="unit">% Slightly over</span>
+                  </div>
+                  <div class="number-input" style="margin-top: 0.5rem;">
+                    <button id="paceOverMinus" class="btn-icon">−</button>
+                    <span id="paceOverValue">25</span>
+                    <button id="paceOverPlus" class="btn-icon">+</button>
+                    <span class="unit">% Over pace</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

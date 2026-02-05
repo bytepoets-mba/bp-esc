@@ -79,6 +79,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const paceText = document.getElementById('paceText');
   const pacePill = document.getElementById('pacePill');
   const paceDetails = document.getElementById('paceDetails');
+  const usageBreakdown = document.getElementById('usageBreakdown');
   const percentCaption = document.getElementById('percentCaption');
   const lastUpdated = document.getElementById('lastUpdated');
   const appVersion = document.getElementById('appVersion');
@@ -102,6 +103,12 @@ window.addEventListener('DOMContentLoaded', () => {
   const decimalValue = document.getElementById('decimalValue');
   const decimalMinus = document.getElementById('decimalMinus');
   const decimalPlus = document.getElementById('decimalPlus');
+  const paceWarnValue = document.getElementById('paceWarnValue');
+  const paceWarnMinus = document.getElementById('paceWarnMinus');
+  const paceWarnPlus = document.getElementById('paceWarnPlus');
+  const paceOverValue = document.getElementById('paceOverValue');
+  const paceOverMinus = document.getElementById('paceOverMinus');
+  const paceOverPlus = document.getElementById('paceOverPlus');
   const shortcutInput = document.getElementById('shortcutInput');
   const shortcutEnabledToggle = document.getElementById('shortcutEnabledToggle');
   const debugLoggingToggle = document.getElementById('debugLoggingToggle');
@@ -518,6 +525,22 @@ window.addEventListener('transitionend', (e) => {
     animationFrameId = requestAnimationFrame(step);
   }
 
+  function getPaceThresholds(settings) {
+    const warn = Math.max(0, Number(settings?.pace_warn_threshold ?? 15));
+    const over = Math.max(warn + 1, Number(settings?.pace_over_threshold ?? 25));
+    return { warn, over };
+  }
+
+  function computePaceStatus(usageRatio, paceRatio, settings) {
+    if (paceRatio == null || usageRatio == null) return null;
+    const pacePercent = Math.max(0, Math.min(100, paceRatio * 100));
+    const { warn, over } = getPaceThresholds(settings);
+
+    if (usageRatio > pacePercent + over) return 'ahead';
+    if (usageRatio > pacePercent + warn) return 'behind';
+    return 'on_track';
+  }
+
   // Display balance
   async function displayBalance(balance) {
     addLog(`Displaying balance: ${JSON.stringify(balance)}`);
@@ -540,7 +563,6 @@ window.addEventListener('transitionend', (e) => {
     const monthlyUsage = balance?.usage_monthly ?? null;
     const monthlyRemaining = balance?.remaining_monthly ?? (balance?.limit != null && monthlyUsage != null ? balance.limit - monthlyUsage : null);
     const paceRatio = balance?.pace_ratio ?? null;
-    const paceStatus = balance?.pace_status ?? null;
     const limitValueRaw = balance?.limit ?? null;
     
     // Calculate percentage
@@ -551,6 +573,7 @@ window.addEventListener('transitionend', (e) => {
       ? (monthlyRemaining / limitValueRaw) * 100
       : 0;
     const rawPercentage = currentSettings?.show_remaining ? remainingRatio : usageRatio;
+    const paceStatus = computePaceStatus(usageRatio, paceRatio, currentSettings);
     
     // Exact percentage display
     const exactPercentEl = document.getElementById('exactPercent');
@@ -598,7 +621,7 @@ window.addEventListener('transitionend', (e) => {
     }
 
     if (pacePill && paceText && paceDetails) {
-      pacePill.classList.remove('pace-pill--ahead', 'pace-pill--on-track', 'pace-pill--behind', 'pace-pill--neutral');
+      pacePill.classList.remove('pace-pill--ahead', 'pace-pill--on_track', 'pace-pill--behind', 'pace-pill--neutral');
       const status = paceStatus || 'neutral';
       const labelMap = {
         ahead: 'Over pace',
@@ -621,11 +644,16 @@ window.addEventListener('transitionend', (e) => {
         paceDetails.textContent = '-';
       }
     }
+
+    if (usageBreakdown) {
+      usageBreakdown.classList.remove('usage-breakdown--ahead', 'usage-breakdown--on_track', 'usage-breakdown--behind', 'usage-breakdown--neutral');
+      const bandStatus = paceStatus || 'neutral';
+      usageBreakdown.classList.add(`usage-breakdown--${bandStatus}`);
+    }
     
     // Update menubar icon
     try {
-      const activeKeyLabel = currentSettings?.api_keys[currentSettings.active_api_key_index]?.label || '';
-      await invoke('update_menubar_display', { balance, settings: currentSettings, active_key_label: activeKeyLabel });
+      await invoke('update_menubar_display', { balance, settings: currentSettings });
     } catch (error) {
       console.error('Failed to update menubar icon:', error);
     }
@@ -676,33 +704,16 @@ window.addEventListener('transitionend', (e) => {
     ctx.clip();
     const fillPct = Math.max(0, Math.min(100, displayPct)) / 100;
     const fillY = yOff + hexHeight * (1 - fillPct);
-    ctx.fillStyle = '#006497';
+    const fillColor = paceStatus === 'ahead'
+      ? '#ef4444'
+      : paceStatus === 'behind'
+      ? '#f59e0b'
+      : paceStatus === 'on_track'
+      ? '#10b981'
+      : '#006497';
+    ctx.fillStyle = fillColor;
     ctx.fillRect(0, fillY, size, size);
     ctx.restore();
-
-    if (paceRatio !== null) {
-      // If showing remaining, we expect to have (1 - paceRatio) left
-      const effectivePace = currentSettings?.show_remaining ? (1.0 - paceRatio) : paceRatio;
-      const paceFill = Math.max(0, Math.min(1, effectivePace));
-      const paceY = yOff + hexHeight * (1 - paceFill);
-      const paceColor = paceStatus === 'ahead'
-        ? 'rgba(239, 68, 68, 0.75)'
-        : paceStatus === 'behind'
-        ? 'rgba(234, 179, 8, 0.85)'
-        : 'rgba(16, 185, 129, 0.7)';
-
-      ctx.save();
-      pathHex(ctx);
-      ctx.clip();
-      ctx.strokeStyle = paceColor;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([3, 2]);
-      ctx.beginPath();
-      ctx.moveTo(xOff + 2, paceY);
-      ctx.lineTo(xOff + hexWidth - 2, paceY);
-      ctx.stroke();
-      ctx.restore();
-    }
 
     // 2. Real Inner Shadow
     ctx.save();
@@ -784,6 +795,11 @@ window.addEventListener('transitionend', (e) => {
     alwaysOnTopToggle.checked = currentSettings.always_on_top;
     unfocusedOverlayToggle.checked = currentSettings.unfocused_overlay;
     decimalValue.textContent = currentSettings.decimal_places || 0;
+    if (paceWarnValue && paceOverValue) {
+      const { warn, over } = getPaceThresholds(currentSettings);
+      paceWarnValue.textContent = Math.round(warn);
+      paceOverValue.textContent = Math.round(over);
+    }
 
     shortcutInput.value = currentSettings.global_shortcut || 'F19';
     shortcutEnabledToggle.checked = currentSettings.global_shortcut_enabled;
@@ -806,6 +822,16 @@ window.addEventListener('transitionend', (e) => {
     }
   }
 
+  function setPaceThresholds(nextWarn, nextOver, silent = true) {
+    if (!paceWarnValue || !paceOverValue) return;
+
+    const warn = Math.max(0, Math.min(100, Math.round(nextWarn)));
+    const over = Math.max(warn + 1, Math.min(100, Math.round(nextOver)));
+    paceWarnValue.textContent = warn;
+    paceOverValue.textContent = over;
+    saveSettingsAction(silent);
+  }
+
   // Action: Save Settings
   async function saveSettingsAction(silent = false) {
     const newSettings = {
@@ -818,6 +844,8 @@ window.addEventListener('transitionend', (e) => {
       always_on_top: alwaysOnTopToggle.checked,
       unfocused_overlay: unfocusedOverlayToggle.checked,
       decimal_places: parseInt(decimalValue.textContent),
+      pace_warn_threshold: paceWarnValue ? parseFloat(paceWarnValue.textContent) : (currentSettings?.pace_warn_threshold ?? 15),
+      pace_over_threshold: paceOverValue ? parseFloat(paceOverValue.textContent) : (currentSettings?.pace_over_threshold ?? 25),
       global_shortcut: shortcutInput.value.trim() || 'F19',
       global_shortcut_enabled: shortcutEnabledToggle.checked,
       debug_logging_enabled: debugLoggingToggle.checked,
@@ -935,6 +963,29 @@ window.addEventListener('transitionend', (e) => {
       await saveSettingsAction(true);
     }
   };
+
+  if (paceWarnMinus && paceWarnPlus && paceOverMinus && paceOverPlus) {
+    paceWarnMinus.onclick = () => {
+      const warn = parseInt(paceWarnValue.textContent);
+      const over = parseInt(paceOverValue.textContent);
+      setPaceThresholds(warn - 1, over, true);
+    };
+    paceWarnPlus.onclick = () => {
+      const warn = parseInt(paceWarnValue.textContent);
+      const over = parseInt(paceOverValue.textContent);
+      setPaceThresholds(warn + 1, over, true);
+    };
+    paceOverMinus.onclick = () => {
+      const warn = parseInt(paceWarnValue.textContent);
+      const over = parseInt(paceOverValue.textContent);
+      setPaceThresholds(warn, over - 1, true);
+    };
+    paceOverPlus.onclick = () => {
+      const warn = parseInt(paceWarnValue.textContent);
+      const over = parseInt(paceOverValue.textContent);
+      setPaceThresholds(warn, over + 1, true);
+    };
+  }
 
   shortcutInput.onblur = () => saveSettingsAction(true);
   shortcutEnabledToggle.onchange = () => saveSettingsAction(true);

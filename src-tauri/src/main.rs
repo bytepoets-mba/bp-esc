@@ -159,6 +159,10 @@ pub struct AppSettings {
     pub decimal_places: u32,
     #[serde(default = "default_false")]
     pub debug_logging_enabled: bool,
+    #[serde(default = "default_pace_warn_threshold")]
+    pub pace_warn_threshold: f64,
+    #[serde(default = "default_pace_over_threshold")]
+    pub pace_over_threshold: f64,
 }
 
 fn default_refresh_interval() -> u32 { 5 }
@@ -166,6 +170,8 @@ fn default_true() -> bool { true }
 fn default_false() -> bool { false }
 fn default_zero() -> u32 { 0 }
 fn default_shortcut() -> String { "F19".to_string() }
+fn default_pace_warn_threshold() -> f64 { 15.0 }
+fn default_pace_over_threshold() -> f64 { 25.0 }
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -186,6 +192,8 @@ impl Default for AppSettings {
             unfocused_overlay: true,
             decimal_places: 0,
             debug_logging_enabled: false,
+            pace_warn_threshold: 15.0,
+            pace_over_threshold: 25.0,
         }
     }
 }
@@ -809,9 +817,36 @@ fn calculate_text_width(text: &str, font: &FontVec, scale: PxScale) -> i32 {
     width as i32
 }
 
+fn normalized_pace_thresholds(settings: &AppSettings) -> (f64, f64) {
+    let warn = settings.pace_warn_threshold.max(0.0);
+    let over = settings.pace_over_threshold.max(warn + 1.0);
+    (warn, over)
+}
+
+fn compute_pace_status(balance: &BalanceData, settings: &AppSettings) -> Option<&'static str> {
+    let pace_ratio = balance.pace_ratio?;
+    let limit = balance.limit?;
+    if limit <= 0.0 {
+        return None;
+    }
+
+    let usage = balance.usage_monthly.or(balance.usage)?;
+    let usage_ratio = (usage / limit) * 100.0;
+    let pace_percent = (pace_ratio * 100.0).clamp(0.0, 100.0);
+    let (warn, over) = normalized_pace_thresholds(settings);
+
+    if usage_ratio > pace_percent + over {
+        Some("ahead")
+    } else if usage_ratio > pace_percent + warn {
+        Some("behind")
+    } else {
+        Some("on_track")
+    }
+}
+
 /// Update system tray icon with current balance percentage or absolute value
 #[tauri::command]
-fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, settings: AppSettings, active_key_label: String) -> Result<(), String> {
+fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, settings: AppSettings) -> Result<(), String> {
     let display_value = if settings.show_percentage {
         // Percentage logic: relative to limit
         let val = if let Some(limit) = balance.limit {
@@ -852,14 +887,13 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
         || balance.usage.is_some()
         || balance.limit.is_some();
     
-    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance, &active_key_label)?;
+    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance)?;
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
         tray.set_icon(Some(icon))
             .map_err(|e| format!("Failed to update tray icon: {}", e))?;
         
         #[cfg(target_os = "macos")]
         {
-            // Use full-color rendering to preserve hex fill + emoji label
             tray.set_icon_as_template(false)
                 .map_err(|e| format!("Failed to set icon template mode: {}", e))?;
         }
@@ -868,7 +902,7 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
 }
 
 /// Generate hybrid menubar icon with logo and normal white text
-fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings, balance: &BalanceData, _active_key_label: &str) -> Result<Image<'static>, String> {
+fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings, balance: &BalanceData) -> Result<Image<'static>, String> {
     let scale = MENUBAR_RENDER_SCALE;
     
     // Load Logo
@@ -974,17 +1008,12 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     let border_thickness = (HEX_BORDER_PTS * scale) as i32;
     let white = Rgba([255, 255, 255, 255]);
     let transparent = Rgba([0, 0, 0, 0]);
-    let fill_white = Rgba([255, 255, 255, 128]); // 50% transparent white for fill
-    let pace_color = match balance.pace_status.as_deref() {
-        Some("ahead") => Rgba([239, 68, 68, 190]),
+    let fill_color = match compute_pace_status(balance, settings) {
+        Some("ahead") => Rgba([239, 68, 68, 200]),
         Some("behind") => Rgba([234, 179, 8, 210]),
-        Some("on_track") => Rgba([16, 185, 129, 180]),
-        _ => Rgba([148, 163, 184, 120]),
+        Some("on_track") => Rgba([16, 185, 129, 200]),
+        _ => Rgba([255, 255, 255, 128]),
     };
-    let pace_ratio = balance.pace_ratio.unwrap_or(0.0).clamp(0.0, 1.0) as f32;
-    let pace_y = hex_y_offset + hex_height * (1.0 - pace_ratio);
-    let pace_band = (1.2 * scale).max(1.0) as f32;
-    let pace_has = balance.pace_ratio.is_some();
 
     // Rasterize Hexagon
     for y in 0..canvas_height {
@@ -1000,55 +1029,14 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
                     let relative_y = (y as f32 - hex_y_offset) / hex_height;
                     let inverted_fill = 1.0f32 - fill_pct;
                     if relative_y > inverted_fill {
-                        img.put_pixel(x, y, fill_white);
+                        img.put_pixel(x, y, fill_color);
                     } else {
                         img.put_pixel(x, y, transparent);
                     }
-
-                    if pace_has {
-                        let y_f = y as f32;
-                        if (y_f - pace_y).abs() <= pace_band {
-                            img.put_pixel(x, y, pace_color);
-                        }
-                    }
                 }
             }
         }
     }
-
-    if pace_has {
-        let center_x = (hex_x_offset + hex_width / 2.0) as i32;
-        let center_y = pace_y.round() as i32;
-        let dot_radius = (2.2 * scale).max(1.8) as i32;
-        for dy in -dot_radius..=dot_radius {
-            for dx in -dot_radius..=dot_radius {
-                if dx * dx + dy * dy <= dot_radius * dot_radius {
-                    let px = center_x + dx;
-                    let py = center_y + dy;
-                    if px >= 0 && py >= 0 && (px as u32) < canvas_width && (py as u32) < canvas_height {
-                        img.put_pixel(px as u32, py as u32, pace_color);
-                    }
-                }
-            }
-        }
-
-        for dx in -(dot_radius + 1)..=(dot_radius + 1) {
-            let px = center_x + dx;
-            let py_top = center_y - dot_radius - 2;
-            let py_bottom = center_y + dot_radius + 2;
-            if px >= 0 && (px as u32) < canvas_width {
-                if py_top >= 0 && (py_top as u32) < canvas_height {
-                    img.put_pixel(px as u32, py_top as u32, pace_color);
-                }
-                if py_bottom >= 0 && (py_bottom as u32) < canvas_height {
-                    img.put_pixel(px as u32, py_bottom as u32, pace_color);
-                }
-            }
-        }
-    }
-    
-    // Draw first letter of active API key label in center of hexagon
-    // Disabled for now to avoid rendering issues with emoji on some macOS trays.
     
     if !has_data {
         let rgba = img.into_raw();
@@ -1231,7 +1219,7 @@ fn main() {
       pace_ratio: None,
       pace_status: None,
       label: None,
-  }, "").ok();
+  }).ok();
       let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(initial_icon.unwrap_or_else(|| Image::from_bytes(include_bytes!("../icons/32x32.png")).unwrap()))
         .menu(&menu)

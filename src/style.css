@@ -440,6 +440,16 @@ body.unfocused .container::after {
   margin-bottom: 0;
 }
 
+.setting-item .subheader {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 0.6rem;
+}
+
 .number-input .unit {
   font-size: 0.7rem;
   color: #9ca3af;
@@ -859,6 +869,22 @@ input[type="text"] {
   right: 0;
   height: 4px;
   background: linear-gradient(90deg, rgba(234, 179, 8, 0.9), rgba(234, 179, 8, 0.2));
+}
+
+.usage-breakdown--ahead::before {
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.9), rgba(239, 68, 68, 0.2));
+}
+
+.usage-breakdown--on_track::before {
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.9), rgba(16, 185, 129, 0.2));
+}
+
+.usage-breakdown--behind::before {
+  background: linear-gradient(90deg, rgba(234, 179, 8, 0.9), rgba(234, 179, 8, 0.2));
+}
+
+.usage-breakdown--neutral::before {
+  background: linear-gradient(90deg, rgba(107, 114, 128, 0.7), rgba(107, 114, 128, 0.2));
 }
 
 .usage-header {
