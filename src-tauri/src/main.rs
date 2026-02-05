@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use chrono::{Datelike, Local, TimeZone, Timelike};
+use tauri::Theme;
 use tauri::{
     AppHandle, Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter, State,
     menu::{Menu, MenuItemBuilder},
@@ -532,7 +533,7 @@ fn save_api_key(key: String) -> Result<(), String> {
 }
 
 /// Balance data returned from OpenRouter API
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BalanceData {
     pub limit: Option<f64>,
     pub usage: Option<f64>,
@@ -550,6 +551,12 @@ pub struct BalanceData {
     pub pace_day_delta_percent: Option<f64>,
     pub pace_status: Option<String>,
     pub label: Option<String>,
+}
+
+#[derive(Default)]
+struct MenubarState {
+    balance: Mutex<Option<BalanceData>>,
+    settings: Mutex<Option<AppSettings>>,
 }
 
 /// Response from OpenRouter API /api/v1/key endpoint
@@ -906,6 +913,14 @@ fn compute_pace_status(balance: &BalanceData, settings: &AppSettings) -> Option<
 /// Update system tray icon with current balance percentage or absolute value
 #[tauri::command]
 fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, settings: AppSettings) -> Result<(), String> {
+    if let Some(state) = app_handle.try_state::<MenubarState>() {
+        if let Ok(mut stored) = state.balance.lock() {
+            *stored = Some(balance.clone());
+        }
+        if let Ok(mut stored) = state.settings.lock() {
+            *stored = Some(settings.clone());
+        }
+    }
     let display_value = if settings.show_percentage {
         // Percentage logic: relative to limit
         let val = if let Some(limit) = balance.limit {
@@ -946,7 +961,8 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
         || balance.usage.is_some()
         || balance.limit.is_some();
     
-    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance)?;
+    let is_dark = app_handle.theme().map(|theme| matches!(theme, Theme::Dark)).unwrap_or(false);
+    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance, is_dark)?;
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
         tray.set_icon(Some(icon))
             .map_err(|e| format!("Failed to update tray icon: {}", e))?;
@@ -961,7 +977,7 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
 }
 
 /// Generate hybrid menubar icon with logo and normal white text
-fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings, balance: &BalanceData) -> Result<Image<'static>, String> {
+fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings, balance: &BalanceData, is_dark: bool) -> Result<Image<'static>, String> {
     let scale = MENUBAR_RENDER_SCALE;
     
     // Load Logo
@@ -1066,6 +1082,8 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
 
     let border_thickness = (HEX_BORDER_PTS * scale) as i32;
     let white = Rgba([255, 255, 255, 255]);
+    let black = Rgba([0, 0, 0, 255]);
+    let stroke_color = if is_dark { white } else { black };
     let transparent = Rgba([0, 0, 0, 0]);
     let fill_color = if settings.menubar_monochrome {
         Rgba([255, 255, 255, 180])
@@ -1086,7 +1104,7 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
                 
                 if dist < border_thickness as f32 {
                     // Border
-                    img.put_pixel(x, y, white);
+                    img.put_pixel(x, y, stroke_color);
                 } else {
                     // Interior - vertical fill logic
                     let relative_y = (y as f32 - hex_y_offset) / hex_height;
@@ -1107,7 +1125,7 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     }
 
     // 2. Draw Text (White)
-    let text_color = Rgba([255, 255, 255, 255]);
+    let text_color = stroke_color;
     let mut current_x = (HEX_SIZE_PTS + LOGO_TEXT_GAP) * scale;
     
     if is_percentage {
@@ -1250,6 +1268,7 @@ fn main() {
   
   builder
     .manage(AutoRefreshState::new())
+    .manage(MenubarState::default())
     .setup(|app| {
       #[cfg(target_os = "macos")]
       {
@@ -1271,6 +1290,7 @@ fn main() {
       let menu = Menu::with_items(app, &[&show_hide, &quit])?;
       
       // Create tray icon
+  let initial_is_dark = app.app_handle().theme().map(|theme| matches!(theme, Theme::Dark)).unwrap_or(false);
   let initial_icon = generate_hybrid_menubar_icon(0.0, true, false, true, &AppSettings::default(), &BalanceData {
       limit: None,
       usage: None,
@@ -1288,7 +1308,7 @@ fn main() {
       pace_day_delta_percent: None,
       pace_status: None,
       label: None,
-  }).ok();
+  }, initial_is_dark).ok();
       let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(initial_icon.unwrap_or_else(|| Image::from_bytes(include_bytes!("../icons/32x32.png")).unwrap()))
         .menu(&menu)
@@ -1357,6 +1377,18 @@ fn main() {
       if let WindowEvent::CloseRequested { api, .. } = event {
         window.hide().unwrap();
         api.prevent_close();
+      }
+
+      #[cfg(target_os = "macos")]
+      if let WindowEvent::ThemeChanged(_) = event {
+        let app_handle = window.app_handle();
+        if let Some(state) = app_handle.try_state::<MenubarState>() {
+          let balance = state.balance.lock().ok().and_then(|stored| stored.clone());
+          let settings = state.settings.lock().ok().and_then(|stored| stored.clone());
+          if let (Some(balance), Some(settings)) = (balance, settings) {
+            let _ = update_menubar_display(app_handle.clone(), balance, settings);
+          }
+        }
       }
     })
     .invoke_handler(tauri::generate_handler![
