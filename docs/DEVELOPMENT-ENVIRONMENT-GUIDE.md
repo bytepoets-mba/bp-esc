@@ -37,6 +37,8 @@ npm run build:frontend && npm run dev
 
 The app will launch with hot-reload enabled.
 
+**Build-only debug (no extra dev run):** If a dev instance is already running, use `npm run build` to surface build errors without starting another dev process. This runs the frontend copy step plus `tauri build`.
+
 **Note**: The Tauri CLI is provided via npm (`@tauri-apps/cli` in `devDependencies`), not via cargo install. This ensures the environment is fully declarative and reproducible.
 
 ### Testing Config File I/O
