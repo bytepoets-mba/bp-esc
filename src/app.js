@@ -1219,8 +1219,24 @@ window.addEventListener('transitionend', (e) => {
           return;
         }
 
-        const { checkForUpdates } = await import('tauri-plugin-sparkle-updater-api');
-        await checkForUpdates();
+        if (window.location.protocol.startsWith('http')) {
+          showError('Auto-update is only available in release builds');
+          return;
+        }
+
+        let canCheck = null;
+        try {
+          canCheck = await invoke('plugin:sparkle-updater|can_check_for_updates');
+        } catch (checkError) {
+          canCheck = false;
+        }
+
+        if (canCheck !== true) {
+          showError('Auto-update is only available in release builds');
+          return;
+        }
+
+        await invoke('plugin:sparkle-updater|check_for_updates');
       } catch (error) {
         console.error('Update check failed:', error);
         const message = String(error?.message || error);

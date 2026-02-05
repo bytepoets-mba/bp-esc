@@ -12,6 +12,8 @@
     "core:window:allow-set-title",
     "global-shortcut:allow-is-registered",
     "global-shortcut:allow-register",
-    "global-shortcut:allow-unregister"
+    "global-shortcut:allow-unregister",
+    "sparkle-updater:default",
+    "sparkle-updater:allow-can-check-for-updates"
   ]
 }
