@@ -9,7 +9,7 @@ use std::os::unix::fs::PermissionsExt; // macOS is Unix
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
-use chrono::{Datelike, TimeZone, Utc};
+use chrono::{Datelike, Local, TimeZone, Timelike};
 use tauri::{
     AppHandle, Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter, State,
     menu::{Menu, MenuItemBuilder},
@@ -542,6 +542,12 @@ pub struct BalanceData {
     pub remaining: Option<f64>,
     pub remaining_monthly: Option<f64>,
     pub pace_ratio: Option<f64>,
+    pub pace_month_target: Option<f64>,
+    pub pace_week_target: Option<f64>,
+    pub pace_day_target: Option<f64>,
+    pub pace_month_delta_percent: Option<f64>,
+    pub pace_week_delta_percent: Option<f64>,
+    pub pace_day_delta_percent: Option<f64>,
     pub pace_status: Option<String>,
     pub label: Option<String>,
 }
@@ -647,39 +653,75 @@ async fn fetch_balance(app: AppHandle, api_key: String) -> Result<BalanceData, S
         _ => data.limit_remaining,
     };
 
-    // Pace ratio: how far through the month we are (0..1)
-    let now = Utc::now();
+    // Pace ratio: how far through the month we are (0..1), using local time + fractional day
+    let now = Local::now();
+    let day_fraction = (now.hour() as f64 + (now.minute() as f64 / 60.0) + (now.second() as f64 / 3600.0)) / 24.0;
     let day_of_month = now.day() as f64;
     let days_in_month = {
         let year = now.year();
         let month = now.month();
         let first_next_month = if month == 12 {
-            Utc.with_ymd_and_hms(year + 1, 1, 1, 0, 0, 0).unwrap()
+            Local.with_ymd_and_hms(year + 1, 1, 1, 0, 0, 0).unwrap()
         } else {
-            Utc.with_ymd_and_hms(year, month + 1, 1, 0, 0, 0).unwrap()
+            Local.with_ymd_and_hms(year, month + 1, 1, 0, 0, 0).unwrap()
         };
         let last_this_month = first_next_month - chrono::Duration::days(1);
         last_this_month.day() as f64
     };
+    let elapsed_days = (day_of_month - 1.0) + day_fraction;
     let pace_ratio = if days_in_month > 0.0 {
-        Some(((day_of_month - 1.0) / days_in_month).clamp(0.0, 1.0))
+        Some((elapsed_days / days_in_month).clamp(0.0, 1.0))
     } else {
         None
     };
 
-    let pace_status = match (pace_ratio, data.limit, usage_monthly) {
-        (Some(pace), Some(limit), Some(usage_monthly)) if limit > 0.0 => {
-            let usage_ratio = (usage_monthly / limit).clamp(0.0, 1.5);
-            if usage_ratio > pace + 0.12 {
-                Some("ahead".to_string())
-            } else if usage_ratio > pace + 0.03 {
-                Some("behind".to_string())
+    let (pace_month_target, pace_week_target, pace_day_target, pace_month_delta_percent, pace_week_delta_percent, pace_day_delta_percent) =
+        if let (Some(limit), Some(usage_monthly)) = (data.limit, usage_monthly) {
+            if limit > 0.0 && days_in_month > 0.0 {
+                let daily_budget = limit / days_in_month;
+                let pace_month_target = (daily_budget * elapsed_days).clamp(0.0, limit);
+
+                let weekday_index = now.weekday().num_days_from_monday() as f64;
+                let elapsed_week_days = (weekday_index + day_fraction).clamp(0.0, 7.0);
+                let pace_week_target = (daily_budget * elapsed_week_days).clamp(0.0, limit);
+                let pace_day_target = (daily_budget * day_fraction).clamp(0.0, limit);
+
+                let percent_from_target = |usage: f64, target: f64| {
+                    if target > 0.0 {
+                        Some(((usage - target) / target) * 100.0)
+                    } else {
+                        None
+                    }
+                };
+
+                let pace_month_delta_percent = percent_from_target(usage_monthly, pace_month_target);
+                let pace_week_delta_percent = data
+                    .usage_weekly
+                    .and_then(|usage_weekly| percent_from_target(usage_weekly, pace_week_target));
+                let pace_day_delta_percent = data
+                    .usage_daily
+                    .and_then(|usage_daily| percent_from_target(usage_daily, pace_day_target));
+
+                (
+                    Some(pace_month_target),
+                    Some(pace_week_target),
+                    Some(pace_day_target),
+                    pace_month_delta_percent,
+                    pace_week_delta_percent,
+                    pace_day_delta_percent,
+                )
             } else {
-                Some("on_track".to_string())
+                (None, None, None, None, None, None)
             }
-        }
-        _ => None,
-    };
+        } else {
+            (None, None, None, None, None, None)
+        };
+
+    let pace_status = pace_month_delta_percent.map(|delta| {
+        let warn = default_pace_warn_threshold();
+        let over = default_pace_over_threshold();
+        pace_status_from_delta(delta, warn, over).to_string()
+    });
     
     Ok(BalanceData {
         limit: data.limit,
@@ -690,6 +732,12 @@ async fn fetch_balance(app: AppHandle, api_key: String) -> Result<BalanceData, S
         remaining,
         remaining_monthly,
         pace_ratio,
+        pace_month_target,
+        pace_week_target,
+        pace_day_target,
+        pace_month_delta_percent,
+        pace_week_delta_percent,
+        pace_day_delta_percent,
         pace_status,
         label: data.label,
     })
@@ -826,7 +874,22 @@ fn normalized_pace_thresholds(settings: &AppSettings) -> (f64, f64) {
     (warn, over)
 }
 
+fn pace_status_from_delta(delta_percent: f64, warn: f64, over: f64) -> &'static str {
+    if delta_percent > over {
+        "ahead"
+    } else if delta_percent > warn {
+        "behind"
+    } else {
+        "on_track"
+    }
+}
+
 fn compute_pace_status(balance: &BalanceData, settings: &AppSettings) -> Option<&'static str> {
+    let (warn, over) = normalized_pace_thresholds(settings);
+    if let Some(delta_percent) = balance.pace_month_delta_percent {
+        return Some(pace_status_from_delta(delta_percent, warn, over));
+    }
+
     let pace_ratio = balance.pace_ratio?;
     let limit = balance.limit?;
     if limit <= 0.0 {
@@ -836,15 +899,8 @@ fn compute_pace_status(balance: &BalanceData, settings: &AppSettings) -> Option<
     let usage = balance.usage_monthly.or(balance.usage)?;
     let usage_ratio = (usage / limit) * 100.0;
     let pace_percent = (pace_ratio * 100.0).clamp(0.0, 100.0);
-    let (warn, over) = normalized_pace_thresholds(settings);
-
-    if usage_ratio > pace_percent + over {
-        Some("ahead")
-    } else if usage_ratio > pace_percent + warn {
-        Some("behind")
-    } else {
-        Some("on_track")
-    }
+    let delta_percent = usage_ratio - pace_percent;
+    Some(pace_status_from_delta(delta_percent, warn, over))
 }
 
 /// Update system tray icon with current balance percentage or absolute value
@@ -1224,6 +1280,12 @@ fn main() {
       remaining: None,
       remaining_monthly: None,
       pace_ratio: None,
+      pace_month_target: None,
+      pace_week_target: None,
+      pace_day_target: None,
+      pace_month_delta_percent: None,
+      pace_week_delta_percent: None,
+      pace_day_delta_percent: None,
       pace_status: None,
       label: None,
   }).ok();

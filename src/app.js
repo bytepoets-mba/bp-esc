@@ -74,11 +74,14 @@ window.addEventListener('DOMContentLoaded', () => {
   const limitValue = document.getElementById('limitValue');
   const usageValue = document.getElementById('usageValue');
   const remainingValue = document.getElementById('remainingValue');
-  const usageDailyValue = document.getElementById('usageDaily');
-  const usageWeeklyValue = document.getElementById('usageWeekly');
+  const usageMonthValue = document.getElementById('usageMonthValue');
+  const usageWeekValue = document.getElementById('usageWeekValue');
+  const usageDayValue = document.getElementById('usageDayValue');
+  const usageMonthDetail = document.getElementById('usageMonthDetail');
+  const usageWeekDetail = document.getElementById('usageWeekDetail');
+  const usageDayDetail = document.getElementById('usageDayDetail');
   const paceText = document.getElementById('paceText');
   const pacePill = document.getElementById('pacePill');
-  const paceDetails = document.getElementById('paceDetails');
   const usageBreakdown = document.getElementById('usageBreakdown');
   const percentCaption = document.getElementById('percentCaption');
   const lastUpdated = document.getElementById('lastUpdated');
@@ -532,14 +535,33 @@ window.addEventListener('transitionend', (e) => {
     return { warn, over };
   }
 
-  function computePaceStatus(usageRatio, paceRatio, settings) {
-    if (paceRatio == null || usageRatio == null) return null;
-    const pacePercent = Math.max(0, Math.min(100, paceRatio * 100));
+  function computePaceStatus(deltaPercent, settings) {
+    if (deltaPercent == null) return null;
     const { warn, over } = getPaceThresholds(settings);
 
-    if (usageRatio > pacePercent + over) return 'ahead';
-    if (usageRatio > pacePercent + warn) return 'behind';
+    if (deltaPercent > over) return 'ahead';
+    if (deltaPercent > warn) return 'behind';
     return 'on_track';
+  }
+
+  function getDayProgress(date = new Date()) {
+    const hours = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
+    return Math.min(1, Math.max(0, hours / 24));
+  }
+
+  function getWeekElapsedDays(date = new Date()) {
+    const day = date.getDay();
+    const dayIndex = (day + 6) % 7; // Monday = 0
+    return Math.min(7, Math.max(0, dayIndex + getDayProgress(date)));
+  }
+
+  function getMonthContext(date = new Date()) {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const dayFraction = getDayProgress(date);
+    const elapsedDays = (date.getDate() - 1) + dayFraction;
+    return { daysInMonth, elapsedDays, dayFraction };
   }
 
   // Display balance
@@ -561,10 +583,16 @@ window.addEventListener('transitionend', (e) => {
     
     // Check if we have valid balance data
     const hasData = balance && balance.limit != null && (balance.remaining_monthly != null || balance.usage_monthly != null);
-    const monthlyUsage = balance?.usage_monthly ?? null;
+    const monthlyUsage = balance?.usage_monthly ?? balance?.usage ?? null;
     const monthlyRemaining = balance?.remaining_monthly ?? (balance?.limit != null && monthlyUsage != null ? balance.limit - monthlyUsage : null);
     const paceRatio = balance?.pace_ratio ?? null;
     const limitValueRaw = balance?.limit ?? null;
+    let paceMonthTarget = balance?.pace_month_target ?? null;
+    let paceWeekTarget = balance?.pace_week_target ?? null;
+    let paceDayTarget = balance?.pace_day_target ?? null;
+    let paceMonthDeltaPercent = balance?.pace_month_delta_percent ?? null;
+    let paceWeekDeltaPercent = balance?.pace_week_delta_percent ?? null;
+    let paceDayDeltaPercent = balance?.pace_day_delta_percent ?? null;
     
     // Calculate percentage
     const usageRatio = (hasData && limitValueRaw > 0 && monthlyUsage != null)
@@ -574,7 +602,29 @@ window.addEventListener('transitionend', (e) => {
       ? (monthlyRemaining / limitValueRaw) * 100
       : 0;
     const rawPercentage = currentSettings?.show_remaining ? remainingRatio : usageRatio;
-    const paceStatus = computePaceStatus(usageRatio, paceRatio, currentSettings);
+
+    if (limitValueRaw > 0 && (paceMonthTarget == null || paceWeekTarget == null || paceDayTarget == null)) {
+      const { daysInMonth, elapsedDays, dayFraction } = getMonthContext();
+      const dailyBudget = daysInMonth > 0 ? limitValueRaw / daysInMonth : 0;
+      const weekElapsed = getWeekElapsedDays();
+      if (paceMonthTarget == null) paceMonthTarget = dailyBudget * elapsedDays;
+      if (paceWeekTarget == null) paceWeekTarget = dailyBudget * weekElapsed;
+      if (paceDayTarget == null) paceDayTarget = dailyBudget * dayFraction;
+    }
+
+    if (limitValueRaw > 0) {
+      if (paceMonthDeltaPercent == null && paceMonthTarget != null && monthlyUsage != null && paceMonthTarget > 0) {
+        paceMonthDeltaPercent = ((monthlyUsage - paceMonthTarget) / paceMonthTarget) * 100;
+      }
+      if (paceWeekDeltaPercent == null && paceWeekTarget != null && balance?.usage_weekly != null && paceWeekTarget > 0) {
+        paceWeekDeltaPercent = ((balance.usage_weekly - paceWeekTarget) / paceWeekTarget) * 100;
+      }
+      if (paceDayDeltaPercent == null && paceDayTarget != null && balance?.usage_daily != null && paceDayTarget > 0) {
+        paceDayDeltaPercent = ((balance.usage_daily - paceDayTarget) / paceDayTarget) * 100;
+      }
+    }
+
+    const paceStatus = computePaceStatus(paceMonthDeltaPercent, currentSettings);
     
     // Exact percentage display
     const exactPercentEl = document.getElementById('exactPercent');
@@ -609,8 +659,9 @@ window.addEventListener('transitionend', (e) => {
     updateValue(limitValue, formatCurrency(hasData ? balance.limit : null));
     updateValue(usageValue, formatCurrency(hasData ? monthlyUsage : null));
     updateValue(remainingValue, formatCurrency(hasData ? monthlyRemaining : null));
-    updateValue(usageDailyValue, formatCurrency(hasData ? balance.usage_daily : null));
-    updateValue(usageWeeklyValue, formatCurrency(hasData ? balance.usage_weekly : null));
+    updateValue(usageMonthValue, formatCurrency(hasData ? monthlyUsage : null));
+    updateValue(usageWeekValue, formatCurrency(hasData ? balance.usage_weekly : null));
+    updateValue(usageDayValue, formatCurrency(hasData ? balance.usage_daily : null));
     
     // Color code remaining
     if (hasData && monthlyRemaining !== null) {
@@ -621,7 +672,7 @@ window.addEventListener('transitionend', (e) => {
       remainingValue.style.color = ''; // Reset to default
     }
 
-    if (pacePill && paceText && paceDetails) {
+    if (pacePill && paceText) {
       pacePill.classList.remove('pace-pill--ahead', 'pace-pill--on_track', 'pace-pill--behind', 'pace-pill--neutral');
       const status = paceStatus || 'neutral';
       const labelMap = {
@@ -632,18 +683,21 @@ window.addEventListener('transitionend', (e) => {
       };
       pacePill.classList.add(`pace-pill--${status}`);
       paceText.textContent = labelMap[status] || '-';
+    }
 
-      if (paceRatio != null) {
-        const decimals = Math.max(0, Math.min(2, currentSettings?.decimal_places ?? 1));
-        const pacePercent = (paceRatio * 100).toFixed(decimals);
-        const usedPercent = usageRatio.toFixed(decimals);
-        const difference = (pacePercent-usedPercent).toFixed(decimals);
-        const sign = difference > 0 ? '+' : '-';
-        const sign2 = difference > 0 ? 'extra' : 'over';
-        paceDetails.textContent = `${sign}${Math.abs(difference)}% ${sign2}`;
-      } else {
-        paceDetails.textContent = '-';
-      }
+    if (usageMonthDetail && usageWeekDetail && usageDayDetail) {
+      const decimals = Math.max(0, Math.min(2, currentSettings?.decimal_places ?? 1));
+      const formatPaceDetail = (deltaPercent, target) => {
+        if (deltaPercent == null || target == null || limitValueRaw <= 0) return '-';
+        const sign = deltaPercent >= 0 ? '+' : '-';
+        const label = deltaPercent >= 0 ? 'over' : 'under';
+        const percentText = Math.abs(deltaPercent).toFixed(decimals);
+        return `${sign}${percentText}% ${label} ${formatCurrency(target)}`;
+      };
+
+      usageMonthDetail.textContent = formatPaceDetail(paceMonthDeltaPercent, paceMonthTarget);
+      usageWeekDetail.textContent = formatPaceDetail(paceWeekDeltaPercent, paceWeekTarget);
+      usageDayDetail.textContent = formatPaceDetail(paceDayDeltaPercent, paceDayTarget);
     }
 
     if (usageBreakdown) {
