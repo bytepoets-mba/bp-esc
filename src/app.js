@@ -103,6 +103,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const decimalValue = document.getElementById('decimalValue');
   const decimalMinus = document.getElementById('decimalMinus');
   const decimalPlus = document.getElementById('decimalPlus');
+  const menubarMonochromeToggle = document.getElementById('menubarMonochromeToggle');
   const paceWarnValue = document.getElementById('paceWarnValue');
   const paceWarnMinus = document.getElementById('paceWarnMinus');
   const paceWarnPlus = document.getElementById('paceWarnPlus');
@@ -795,6 +796,9 @@ window.addEventListener('transitionend', (e) => {
     alwaysOnTopToggle.checked = currentSettings.always_on_top;
     unfocusedOverlayToggle.checked = currentSettings.unfocused_overlay;
     decimalValue.textContent = currentSettings.decimal_places || 0;
+    if (menubarMonochromeToggle) {
+      menubarMonochromeToggle.checked = currentSettings.menubar_monochrome || false;
+    }
     if (paceWarnValue && paceOverValue) {
       const { warn, over } = getPaceThresholds(currentSettings);
       paceWarnValue.textContent = Math.round(warn);
@@ -844,6 +848,7 @@ window.addEventListener('transitionend', (e) => {
       always_on_top: alwaysOnTopToggle.checked,
       unfocused_overlay: unfocusedOverlayToggle.checked,
       decimal_places: parseInt(decimalValue.textContent),
+      menubar_monochrome: menubarMonochromeToggle ? menubarMonochromeToggle.checked : (currentSettings?.menubar_monochrome ?? false),
       pace_warn_threshold: paceWarnValue ? parseFloat(paceWarnValue.textContent) : (currentSettings?.pace_warn_threshold ?? 15),
       pace_over_threshold: paceOverValue ? parseFloat(paceOverValue.textContent) : (currentSettings?.pace_over_threshold ?? 25),
       global_shortcut: shortcutInput.value.trim() || 'F19',
@@ -948,6 +953,9 @@ window.addEventListener('transitionend', (e) => {
       document.body.classList.add('unfocused');
     }
   };
+  if (menubarMonochromeToggle) {
+    menubarMonochromeToggle.onchange = () => saveSettingsAction(true);
+  }
   
   decimalMinus.onclick = async () => {
     let val = parseInt(decimalValue.textContent);

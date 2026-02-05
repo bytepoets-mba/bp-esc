@@ -159,6 +159,8 @@ pub struct AppSettings {
     pub decimal_places: u32,
     #[serde(default = "default_false")]
     pub debug_logging_enabled: bool,
+    #[serde(default = "default_false")]
+    pub menubar_monochrome: bool,
     #[serde(default = "default_pace_warn_threshold")]
     pub pace_warn_threshold: f64,
     #[serde(default = "default_pace_over_threshold")]
@@ -192,6 +194,7 @@ impl Default for AppSettings {
             unfocused_overlay: true,
             decimal_places: 0,
             debug_logging_enabled: false,
+            menubar_monochrome: false,
             pace_warn_threshold: 15.0,
             pace_over_threshold: 25.0,
         }
@@ -894,7 +897,7 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
         
         #[cfg(target_os = "macos")]
         {
-            tray.set_icon_as_template(false)
+            tray.set_icon_as_template(settings.menubar_monochrome)
                 .map_err(|e| format!("Failed to set icon template mode: {}", e))?;
         }
     }
@@ -1008,11 +1011,15 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     let border_thickness = (HEX_BORDER_PTS * scale) as i32;
     let white = Rgba([255, 255, 255, 255]);
     let transparent = Rgba([0, 0, 0, 0]);
-    let fill_color = match compute_pace_status(balance, settings) {
-        Some("ahead") => Rgba([239, 68, 68, 200]),
-        Some("behind") => Rgba([234, 179, 8, 210]),
-        Some("on_track") => Rgba([16, 185, 129, 200]),
-        _ => Rgba([255, 255, 255, 128]),
+    let fill_color = if settings.menubar_monochrome {
+        Rgba([255, 255, 255, 180])
+    } else {
+        match compute_pace_status(balance, settings) {
+            Some("ahead") => Rgba([239, 68, 68, 200]),
+            Some("behind") => Rgba([234, 179, 8, 210]),
+            Some("on_track") => Rgba([16, 185, 129, 200]),
+            _ => Rgba([255, 255, 255, 128]),
+        }
     };
 
     // Rasterize Hexagon
