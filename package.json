@@ -9,12 +9,12 @@
     "build:frontend": "mkdir -p dist && cp -r src/index.html src/app.js src/style.css src/assets dist/"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.0.0",
-    "@tauri-apps/plugin-autostart": "^2.5.1",
+    "@tauri-apps/api": "2.9.1",
+    "@tauri-apps/plugin-autostart": "2.5.1",
     "tauri-plugin-sparkle-updater-api": "^0.2.2"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0",
+    "@tauri-apps/cli": "2.9.6",
     "appdmg": "^0.6.6"
   }
 }

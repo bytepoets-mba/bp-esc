@@ -961,7 +961,11 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
         || balance.usage.is_some()
         || balance.limit.is_some();
     
-    let is_dark = app_handle.theme().map(|theme| matches!(theme, Theme::Dark)).unwrap_or(false);
+    let is_dark = app_handle
+        .get_webview_window("main")
+        .and_then(|window| window.theme().ok())
+        .map(|theme| matches!(theme, Theme::Dark))
+        .unwrap_or(false);
     let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance, is_dark)?;
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
         tray.set_icon(Some(icon))
@@ -1290,7 +1294,11 @@ fn main() {
       let menu = Menu::with_items(app, &[&show_hide, &quit])?;
       
       // Create tray icon
-  let initial_is_dark = app.app_handle().theme().map(|theme| matches!(theme, Theme::Dark)).unwrap_or(false);
+  let initial_is_dark = app
+    .get_webview_window("main")
+    .and_then(|window| window.theme().ok())
+    .map(|theme| matches!(theme, Theme::Dark))
+    .unwrap_or(false);
   let initial_icon = generate_hybrid_menubar_icon(0.0, true, false, true, &AppSettings::default(), &BalanceData {
       limit: None,
       usage: None,
