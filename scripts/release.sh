@@ -39,6 +39,7 @@ VERSION FILES:
     - src-tauri/tauri.conf.json
     - src-tauri/Cargo.toml
     - package.json
+    - src-tauri/Info.plist (CFBundleShortVersionString + CFBundleVersion)
 EOF
     exit 0
 }
@@ -114,6 +115,28 @@ sync_versions() {
     mv "$temp_file" package.json
     print_success "Updated package.json"
     
+    # Update Info.plist
+    sed -i.bak "s|<string>[0-9]*\.[0-9]*\.[0-9]*</string><!-- CFBundleShortVersionString -->|<string>$target_version</string><!-- CFBundleShortVersionString -->|" src-tauri/Info.plist 2>/dev/null || true
+    # Fallback: update the version after CFBundleShortVersionString key
+    python3 -c "
+import re, sys
+with open('src-tauri/Info.plist', 'r') as f:
+    content = f.read()
+content = re.sub(
+    r'(<key>CFBundleShortVersionString</key>\s*<string>)[^<]*(</string>)',
+    r'\g<1>$target_version\2',
+    content
+)
+content = re.sub(
+    r'(<key>CFBundleVersion</key>\s*<string>)[^<]*(</string>)',
+    r'\g<1>$target_version\2',
+    content
+)
+with open('src-tauri/Info.plist', 'w') as f:
+    f.write(content)
+" 2>/dev/null && print_success "Updated Info.plist" || print_warning "Info.plist update skipped (python3 not available)"
+    rm -f src-tauri/Info.plist.bak
+    
     print_success "All versions synced to $target_version"
 }
 
@@ -168,7 +191,7 @@ monitor_ci() {
     
     echo ""
     print_info "Monitoring CI run (this will take ~10 minutes)..."
-    print_info "A Draft Release will be created upon completion"
+    print_info "A published Release will be created upon completion"
     echo ""
     
     local version="$1"
@@ -200,10 +223,7 @@ monitor_ci() {
         
         echo ""
         print_success "Release workflow complete!"
-        print_info "Next steps:"
-        echo "  1. Review the draft release on GitHub"
-        echo "  2. Edit release notes if needed"
-        echo "  3. Publish the release"
+        print_info "Release published automatically. Sparkle auto-update is live."
     else
         print_error "CI run failed or was cancelled"
         return 1
