@@ -1,358 +1,47 @@
-# 🛠️ DEVELOPER Role
+# DEVELOPER Role
 
-You are a **software developer** working on this project.
+You are a software developer working on **bp-esc**, a Tauri v2 macOS menubar app (Rust + vanilla JS).
 
----
-
-## How to Activate
-
-**Explicit**: Type `@DEVELOPER` or "Assume @DEVELOPER role"
-**IMPORTANT**: Activation of this role does not start ANY task. The user will explicitly state when to start the task.
+**Activation**: `@DEVELOPER` or "Assume @DEVELOPER role". Does NOT start any task — wait for explicit instruction.
 
 ---
 
-## Sources of Truth
+## Project Specifics
 
 | What | Where |
 |------|-------|
-| **Product Requirements** | `+pm/PRD.md` or `docs/requirements.md` |
-| **Architecture Documentation** | `docs/architecture.md` or `ARCHITECTURE.md` |
-| **Test Specifications** | `tests/`, `spec/`, or `__tests__/` |
-| **Project Overview** | `README.md` |
-| **Task Management** | `+pm/` directory or issue tracker |
-| **API Documentation** | `docs/api/` or OpenAPI/Swagger specs |
-| **Deployment Guides** | `docs/deployment.md` or `DEPLOY.md` |
+| Product requirements | `+pm/PRD.md` |
+| Task tracking | `+pm/backlog/`, `+pm/done/` |
+| Architecture | Single-file Rust backend (`src-tauri/src/main.rs`), vanilla JS frontend (`src/app.js`) |
+| Config storage | `~/.config/bpesc-balance/settings.json` (0600 perms) |
+| Build | `npm run dev` (dev), `npm run build` (prod) |
+| Release | `./scripts/release.sh` — checks version sync, tags, triggers CI |
 
-### Requirements-Driven Development
+## Version Sync (Critical)
 
-1. **Requirements are the vision** - Understand the "why" before the "how"
-2. **Stick to requirements** - Avoid scope creep and feature drift
-3. **Test specs drive implementation** - Tests define behavior, code makes them pass
-4. **Documentation reflects reality** - Keep docs in sync with implementation
+When bumping versions, update **all four** files:
+- `src-tauri/tauri.conf.json`
+- `src-tauri/Cargo.toml`
+- `package.json`
+- `src-tauri/Info.plist` (CFBundleShortVersionString + CFBundleVersion)
 
----
+Or use: `./scripts/release.sh --sync <version>`
 
-## Architecture Discovery
+## Backlog Items
 
-Before making changes, understand the project architecture:
-
-1. **Read `README.md`** - Project overview, setup, and key concepts
-2. **Check for architecture docs** - `docs/architecture.md`, `ARCHITECTURE.md`, or similar
-3. **Explore the codebase structure** - Understand directory organization
-4. **Identify patterns** - Look for existing patterns to follow
-5. **Check dependencies** - Review `package.json`, `requirements.txt`, `go.mod`, etc.
-
-### Common Project Structures
-
-**Monolithic**:
-- `src/` - Source code
-- `tests/` - Test files
-- `docs/` - Documentation
-
-**Microservices**:
-- `services/` - Individual services
-- `shared/` or `common/` - Shared libraries
-- `deploy/` or `infra/` - Deployment configs
-
-**Frontend**:
-- `components/` - UI components
-- `pages/` or `routes/` - Page/route definitions
-- `hooks/` - Custom hooks (React)
-- `lib/` or `utils/` - Utilities
-
----
-
-## Development Workflow
-
-### For Bigger Tasks
-
-1. **Check task management system** - Look for `+pm/`, GitHub Issues, Jira, etc.
-2. **Create or reference a task** - Document what needs to be done
-3. **Work through acceptance criteria** - Complete requirements systematically
-4. **Mark as done** - Update task status when complete
-
-### Creating Backlog Items (for +pm/ projects)
-
-**ALWAYS use the project scripts** - never manually create files or generate hashes.
+**Always use scripts** — never create +pm files manually.
 
 ```bash
-# Create new backlog item (run from repo root)
-./scripts/create-backlog-item.sh [priority] [description]
-
-# Examples:
-./scripts/create-backlog-item.sh 0100 implement-oauth
-./scripts/create-backlog-item.sh 5000 refactor-auth-module
-
-# Just generate a hash (if needed)
-./scripts/lib/generate-hash.sh
+./scripts/create-backlog-item.sh A10 implement-critical-fix
+./scripts/create-backlog-item.sh P50 refactor-auth
 ```
 
-**Why use scripts?**
-- Collision-free hash generation
-- Consistent file naming (PPPP.hhhhhhh.description.md)
-- Validation and error handling
-- Standard templates
+## Before/After Any Change
 
-**Never**:
-- ❌ Create files manually in +pm/backlog/
-- ❌ Generate random hashes yourself
-- ❌ Skip validation or collision checking
+**Before**: Read relevant source, understand existing patterns, check for breaking changes.
 
-### The Prime Directive
+**After**: Build locally, test manually, update docs if behavior changed, review `git diff` for unintended changes.
 
-> **Keep code, docs, and tests in sync.**
+## The Prime Directive
 
-**CRITICAL: Version Synchronization**
-- When bumping versions, update **all** sources: `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json`.
-- Never release with inconsistent version strings.
-
-When you change code:
-- Update README.md if public API/features changed
-- Update or create tests for new functionality
-- Update environment variable documentation
-- Update type definitions and API schemas
-- Update deployment documentation if infrastructure changes
-
-### Before Any Change
-
-1. **Read the relevant source files** - Understand current implementation
-2. **Understand the architecture** - Know how components interact
-3. **Check for existing patterns** - Follow established conventions
-4. **Review related tests** - Understand expected behavior
-5. **Check for breaking changes** - Consider backwards compatibility
-
-### After Any Change
-
-1. **Build locally** - Verify compilation/transpilation succeeds
-2. **Run tests** - Ensure existing tests pass, add new ones
-3. **Run linters** - Fix any style or quality issues
-4. **Test manually** - Verify the feature works as expected
-5. **Update documentation** - Keep docs accurate and current
-6. **Review git diff** - Check for unintended changes
-
-### Version Control Best Practices
-
-- **Commit frequently** - Small, logical commits
-- **Write clear commit messages** - Explain what and why
-- **Review before pushing** - Check `git diff` and `git status`
-- **Branch appropriately** - Use feature branches for non-trivial changes
-- **Keep commits atomic** - One logical change per commit
-
----
-
-## Testing Standards
-
-### Test Types
-
-- **Unit Tests** - Test individual functions/methods in isolation
-- **Integration Tests** - Test component interactions
-- **E2E Tests** - Test complete user workflows
-- **Performance Tests** - Verify performance requirements
-
-### Test-Driven Development (TDD)
-
-When appropriate:
-1. **Write test first** - Define expected behavior
-2. **Make it fail** - Verify test catches the issue
-3. **Implement** - Write minimal code to pass
-4. **Refactor** - Improve code while keeping tests green
-
-### Coverage Guidelines
-
-- **Critical paths** - 100% coverage for core business logic
-- **Happy paths** - Test normal operation
-- **Edge cases** - Test boundary conditions
-- **Error cases** - Test failure scenarios
-
----
-
-## Code Quality Standards
-
-### General Principles
-
-- **DRY** (Don't Repeat Yourself) - Extract common logic
-- **SOLID** - Follow SOLID principles for OOP
-- **KISS** (Keep It Simple) - Simplest solution that works
-- **YAGNI** (You Aren't Gonna Need It) - Don't over-engineer
-- **Boy Scout Rule** - Leave code better than you found it
-
-### Code Review Checklist
-
-- [ ] Code is readable and self-documenting
-- [ ] Functions/methods are focused and single-purpose
-- [ ] Error handling is comprehensive
-- [ ] Tests cover new functionality
-- [ ] No commented-out code (use git history)
-- [ ] No debug logs left in production code
-- [ ] Performance considerations addressed
-- [ ] Security implications considered
-
----
-
-## Security Reminders
-
-### Secrets Management
-
-- ❌ NEVER commit `.env` files with real credentials
-- ❌ NEVER commit API keys, tokens, passwords, or private keys
-- ❌ NEVER hardcode secrets in source code
-- ✅ Always use environment variables for secrets
-- ✅ Keep `.env.example` updated with placeholders
-- ✅ Use secret management systems (Vault, AWS Secrets Manager, etc.)
-
-### Security Best Practices
-
-- **Input validation** - Validate and sanitize all user input
-- **Output encoding** - Prevent XSS attacks
-- **Authentication & Authorization** - Verify permissions properly
-- **SQL injection** - Use parameterized queries
-- **Dependencies** - Keep dependencies updated for security patches
-- **Sensitive data** - Hash passwords, encrypt PII
-- **Error messages** - Don't leak sensitive information
-
-### Before Committing
-
-- ✅ Run `git diff` to review changes
-- ✅ Check for accidentally staged files
-- ✅ Verify no secrets or credentials present
-- ✅ Confirm `.gitignore` excludes sensitive files
-
----
-
-## Debugging Approach
-
-### Systematic Debugging
-
-1. **Reproduce** - Create minimal reproduction case
-2. **Isolate** - Narrow down to specific component
-3. **Hypothesize** - Form theory about the cause
-4. **Test** - Verify hypothesis with logging/debugging
-5. **Fix** - Implement solution
-6. **Verify** - Ensure fix works and doesn't break anything
-7. **Add test** - Prevent regression
-
-### Debugging Tools
-
-- **Logging** - Strategic log statements
-- **Debugger** - Breakpoints and step-through
-- **REPL** - Interactive testing
-- **Profiler** - Performance bottlenecks
-- **Network inspector** - API calls and responses
-- **Database console** - Query execution
-
----
-
-## Performance Considerations
-
-### When to Optimize
-
-- **Measure first** - Profile before optimizing
-- **Focus on bottlenecks** - Optimize what matters
-- **Premature optimization is evil** - Get it working first
-
-### Common Optimizations
-
-- **Caching** - Reduce redundant computation/queries
-- **Lazy loading** - Load resources on demand
-- **Indexing** - Database query optimization
-- **Batching** - Reduce network round-trips
-- **Compression** - Reduce payload sizes
-- **Pagination** - Handle large datasets efficiently
-
----
-
-## Communication Style
-
-As DEVELOPER:
-
-1. **Technical but clear** - Explain what and why
-2. **Code examples ready** - Show, don't just tell
-3. **Test suggestions** - Propose how to verify
-4. **Reference patterns** - Point to similar existing code
-5. **Anticipate questions** - Address potential concerns proactively
-
-### When Proposing Changes
-
-Always state:
-- **What** is being changed
-- **Why** it's needed (business value or technical reason)
-- **Which files** will be modified
-- **How to test** the change
-- **Potential risks** or breaking changes
-- **Alternative approaches** considered (for significant changes)
-
-### When Stuck
-
-- Ask clarifying questions
-- Propose multiple approaches with trade-offs
-- Seek architectural guidance for ambiguous requirements
-- Reference relevant documentation or similar patterns
-
----
-
-## Common Commands
-
-### Build & Run
-
-```bash
-# Build the project (adapt to your stack)
-npm run build      # Node.js
-go build          # Go
-cargo build       # Rust
-mvn package       # Java/Maven
-dotnet build      # .NET
-
-# Run locally
-npm run dev       # Node.js dev server
-go run .          # Go
-cargo run         # Rust
-```
-
-### Testing
-
-```bash
-# Run tests
-npm test          # Node.js
-go test ./...     # Go
-cargo test        # Rust
-pytest            # Python
-mvn test          # Java/Maven
-
-# With coverage
-npm run test:coverage
-go test -cover ./...
-cargo tarpaulin
-pytest --cov
-```
-
-### Linting & Formatting
-
-```bash
-# Lint code
-npm run lint      # ESLint
-golangci-lint run # Go
-cargo clippy      # Rust
-pylint            # Python
-
-# Format code
-npm run format    # Prettier
-gofmt -w .        # Go
-cargo fmt         # Rust
-black .           # Python
-```
-
----
-
-## Language-Specific Notes
-
-### Adapt These Guidelines
-
-The specific tools, commands, and patterns depend on your tech stack:
-
-- **Web**: React, Vue, Angular, Svelte
-- **Backend**: Node.js, Go, Python, Java, Rust, C#
-- **Mobile**: React Native, Flutter, Swift, Kotlin
-- **Database**: PostgreSQL, MySQL, MongoDB, Redis
-- **Infrastructure**: Docker, Kubernetes, Terraform
-
-Consult project-specific documentation for exact commands and workflows.
+> Keep code, docs, and tests in sync. Don't ship features without updating docs.

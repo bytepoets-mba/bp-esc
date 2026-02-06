@@ -1,148 +1,76 @@
-# Product Requirements Document: OpenRouter Balance Checker
+# Product Requirements: BP-ESC
 
-**Document ID:** PRD-001  
-**Version:** 1.0  
-**Status:** Draft  
-**Date:** 2026-01-21  
-**Author:** BYTEPOETS GmbH Internal Team
+**Status:** Shipped (actively maintained)
+**Last updated:** 2026-02
 
-## 1. Overview
+## Overview
 
-A minimal macOS desktop application for BYTEPOETS GmbH employees to check their OpenRouter API balance without requiring login credentials.
+BP-ESC is a native macOS menubar app that gives BYTEPOETS employees (and anyone using OpenRouter) real-time visibility into their AI API spending. It answers one question at a glance: *how much budget do I have left?*
 
-## 2. Target Audience
+## Target Audience
 
-- BYTEPOETS GmbH employees only
-- Internal use only - not for external distribution
+Built by BYTEPOETS for their team. Open source and available to anyone using OpenRouter API keys.
 
-## 3. Core Requirements
+## Core Features
 
-### 3.1 User Interface
-- **No User Account Required**: Application launches directly without creating/managing user accounts
-- **API Key Input**: Simple text field to enter OpenRouter API key
-- **Balance Display**: Shows current OpenRouter balance
-  - **MVP**: Static mock value (€ 123.00) for template demonstration
-  - **Future**: Real API integration (see section 6)
-- **Quit Option**: Clear quit button to close the application
+### Balance Monitoring
+- Live balance display: limit, used, remaining
+- Breakdowns by month, week, and day
+- Pace tracking with visual delta indicators (ahead / on track / behind)
 
-### 3.2 Data Persistence
-- **Local Storage**: API key stored in `~/.config/bpesc-balance/.env`
-- **Auto-load**: Application should load saved API key on subsequent launches
-- **Security**: 
-  - Config directory created with proper permissions (755)
-  - `.env` file with restricted permissions (600, owner read/write only)
-  - Never committed to version control
+### Menubar Presence
+- Hexagon icon with fill level reflecting current balance
+- Color-coded by pace status (green/yellow/red)
+- Value text next to icon (% or $ with configurable decimals)
+- Monochrome mode for minimal menubar appearance
 
-### 3.3 Technical Requirements
-- **Platform**: macOS (11.0+ Big Sur and later)
-- **Framework**: Tauri (Rust + Web frontend)
-- **Dependencies**: Minimal external dependencies
-- **Build**: Single `.app` bundle for macOS
-- **Template**: Designed as starter template for similar internal tools
+### Multi-Key Management
+- Multiple OpenRouter API keys with labels
+- Drag-to-reorder, rename, quick-switch
+- Per-key balance tracking
 
-## 4. Functional Specifications
+### OpenCode Integration
+- Extract OpenRouter key from OpenCode's `auth.json`
+- Set active key back into OpenCode via right-click context menu
+- Read-back verification with toast confirmation
 
-### 4.1 API Key Management
-```
-Flow:
-1. User launches app
-2. Check for ~/.config/bpesc-balance/.env
-3. If exists with OPENROUTER_API_KEY:
-   - Load key
-   - Display mock balance (MVP)
-4. Else:
-   - Show API key input field
-   - User enters key
-   - Create ~/.config/bpesc-balance/ (if needed)
-   - Save to .env with 600 permissions
-   - Display mock balance (MVP)
-```
+### Auto-Refresh
+- Configurable interval (default 5 minutes)
+- Background refresh even when window is hidden
+- Emits events for menubar icon updates
 
-**Note**: No validation in MVP - any string accepted as "API key" for template purposes.
+### Native macOS Experience
+- Launch at login
+- Global keyboard shortcut (configurable, default F19)
+- Always-on-top option
+- Unfocused dimming
+- Sparkle auto-updates with EdDSA signatures
 
-### 4.2 Balance Display
-- **MVP**: Static mock value € 123.00 (hardcoded)
-- **Format**: Currency formatted (€ XXX.XX)
-- **Refresh**: Not implemented in MVP (future: real API calls)
+### Debugging & Observability
+- Optional log file with rotation
+- Debug bar with scroll/focus metrics
+- In-app log drawer
 
-### 4.3 Quit Functionality
-- **Button**: "Quit" or "Exit" button
-- **Confirmation**: Optional confirmation dialog
-- **Cleanup**: No cleanup required (stateless)
+## Technical Architecture
 
-## 5. Non-Functional Requirements
+| Layer | Implementation |
+|-------|---------------|
+| Shell | Tauri v2 |
+| Backend | Rust (single `main.rs`) |
+| Frontend | Vanilla JS, HTML, CSS — no framework |
+| Updates | Sparkle 2 (EdDSA signed appcast via GitHub Releases) |
+| Config | `~/.config/bpesc-balance/settings.json` (0600 perms) |
+| Platform | macOS 11+ universal binary (Apple Silicon + Intel) |
 
-### 5.1 Security
-- API key stored in `~/.config/bpesc-balance/.env` (outside app bundle)
-- File permissions: 600 (owner read/write only)
-- No network calls in MVP (mock data only)
-- Future real API: HTTPS only, no credentials logging
+## Security
 
-### 5.2 Performance
-- Launch time: < 2 seconds
-- Memory usage: Minimal (< 50MB)
+- API keys stored locally with restrictive file permissions (0600)
+- No keys transmitted except to OpenRouter API over HTTPS
+- No telemetry, no analytics, no external services beyond OpenRouter
+- Signed with Developer ID, notarized by Apple
 
-### 5.3 Usability
-- Single-window interface
-- Clear visual hierarchy
-- Intuitive controls
+## Out of Scope
 
-## 6. Future Enhancements (Out of Scope for Template)
-
-### Phase 2: Real API Integration
-- [ ] OpenRouter API endpoint integration (`/api/v1/auth/key`)
-- [ ] Balance refresh functionality
-- [ ] API key validation (format + test call)
-- [ ] Error handling (network failures, invalid keys, rate limits)
-- [ ] Loading states and retry logic
-
-### Phase 3: Advanced Features
-- [ ] Multiple API key support
-- [ ] Usage statistics and history
-- [ ] Auto-update mechanism
-- [ ] Settings/preferences panel
-
-### Out of Scope
-- Cross-platform support (Windows/Linux) - macOS only by design
-
-## 7. Acceptance Criteria
-
-- [ ] Application launches without user account/authentication
-- [ ] API key can be entered and saved to `~/.config/bpesc-balance/.env`
-- [ ] Config directory created with permissions 755, `.env` with 600
-- [ ] Saved API key loads on subsequent launches
-- [ ] Balance display shows mock value € 123.00
-- [ ] Quit button closes the application cleanly
-- [ ] Runs on macOS 11.0+ (Big Sur and later)
-- [ ] Source `.env` excluded from version control
-
-## 8. Dependencies
-
-- None specified for MVP
-
-## 9. Risks & Mitigations
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| API key exposure | High | ~/.config storage with 600 perms, outside app bundle |
-| macOS compatibility | Medium | Target 11.0+, test on Big Sur/Monterey/Ventura/Sonoma |
-| User confusion (mock vs real) | Low | Clear "Demo Mode" or "Mock Data" label in UI |
-| Tauri build complexity | Medium | Follow official Tauri docs, keep deps minimal |
-
-## 10. Timeline
-
-**Template MVP** (mock data, Tauri setup):
-- **Tauri setup + UI**: 1 day
-- **File I/O (~/.config)**: 0.5 days
-- **Testing (macOS 11+)**: 0.5 days
-- **Total**: 2 days
-
-**Phase 2** (real API, future):
-- **API integration**: 1-2 days
-- **Error handling**: 0.5 days
-
----
-
-**Approval:**  
-Product Owner: ___________________  
-Date: ___________________
+- Cross-platform (Windows/Linux) — macOS only by design
+- Usage history or graphs — may revisit later
+- Multiple provider support (only OpenRouter)

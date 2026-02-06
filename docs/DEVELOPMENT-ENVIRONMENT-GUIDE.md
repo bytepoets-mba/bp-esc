@@ -41,32 +41,6 @@ The app will launch with hot-reload enabled.
 
 **Note**: The Tauri CLI is provided via npm (`@tauri-apps/cli` in `devDependencies`), not via cargo install. This ensures the environment is fully declarative and reproducible.
 
-### Testing Config File I/O
-
-To test the config file read/write functionality:
-
-1. Start dev server: `cargo tauri dev`
-2. Open `src/test-config.html` in the app
-3. Test saving an API key
-4. Test reading it back
-5. Verify file created at `~/.config/bpesc-balance/.env` with correct permissions:
-   ```bash
-   ls -la ~/.config/bpesc-balance/
-   # Should show:
-   # drwxr-xr-x  .
-   # -rw-------  .env
-   ```
-
-### Testing OpenRouter API Client
-
-To test the balance fetching:
-
-1. Ensure you have an API key saved (use `src/test-config.html`)
-2. Open `src/test-api.html` in the app
-3. Click "Load from Config" to load your saved key
-4. Click "Fetch Balance" to test the API call
-5. View the balance information returned
-
 ### Building for Production
 
 **Production Builds (Local):**
@@ -306,50 +280,18 @@ chmod +x src-tauri/sparkle-bin/*
   output-dir/
 ```
 
-**6. Private Repos & GitHub Releases:**
+**6. Appcast & Distribution:**
 
-GitHub Pages requires paid plan for private repos. Solution: host `appcast.xml` in GitHub Releases:
-- Feed URL: `https://github.com/org/repo/releases/latest/download/appcast.xml`
-- CI attaches `appcast.xml` to each release as an asset
-- Works with private repos on free plan
+The appcast.xml is hosted as a GitHub Releases asset. Feed URL (set in Info.plist):
+`https://github.com/bytepoets-mba/bp-esc/releases/latest/download/appcast.xml`
 
-**7. Common Mistakes:**
+CI generates the appcast, signs it with EdDSA, and attaches it to each published release.
 
-❌ **Don't:** Try to download `generate_appcast` separately - URL doesn't exist  
-✅ **Do:** Extract it from the Sparkle archive
+**7. References:**
 
-❌ **Don't:** Sign Sparkle framework BEFORE Tauri builds  
-✅ **Do:** Sign AFTER build, inside the app bundle at `Contents/Frameworks/`
-
-❌ **Don't:** Use `--deep` flag when signing (corrupts XPC signatures)  
-✅ **Do:** Sign each component individually in correct order
-
-❌ **Don't:** Hardcode certificate identity name (e.g., "Developer ID Application: BYTEPOETS GmbH")  
-✅ **Do:** Query keychain with `security find-identity -v -p codesigning`
-
-❌ **Don't:** Forget to re-sign app bundle after modifying Sparkle  
-✅ **Do:** Re-sign app bundle last (without `--deep`)
-
-❌ **Don't:** Make stapling failures block the release  
-✅ **Do:** Allow stapling to fail gracefully (app still works)
-
-❌ **Don't:** Assume GitHub Actions cache works across tag refs  
-✅ **Do:** Use `main` branch for cache warming, tags restore from there
-
-**8. Cost Implications:**
-
-Each failed release attempt costs ~100 GitHub Actions minutes (10x macOS multiplier).  
-With Sparkle integration issues, we burned through ~500 minutes learning these lessons.  
-**Lesson:** Test locally first, fix upfront before CI.
-
-**9. References:**
-
-This implementation is based on real-world production code from:
-- [VibeMeter by Peter Steinberger](https://github.com/steipete/VibeMeter) (June 2025)
-- [Sparkle Framework Documentation](https://sparkle-project.org/documentation/)
-- [Code Signing and Notarization: Sparkle and Tears](https://steipete.me/posts/2025/code-signing-and-notarization-sparkle-and-tears)
-
-The VibeMeter implementation successfully ships notarized macOS apps with Sparkle auto-updates and provided the proven pattern we follow.
+- [Sparkle Documentation](https://sparkle-project.org/documentation/)
+- [Code Signing and Notarization: Sparkle and Tears](https://steipete.me/posts/2025/code-signing-and-notarization-sparkle-and-tears) (Peter Steinberger)
+- Full Sparkle architecture details: [`docs/SPARKLE-AUTO-UPDATE.md`](./SPARKLE-AUTO-UPDATE.md)
 
 #### GitHub Secrets for CI/CD:
 The following secrets must be set in the repository for the `Release` workflow to function:
@@ -397,100 +339,26 @@ This will:
 
 ```
 bp-esc/
-├── src/                    # Frontend (HTML/CSS/JS)
-│   ├── index.html         # Main UI
-│   ├── style.css          # Styles
-│   ├── app.js             # Application logic
-│   └── test-config.html   # Config I/O test page
-├── src-tauri/             # Rust backend
-│   ├── src/
-│   │   └── main.rs        # Tauri commands
-│   ├── Cargo.toml         # Rust dependencies
-│   └── tauri.conf.json    # Tauri configuration
-├── devenv.nix             # Nix development environment
-└── .envrc                 # direnv configuration
+├── src/                       # Frontend (vanilla HTML/CSS/JS)
+│   ├── index.html             # Main UI
+│   ├── style.css              # Styles
+│   ├── app.js                 # Application logic
+│   └── assets/                # Images (bp-logo.png, opencode.png)
+├── src-tauri/                 # Rust backend
+│   ├── src/main.rs            # All Tauri commands (single file)
+│   ├── Cargo.toml             # Rust dependencies
+│   ├── tauri.conf.json        # Tauri config
+│   ├── Info.plist             # macOS plist (Sparkle keys, version)
+│   └── entitlements/          # Code signing entitlements
+├── scripts/                   # Release, cache warming, backlog tools
+├── +pm/                       # Project management (backlog, done, PRD)
+├── +agents/                   # AI agent rules and commands
+├── docs/                      # Technical documentation
+├── devenv.nix                 # Nix development environment
+└── .envrc                     # direnv configuration
 ```
 
-## Available Tauri Commands
-
-### `read_api_key()`
-
-Reads the API key from `~/.config/bpesc-balance/.env`.
-
-**Returns**: `Result<Option<String>, String>`
-- `Some(String)` if key exists
-- `None` if file doesn't exist or no key found
-- `Err(String)` on read error
-
-**Usage**:
-```javascript
-const key = await invoke('read_api_key');
-if (key) {
-  console.log('API key found:', key);
-} else {
-  console.log('No API key saved');
-}
-```
-
-### `save_api_key(key: String)`
-
-Saves the API key to `~/.config/bpesc-balance/.env` with proper permissions.
-
-**Returns**: `Result<(), String>`
-- `Ok(())` on success
-- `Err(String)` on failure
-
-**Behavior**:
-- Creates `~/.config/bpesc-balance/` if it doesn't exist (755 permissions)
-- Writes `.env` file with 600 permissions (owner read/write only)
-- Overwrites existing key if present
-
-**Usage**:
-```javascript
-try {
-  await invoke('save_api_key', { key: 'sk-or-v1-...' });
-  console.log('API key saved successfully');
-} catch (error) {
-  console.error('Failed to save:', error);
-}
-```
-
-### `fetch_balance(api_key: String)`
-
-Fetches balance information from OpenRouter API.
-
-**Returns**: `Result<BalanceData, String>`
-- `Ok(BalanceData)` with balance info on success
-- `Err(String)` with user-friendly error message on failure
-
-**BalanceData structure**:
-```typescript
-{
-  limit: number | null,      // Total credit limit
-  usage: number | null,      // Amount used
-  remaining: number | null,  // Calculated: limit - usage
-  label: string | null       // Optional account label
-}
-```
-
-**Error handling**:
-- Empty API key: "API key cannot be empty"
-- Invalid key (401): "Invalid API key. Please check your key and try again."
-- Timeout: "Request timed out. Check your internet connection."
-- Network: "Could not connect to OpenRouter. Check your internet connection."
-
-**Usage**:
-```javascript
-try {
-  const balance = await invoke('fetch_balance', { 
-    apiKey: 'sk-or-v1-...' 
-  });
-  console.log('Balance:', balance);
-  console.log('Remaining:', balance.remaining);
-} catch (error) {
-  console.error('Failed to fetch:', error);
-}
-```
+Tauri commands are all in `src-tauri/src/main.rs` — read the source for current signatures.
 
 ## Troubleshooting
 
@@ -520,6 +388,4 @@ npm install
 direnv reload
 ```
 
-## Project Backlog
 
-See `+pm/` for current tasks and progress.

@@ -22,10 +22,9 @@ Short, practical notes for maintainers. This document complements the public REA
 
 ## Security & Local Storage
 
-- Settings live under `~/.config/bpesc-balance/`.
-- Legacy API key storage: `~/.config/bpesc-balance/.env`.
-- Settings file permissions are enforced as 600.
-- Log files live in `~/.config/bpesc-balance/app.log` and rotate to `app.log.old`.
+- All settings (including API keys) live in `~/.config/bpesc-balance/settings.json` (0600 perms).
+- Legacy `.env` file is auto-migrated on first launch — no longer the primary store.
+- Log files: `~/.config/bpesc-balance/app.log` (rotates to `app.log.old` at 100KB).
 - Never commit secrets or real credentials.
 
 ## Relevant Commands (Tauri)
