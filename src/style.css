@@ -901,12 +901,104 @@ input[type="text"] {
 
 .usage-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1.2fr) minmax(22px, 0.6fr) minmax(0, 3fr) minmax(0, 1fr);
   gap: 0.75rem;
   align-items: center;
   padding: 0.44rem 0;
   font-size: 0.9rem;
   color: #4b5563;
+}
+
+.pace-cell {
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  min-width: 300px;
+}
+
+.pace-value {
+  text-align: right;
+  font-family: 'SF Mono', monospace;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+
+.pace-value--ahead {
+  color: #dc2626;
+}
+
+.pace-value--on_track {
+  color: #10b981;
+}
+
+.pace-value--behind {
+  color: #f59e0b;
+}
+
+.pace-value--neutral {
+  color: #6b7280;
+}
+
+.pace-bar {
+  width: 300px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.08);
+  position: relative;
+  overflow: visible;
+}
+
+.pace-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  width: 0;
+}
+
+.pace-bar-fill--ahead {
+  background: rgba(220, 38, 38, 0.45);
+}
+
+.pace-bar-fill--on_track {
+  background: rgba(16, 185, 129, 0.5);
+}
+
+.pace-bar-fill--behind {
+  background: rgba(245, 158, 11, 0.5);
+}
+
+.pace-bar-fill--neutral {
+  background: rgba(107, 114, 128, 0.4);
+}
+
+.pace-bar-notch {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 0;
+  border-left: 1px dotted rgba(75, 85, 99, 0.5);
+  pointer-events: none;
+}
+
+.pace-bar-notch-label {
+  position: absolute;
+  top: -12px;
+  left: 0;
+  transform: translateX(-50%);
+  padding: 1px 4px;
+  border-radius: 6px;
+  background: rgba(249, 250, 251, 0.9);
+  border: 0.5px solid rgba(209, 213, 219, 0.9);
+  color: #9ca3af;
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.usage-row-amount {
+  justify-self: end;
 }
 
 .usage-row-amount,
@@ -917,6 +1009,11 @@ input[type="text"] {
 }
 
 .pace-pill {
+  --pace-pill-radius: 9px;
+  height: calc(var(--pace-pill-radius) * 2);
+  min-width: calc(var(--pace-pill-radius) * 2);
+  padding: 0;
+  justify-content: flex-start;
   gap: 6px;
 }
 

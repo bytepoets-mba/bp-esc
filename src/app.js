@@ -77,11 +77,21 @@ window.addEventListener('DOMContentLoaded', () => {
   const usageMonthValue = document.getElementById('usageMonthValue');
   const usageWeekValue = document.getElementById('usageWeekValue');
   const usageDayValue = document.getElementById('usageDayValue');
-  const usageMonthDetail = document.getElementById('usageMonthDetail');
-  const usageWeekDetail = document.getElementById('usageWeekDetail');
-  const usageDayDetail = document.getElementById('usageDayDetail');
-  const paceText = document.getElementById('paceText');
-  const pacePill = document.getElementById('pacePill');
+  const usageMonthBar = document.getElementById('usageMonthBar');
+  const usageWeekBar = document.getElementById('usageWeekBar');
+  const usageDayBar = document.getElementById('usageDayBar');
+  const usageMonthBarFill = document.getElementById('usageMonthBarFill');
+  const usageWeekBarFill = document.getElementById('usageWeekBarFill');
+  const usageDayBarFill = document.getElementById('usageDayBarFill');
+  const usageMonthBarNotch = document.getElementById('usageMonthBarNotch');
+  const usageWeekBarNotch = document.getElementById('usageWeekBarNotch');
+  const usageDayBarNotch = document.getElementById('usageDayBarNotch');
+  const usageMonthBarNotchLabel = document.getElementById('usageMonthBarNotchLabel');
+  const usageWeekBarNotchLabel = document.getElementById('usageWeekBarNotchLabel');
+  const usageDayBarNotchLabel = document.getElementById('usageDayBarNotchLabel');
+  const usageMonthPaceValue = document.getElementById('usageMonthPaceValue');
+  const usageWeekPaceValue = document.getElementById('usageWeekPaceValue');
+  const usageDayPaceValue = document.getElementById('usageDayPaceValue');
   const usageBreakdown = document.getElementById('usageBreakdown');
   const percentCaption = document.getElementById('percentCaption');
   const lastUpdated = document.getElementById('lastUpdated');
@@ -593,6 +603,7 @@ window.addEventListener('transitionend', (e) => {
     let paceMonthDeltaPercent = balance?.pace_month_delta_percent ?? null;
     let paceWeekDeltaPercent = balance?.pace_week_delta_percent ?? null;
     let paceDayDeltaPercent = balance?.pace_day_delta_percent ?? null;
+    let dailyBudget = null;
     
     // Calculate percentage
     const usageRatio = (hasData && limitValueRaw > 0 && monthlyUsage != null)
@@ -603,13 +614,15 @@ window.addEventListener('transitionend', (e) => {
       : 0;
     const rawPercentage = currentSettings?.show_remaining ? remainingRatio : usageRatio;
 
-    if (limitValueRaw > 0 && (paceMonthTarget == null || paceWeekTarget == null || paceDayTarget == null)) {
+    if (limitValueRaw > 0) {
       const { daysInMonth, elapsedDays, dayFraction } = getMonthContext();
-      const dailyBudget = daysInMonth > 0 ? limitValueRaw / daysInMonth : 0;
-      const weekElapsed = getWeekElapsedDays();
-      if (paceMonthTarget == null) paceMonthTarget = dailyBudget * elapsedDays;
-      if (paceWeekTarget == null) paceWeekTarget = dailyBudget * weekElapsed;
-      if (paceDayTarget == null) paceDayTarget = dailyBudget * dayFraction;
+      dailyBudget = daysInMonth > 0 ? limitValueRaw / daysInMonth : 0;
+      if (paceMonthTarget == null || paceWeekTarget == null || paceDayTarget == null) {
+        const weekElapsed = getWeekElapsedDays();
+        if (paceMonthTarget == null) paceMonthTarget = dailyBudget * elapsedDays;
+        if (paceWeekTarget == null) paceWeekTarget = dailyBudget * weekElapsed;
+        if (paceDayTarget == null) paceDayTarget = dailyBudget * dayFraction;
+      }
     }
 
     if (limitValueRaw > 0) {
@@ -672,33 +685,74 @@ window.addEventListener('transitionend', (e) => {
       remainingValue.style.color = ''; // Reset to default
     }
 
-    if (pacePill && paceText) {
-      pacePill.classList.remove('pace-pill--ahead', 'pace-pill--on_track', 'pace-pill--behind', 'pace-pill--neutral');
-      const status = paceStatus || 'neutral';
-      const labelMap = {
-        ahead: 'Over pace',
-        behind: 'Slightly over',
-        on_track: 'On pace',
-        neutral: '-'
-      };
-      pacePill.classList.add(`pace-pill--${status}`);
-      paceText.textContent = labelMap[status] || '-';
-    }
+    const updatePaceBar = (bar, fill, notch, notchLabel, valueEl, deltaPercent, target, actualValue, budget) => {
+      if (!bar || !fill || !notch || !notchLabel || !valueEl) return;
+      fill.classList.remove('pace-bar-fill--ahead', 'pace-bar-fill--on_track', 'pace-bar-fill--behind', 'pace-bar-fill--neutral');
+      valueEl.classList.remove('pace-value--ahead', 'pace-value--on_track', 'pace-value--behind', 'pace-value--neutral');
+      const status = computePaceStatus(deltaPercent, currentSettings) || 'neutral';
+      fill.classList.add(`pace-bar-fill--${status}`);
+      valueEl.classList.add(`pace-value--${status}`);
 
-    if (usageMonthDetail && usageWeekDetail && usageDayDetail) {
-      const decimals = Math.max(0, Math.min(2, currentSettings?.decimal_places ?? 1));
-      const formatPaceDetail = (deltaPercent, target) => {
-        if (deltaPercent == null || target == null || limitValueRaw <= 0) return '-';
-        const sign = deltaPercent >= 0 ? '+' : '-';
-        const label = deltaPercent >= 0 ? 'over' : 'under';
-        const percentText = Math.abs(deltaPercent).toFixed(decimals);
-        return `${sign}${percentText}% ${label} ${formatCurrency(target)}`;
-      };
+      if (deltaPercent == null) {
+        valueEl.textContent = '-';
+      } else {
+        const rounded = Math.round(deltaPercent);
+        valueEl.textContent = rounded > 0 ? `+${rounded}%` : `${rounded}%`;
+      }
 
-      usageMonthDetail.textContent = formatPaceDetail(paceMonthDeltaPercent, paceMonthTarget);
-      usageWeekDetail.textContent = formatPaceDetail(paceWeekDeltaPercent, paceWeekTarget);
-      usageDayDetail.textContent = formatPaceDetail(paceDayDeltaPercent, paceDayTarget);
-    }
+      bar.title = target == null ? '-' : `Target: ${formatCurrency(target)}`;
+      const maxBarWidth = 300;
+      const fillRatio = budget > 0 && actualValue != null ? Math.min(actualValue / budget, 1) : 0;
+      fill.style.width = `${Math.round(fillRatio * maxBarWidth)}px`;
+
+      const notchRatio = budget > 0 && target != null ? Math.min(target / budget, 1) : null;
+      if (notchRatio == null) {
+        notch.style.display = 'none';
+        notchLabel.textContent = '-';
+      } else {
+        notch.style.display = '';
+        notch.style.left = `${Math.round(notchRatio * maxBarWidth)}px`;
+        notchLabel.textContent = target == null ? '-' : `$${target.toFixed(2)}`;
+      }
+    };
+
+    const monthBudget = limitValueRaw > 0 ? limitValueRaw : null;
+    const weekBudget = dailyBudget != null ? dailyBudget * 7 : null;
+    const dayBudget = dailyBudget != null ? dailyBudget : null;
+
+    updatePaceBar(
+      usageMonthBar,
+      usageMonthBarFill,
+      usageMonthBarNotch,
+      usageMonthBarNotchLabel,
+      usageMonthPaceValue,
+      paceMonthDeltaPercent,
+      paceMonthTarget,
+      monthlyUsage,
+      monthBudget
+    );
+    updatePaceBar(
+      usageWeekBar,
+      usageWeekBarFill,
+      usageWeekBarNotch,
+      usageWeekBarNotchLabel,
+      usageWeekPaceValue,
+      paceWeekDeltaPercent,
+      paceWeekTarget,
+      balance?.usage_weekly ?? null,
+      weekBudget
+    );
+    updatePaceBar(
+      usageDayBar,
+      usageDayBarFill,
+      usageDayBarNotch,
+      usageDayBarNotchLabel,
+      usageDayPaceValue,
+      paceDayDeltaPercent,
+      paceDayTarget,
+      balance?.usage_daily ?? null,
+      dayBudget
+    );
 
     if (usageBreakdown) {
       usageBreakdown.classList.remove('usage-breakdown--ahead', 'usage-breakdown--on_track', 'usage-breakdown--behind', 'usage-breakdown--neutral');
