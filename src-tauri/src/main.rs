@@ -10,9 +10,8 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use chrono::{Datelike, Local, TimeZone, Timelike};
-use tauri::Theme;
 use tauri::{
-    AppHandle, Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter, State,
+    AppHandle, Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter, State, Theme,
     menu::{Menu, MenuItemBuilder},
     tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
     image::Image
