@@ -310,10 +310,62 @@ body.unfocused .container::after {
   margin-top: 0.5rem;
 }
 
-.extract-key-btn {
-  font-size: 0.7rem;
-  padding: 3px 8px;
-  line-height: 1.1;
+/* OpenCode icon button */
+.opencode-icon-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 3px;
+  line-height: 0;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.45;
+  -webkit-app-region: no-drag;
+}
+
+.opencode-icon-btn:hover {
+  opacity: 1;
+  border-color: #e5e7eb;
+  background: white;
+}
+
+.opencode-icon-btn img {
+  display: block;
+}
+
+/* OpenCode right-click context menu */
+.opencode-ctx-menu {
+  position: fixed;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  padding: 4px 0;
+  z-index: 5000;
+  min-width: 200px;
+  font-size: 0.8rem;
+  color: #1f2937;
+  -webkit-app-region: no-drag;
+  animation: toast-in 0.12s ease-out;
+}
+
+.opencode-ctx-item {
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 0.12s;
+  white-space: nowrap;
+}
+
+.opencode-ctx-item:hover {
+  background: rgba(0, 100, 151, 0.08);
+  color: #006497;
+}
+
+.opencode-ctx-item strong {
+  font-weight: 700;
 }
 
 .last-updated-text {

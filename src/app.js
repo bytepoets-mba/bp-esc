@@ -132,7 +132,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // DOM elements - Actions
   const refreshBtn = document.getElementById('refreshBtn');
-  const extractOpenCodeKeyBtn = document.getElementById('extractOpenCodeKeyBtn');
+  const openCodeBtn = document.getElementById('openCodeBtn');
+  const openCodeMenu = document.getElementById('openCodeMenu');
+  const openCodeSetItem = document.getElementById('openCodeSetItem');
+  const openCodeSetLabel = document.getElementById('openCodeSetLabel');
   const quitBtn = document.getElementById('quitBtn');
   const hideBtn = document.getElementById('hideBtn');
   const prevKeyBtn = document.getElementById('prevKeyBtn');
@@ -407,6 +410,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (toastTimeoutId) clearTimeout(toastTimeoutId);
     toastTimeoutId = setTimeout(() => {
       errorDisplay.classList.add('hidden');
+      toastTimeoutId = null;
     }, timeout);
   }
 
@@ -417,7 +421,9 @@ window.addEventListener('DOMContentLoaded', () => {
     showToast(message, 'error', 5000);
   }
 
-  function hideError() {
+  function hideError(force = false) {
+    // Don't hide if a toast is actively showing (has a pending timeout), unless forced
+    if (!force && toastTimeoutId) return;
     errorDisplay.classList.add('hidden');
   }
 
@@ -462,6 +468,60 @@ window.addEventListener('DOMContentLoaded', () => {
       newApiKeyInput.focus();
       newApiKeyInput.select();
     }
+  }
+
+  async function handleSetOpenCodeKey() {
+    const activeKey = currentSettings?.api_keys?.[currentSettings.active_api_key_index];
+    if (!activeKey?.key) {
+      showError('No active API key to set.');
+      return;
+    }
+
+    addLog(`Setting OpenCode key to: ${activeKey.label}`);
+    showToast('Setting OpenCode key...', 'info');
+
+    try {
+      await invoke('write_opencode_openrouter_key', { apiKey: activeKey.key });
+    } catch (error) {
+      const message = error?.toString?.() || 'Failed to write OpenCode auth file.';
+      addLog(`OpenCode key write failed: ${message}`, 'error');
+      showError(message);
+      return;
+    }
+
+    // Read back to confirm
+    try {
+      const readBack = await invoke('read_opencode_openrouter_key');
+      if (readBack?.trim() === activeKey.key) {
+        addLog(`OpenCode key confirmed set to: ${activeKey.label}`);
+        showToast(`OpenCode key set to "${activeKey.label}"`, 'success');
+      } else {
+        addLog('OpenCode key read-back mismatch', 'warn');
+        showToast('OpenCode key written but could not verify.', 'info');
+      }
+    } catch (error) {
+      addLog(`OpenCode key read-back failed: ${error}`, 'warn');
+      showToast(`OpenCode key set to "${activeKey.label}" (could not verify)`, 'info');
+    }
+  }
+
+  // OpenCode context menu helpers
+  function showOpenCodeMenu(x, y) {
+    // Update label to current active key
+    const activeKey = currentSettings?.api_keys?.[currentSettings.active_api_key_index];
+    if (openCodeSetLabel) {
+      openCodeSetLabel.textContent = activeKey?.label || '…';
+    }
+
+    openCodeMenu.style.left = 'auto';
+    openCodeMenu.style.right = '16px';
+    openCodeMenu.style.bottom = '60px';
+    openCodeMenu.style.top = 'auto';
+    openCodeMenu.classList.remove('hidden');
+  }
+
+  function hideOpenCodeMenu() {
+    openCodeMenu.classList.add('hidden');
   }
 
   // State management
@@ -536,6 +596,8 @@ window.addEventListener('transitionend', (e) => {
 });
 
 document.addEventListener('contextmenu', (e) => {
+  // Allow right-click on OpenCode button (handled by its own listener)
+  if (e.target.closest('#openCodeBtn')) return;
   if (!currentSettings?.debugging_enabled) {
     e.preventDefault();
   }
@@ -1204,10 +1266,44 @@ document.addEventListener('contextmenu', (e) => {
     currentAnimatedPct = 0; // Reset for full build-up animation
     loadBalance();
   };
-  if (extractOpenCodeKeyBtn) {
-    extractOpenCodeKeyBtn.onclick = () => {
+  // OpenCode button: left-click = extract, right-click = context menu
+  if (openCodeBtn) {
+    openCodeBtn.onclick = (e) => {
+      e.stopPropagation();
       handleExtractOpenCodeKey();
     };
+    openCodeBtn.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showOpenCodeMenu(e.clientX, e.clientY);
+    };
+  }
+
+  // Context menu item clicks
+  if (openCodeMenu) {
+    openCodeMenu.querySelectorAll('.opencode-ctx-item').forEach(item => {
+      item.onclick = (e) => {
+        e.stopPropagation();
+        hideOpenCodeMenu();
+        const action = item.getAttribute('data-action');
+        if (action === 'extract') handleExtractOpenCodeKey();
+        else if (action === 'set') handleSetOpenCodeKey();
+      };
+    });
+
+    // Dismiss on click outside
+    document.addEventListener('click', (e) => {
+      if (!openCodeMenu.classList.contains('hidden') && !openCodeMenu.contains(e.target) && e.target !== openCodeBtn) {
+        hideOpenCodeMenu();
+      }
+    });
+
+    // Dismiss on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !openCodeMenu.classList.contains('hidden')) {
+        hideOpenCodeMenu();
+      }
+    });
   }
   quitBtn.onclick = () => invoke('quit_app');
   hideBtn.onclick = () => invoke('toggle_window_visibility');

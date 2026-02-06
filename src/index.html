@@ -140,7 +140,15 @@
             <span id="lastUpdated" class="last-updated-text">Last updated: -</span>
             <button id="refreshBtn" class="btn-subtle">↻</button>
           </div>
-          <button id="extractOpenCodeKeyBtn" class="btn-subtle extract-key-btn">Extract OpenCode Key</button>
+          <button id="openCodeBtn" class="opencode-icon-btn" aria-label="OpenCode">
+            <img src="assets/opencode.png" alt="OpenCode" width="16" height="16" />
+          </button>
+
+          <!-- OpenCode context menu -->
+          <div id="openCodeMenu" class="opencode-ctx-menu hidden">
+            <div class="opencode-ctx-item" data-action="extract">Extract OpenCode key</div>
+            <div class="opencode-ctx-item" data-action="set" id="openCodeSetItem">Set OpenCode key to <strong id="openCodeSetLabel">…</strong></div>
+          </div>
         </div>
       </div>
 

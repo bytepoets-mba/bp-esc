@@ -283,6 +283,59 @@ fn read_opencode_openrouter_key() -> Result<String, String> {
 }
 
 #[tauri::command]
+fn write_opencode_openrouter_key(api_key: String) -> Result<(), String> {
+    let home = dirs::home_dir()
+        .ok_or_else(|| "Could not determine home directory".to_string())?;
+    let auth_dir = home
+        .join(".local")
+        .join("share")
+        .join("opencode");
+    let auth_path = auth_dir.join("auth.json");
+
+    // Read existing file or start with empty object
+    let mut root: serde_json::Map<String, Value> = if auth_path.exists() {
+        let contents = fs::read_to_string(&auth_path)
+            .map_err(|e| format!("Failed to read OpenCode auth file: {}", e))?;
+        match serde_json::from_str::<Value>(&contents) {
+            Ok(Value::Object(obj)) => obj,
+            _ => serde_json::Map::new(),
+        }
+    } else {
+        // Ensure directory exists
+        if !auth_dir.exists() {
+            fs::create_dir_all(&auth_dir)
+                .map_err(|e| format!("Failed to create OpenCode auth directory: {}", e))?;
+        }
+        serde_json::Map::new()
+    };
+
+    // Set providers.openrouter.api_key
+    let providers = root
+        .entry("providers")
+        .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    if let Value::Object(providers_map) = providers {
+        let openrouter = providers_map
+            .entry("openrouter")
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        if let Value::Object(or_map) = openrouter {
+            or_map.insert("api_key".to_string(), Value::String(api_key));
+        }
+    }
+
+    let contents = serde_json::to_string_pretty(&root)
+        .map_err(|e| format!("Failed to serialize OpenCode auth file: {}", e))?;
+    fs::write(&auth_path, contents)
+        .map_err(|e| format!("Failed to write OpenCode auth file: {}", e))?;
+
+    // Restrictive permissions
+    let perms = fs::Permissions::from_mode(0o600);
+    fs::set_permissions(&auth_path, perms)
+        .map_err(|e| format!("Failed to set auth file permissions: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
 async fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
     save_settings_internal(&settings)?;
     
@@ -1514,6 +1567,7 @@ fn main() {
         save_api_key,
         read_settings,
         read_opencode_openrouter_key,
+        write_opencode_openrouter_key,
         save_settings,
         reset_settings,
         fetch_balance,
