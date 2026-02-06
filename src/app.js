@@ -12,6 +12,7 @@ window.addEventListener('DOMContentLoaded', () => {
   let currentSettings = null;
   let currentBalance = null;
   let sortableInstance = null; // SortableJS instance for API key reordering
+  let toastTimeoutId = null;
 
   // DOM elements - States
   const loadingState = document.getElementById('loadingState');
@@ -131,6 +132,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // DOM elements - Actions
   const refreshBtn = document.getElementById('refreshBtn');
+  const extractOpenCodeKeyBtn = document.getElementById('extractOpenCodeKeyBtn');
   const quitBtn = document.getElementById('quitBtn');
   const hideBtn = document.getElementById('hideBtn');
   const prevKeyBtn = document.getElementById('prevKeyBtn');
@@ -393,20 +395,73 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  function showToast(message, type = 'info', timeout = 3500) {
+    if (!errorDisplay) return;
+    errorDisplay.textContent = message;
+    errorDisplay.classList.remove('hidden', 'toast-success', 'toast-info');
+    if (type === 'success') {
+      errorDisplay.classList.add('toast-success');
+    } else if (type === 'info') {
+      errorDisplay.classList.add('toast-info');
+    }
+    if (toastTimeoutId) clearTimeout(toastTimeoutId);
+    toastTimeoutId = setTimeout(() => {
+      errorDisplay.classList.add('hidden');
+    }, timeout);
+  }
+
   function showError(message) {
     const ts = new Date().toISOString();
     console.error(`[${ts}] ${message}`);
     addLog(message, 'error');
-
-    errorDisplay.textContent = message;
-    errorDisplay.classList.remove('hidden');
-    setTimeout(() => {
-      errorDisplay.classList.add('hidden');
-    }, 5000);
+    showToast(message, 'error', 5000);
   }
 
   function hideError() {
     errorDisplay.classList.add('hidden');
+  }
+
+  async function handleExtractOpenCodeKey() {
+    addLog('Extracting OpenCode OpenRouter key');
+    showToast('Extracting OpenCode key...', 'info');
+
+    let extractedKey = null;
+    try {
+      extractedKey = await invoke('read_opencode_openrouter_key');
+    } catch (error) {
+      const message = error?.toString?.() || 'Failed to read OpenCode auth file.';
+      addLog(`OpenCode key extraction failed: ${message}`, 'error');
+      showError(message);
+      return;
+    }
+
+    const key = (extractedKey || '').trim();
+    if (!key) {
+      addLog('OpenCode key extraction returned empty key', 'error');
+      showError('OpenCode key not found in auth file.');
+      return;
+    }
+
+    const existingIndex = currentSettings?.api_keys?.findIndex(k => k.key === key) ?? -1;
+    if (existingIndex >= 0) {
+      currentSettings.active_api_key_index = existingIndex;
+      await saveSettingsAction(true);
+      renderApiKeyList();
+      addLog('OpenCode key already configured. Switched active key.');
+      showToast('OpenCode key already configured. Switched active key.', 'success');
+      loadBalance();
+      return;
+    }
+
+    addLog('OpenCode key found but not configured. Opening settings.');
+    showToast('OpenCode key found. Add it in settings.', 'info');
+    showState('settings');
+    setSettingsSubTab('openrouter');
+    if (newApiKeyInput) {
+      newApiKeyInput.value = key;
+      newApiKeyInput.focus();
+      newApiKeyInput.select();
+    }
   }
 
   // State management
@@ -1149,6 +1204,11 @@ document.addEventListener('contextmenu', (e) => {
     currentAnimatedPct = 0; // Reset for full build-up animation
     loadBalance();
   };
+  if (extractOpenCodeKeyBtn) {
+    extractOpenCodeKeyBtn.onclick = () => {
+      handleExtractOpenCodeKey();
+    };
+  }
   quitBtn.onclick = () => invoke('quit_app');
   hideBtn.onclick = () => invoke('toggle_window_visibility');
 

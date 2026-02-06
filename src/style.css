@@ -305,8 +305,15 @@ body.unfocused .container::after {
 
 .balance-footer-info {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
   margin-top: 0.5rem;
+}
+
+.extract-key-btn {
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  line-height: 1.1;
 }
 
 .last-updated-text {
@@ -1107,6 +1114,20 @@ input[type="text"] {
   word-break: break-word;
   overflow-wrap: anywhere;
   animation: toast-in 0.22s ease-out;
+}
+
+.error-message.toast-success {
+  background: #e9f9ef;
+  color: #0f5132;
+  border: 1px solid rgba(15, 81, 50, 0.2);
+  box-shadow: 0 10px 24px rgba(15, 81, 50, 0.18);
+}
+
+.error-message.toast-info {
+  background: #e8f4fb;
+  color: #0b4a66;
+  border: 1px solid rgba(11, 74, 102, 0.2);
+  box-shadow: 0 10px 24px rgba(11, 74, 102, 0.18);
 }
 
 .help-text {

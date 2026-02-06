@@ -9,6 +9,7 @@ use std::os::unix::fs::PermissionsExt; // macOS is Unix
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use chrono::{Datelike, Local, TimeZone, Timelike};
 use tauri::{
     AppHandle, Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter, State,
@@ -263,6 +264,25 @@ fn read_settings() -> Result<AppSettings, String> {
 }
 
 #[tauri::command]
+fn read_opencode_openrouter_key() -> Result<String, String> {
+    let home = dirs::home_dir()
+        .ok_or_else(|| "Could not determine home directory".to_string())?;
+    let auth_path = home
+        .join(".local")
+        .join("share")
+        .join("opencode")
+        .join("auth.json");
+
+    let contents = fs::read_to_string(&auth_path)
+        .map_err(|e| format!("Failed to read OpenCode auth file: {}", e))?;
+    let value: Value = serde_json::from_str(&contents)
+        .map_err(|e| format!("Failed to parse OpenCode auth file: {}", e))?;
+
+    extract_openrouter_key_from_value(&value)
+        .ok_or_else(|| "OpenRouter key not found in OpenCode auth file.".to_string())
+}
+
+#[tauri::command]
 async fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
     save_settings_internal(&settings)?;
     
@@ -341,6 +361,100 @@ fn get_config_dir() -> Result<PathBuf, String> {
 fn get_env_file_path() -> Result<PathBuf, String> {
     let config_dir = get_config_dir()?;
     Ok(config_dir.join(".env"))
+}
+
+fn extract_key_from_object(obj: &serde_json::Map<String, Value>) -> Option<String> {
+    let key_fields = ["api_key", "apiKey", "key", "token"];
+    for field in key_fields {
+        if let Some(Value::String(value)) = obj.get(field) {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+
+    if let Some(Value::Object(creds)) = obj.get("credentials") {
+        if let Some(key) = extract_key_from_object(creds) {
+            return Some(key);
+        }
+    }
+
+    None
+}
+
+fn is_openrouter_entry(obj: &serde_json::Map<String, Value>) -> bool {
+    let keys = ["provider", "name", "id"];
+    keys.iter().any(|field| {
+        obj.get(*field)
+            .and_then(|value| value.as_str())
+            .map(|value| value.eq_ignore_ascii_case("openrouter"))
+            .unwrap_or(false)
+    })
+}
+
+fn extract_key_from_provider(value: &Value) -> Option<String> {
+    if let Value::Object(obj) = value {
+        if let Some(key) = extract_key_from_object(obj) {
+            return Some(key);
+        }
+        if let Some(Value::Object(auth)) = obj.get("auth") {
+            if let Some(key) = extract_key_from_object(auth) {
+                return Some(key);
+            }
+        }
+    }
+    None
+}
+
+fn extract_openrouter_key_from_value(value: &Value) -> Option<String> {
+    if let Value::Object(obj) = value {
+        if let Some(Value::Object(providers)) = obj.get("providers") {
+            if let Some(provider) = providers.get("openrouter") {
+                if let Some(key) = extract_key_from_provider(provider) {
+                    return Some(key);
+                }
+            }
+        }
+
+        if let Some(provider) = obj.get("openrouter") {
+            if let Some(key) = extract_key_from_provider(provider) {
+                return Some(key);
+            }
+        }
+
+        if let Some(Value::Array(providers)) = obj.get("providers") {
+            for provider in providers {
+                if let Value::Object(entry) = provider {
+                    if is_openrouter_entry(entry) {
+                        if let Some(key) = extract_key_from_object(entry) {
+                            return Some(key);
+                        }
+                        if let Some(key) = extract_key_from_provider(provider) {
+                            return Some(key);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Value::Array(items) = value {
+        for item in items {
+            if let Value::Object(obj) = item {
+                if is_openrouter_entry(obj) {
+                    if let Some(key) = extract_key_from_object(obj) {
+                        return Some(key);
+                    }
+                    if let Some(key) = extract_key_from_provider(item) {
+                        return Some(key);
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
 
 /// Read API key from ~/.config/bpesc-balance/.env
@@ -1399,6 +1513,7 @@ fn main() {
         read_api_key, 
         save_api_key,
         read_settings,
+        read_opencode_openrouter_key,
         save_settings,
         reset_settings,
         fetch_balance,
