@@ -1,42 +1,59 @@
-# BYTEPOETS Employee Self-Care (ESC)
+# BP-ESC
 
-**Internal tool — BYTEPOETS GmbH employees only**
+**A quiet companion for your AI budget.**
 
-Warm, focused macOS companion for OpenRouter usage: quick insight, calm pacing, and a menubar heartbeat for your budget.
+BP-ESC is a native macOS menubar app that keeps your OpenRouter spending visible, paced, and under control. Built by [BYTEPOETS](https://bytepoets.com) — a team that believes writing code is an art form, and that good tools should feel like they belong on your desk.
 
-![BYTEPOETS ESC](docs/esc-app.png)
+<p align="center">
+  <img src="docs/esc-app.png" alt="BP-ESC" width="520" />
+</p>
 
-## Features
+## What it does
 
-- **Live OpenRouter balance** with limit/used/remaining, month/week/day breakdowns, and pace cues
-- **Menubar status icon** that mirrors your current percentage at a glance
-- **Used vs remaining mode** with percent/$ view and decimal precision controls
-- **Auto-refresh** that keeps data up to date even when the window is hidden
-- **Multi‑key management** with labels, quick switching, and drag‑to‑reorder
-- **OpenCode key extractor** that can switch to an existing key or prefill a new one
-- **Native macOS quality‑of‑life**: launch at login, global shortcut, always‑on‑top, dim unfocused
-- **Auto updates** via Sparkle with one‑click manual checks
-- **Debugging tools**: optional log file, debug bar, and in‑app log drawer
-- **Safe local storage** under `~/.config/bpesc-balance/` with strict file permissions
+- **Live balance at a glance** — limit, used, remaining. Month, week, day. All in one calm view.
+- **Menubar icon** — a tiny hexagon that fills as you spend, colored by pace. You never need to open the window to know where you stand.
+- **Pace tracking** — are you ahead, on track, or behind your monthly budget? Visual bars and percentage deltas tell you instantly.
+- **Multi-key management** — label your keys, reorder them, switch between them. One click.
+- **OpenCode integration** — extract or set your active OpenRouter key directly into [OpenCode](https://opencode.ai)'s auth config.
+- **Auto-refresh** — balance updates silently in the background, even when the window is hidden.
+- **Native macOS feel** — launch at login, global keyboard shortcut, always-on-top, unfocused dimming, Sparkle auto-updates.
 
-## Quick Start
+## Getting started
 
-1. Launch `BYTEPOETS - ESC.app`
-2. Add your OpenRouter key in Settings
-3. Track balances, pace, and remaining budget in the OpenRouter tab
+1. Download the latest `.dmg` from [Releases](https://github.com/bytepoets-mba/bp-esc/releases/latest)
+2. Drag `BP-ESC.app` to Applications
+3. Launch, add your OpenRouter API key in Settings, done
 
-## Security Note
+Your key stays on your machine. Config lives at `~/.config/bpesc-balance/` with `0600` permissions.
 
-Your API key stays on your machine. Keep local config files private and never commit them.
+## Tech stack
 
-## Auto-Updates
+| Layer | Tech |
+|-------|------|
+| Shell | [Tauri v2](https://v2.tauri.app) |
+| Backend | Rust |
+| Frontend | Vanilla JS, HTML, CSS — no framework, no build step |
+| Updates | [Sparkle 2](https://sparkle-project.org) with EdDSA signatures |
+| Platform | macOS 11+ (universal binary: Apple Silicon + Intel) |
 
-Sparkle handles native macOS updates and signatures. Manual check: Settings → “Check for Updates”.
+## Development
 
-## Technical Docs
+```bash
+# Prerequisites: Rust, Node.js 20+, Nix (optional, for devenv)
+npm install
+npm run dev
+```
 
-See `docs/TECHNICAL-GUIDE.md` for versioning, update flow, and security details.
+See [`docs/DEVELOPMENT-ENVIRONMENT-GUIDE.md`](docs/DEVELOPMENT-ENVIRONMENT-GUIDE.md) for the full setup guide.
+
+## Contributing
+
+Issues and pull requests are welcome. This is a small, opinionated project — if you're unsure about a direction, open an issue first and we'll talk.
+
+## License
+
+[AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html) — free to use, modify, and share under the same terms.
 
 ---
 
-© 2026 BYTEPOETS GmbH — Internal Use Only
+Crafted with care by [BYTEPOETS](https://bytepoets.com).
