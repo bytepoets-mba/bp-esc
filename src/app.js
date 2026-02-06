@@ -126,6 +126,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const shortcutInput = document.getElementById('shortcutInput');
   const shortcutEnabledToggle = document.getElementById('shortcutEnabledToggle');
   const debugLoggingToggle = document.getElementById('debugLoggingToggle');
+  const debugModeToggle = document.getElementById('debugModeToggle');
   const resetSettingsBtn = document.getElementById('resetSettingsBtn');
 
   // DOM elements - Actions
@@ -476,6 +477,12 @@ window.addEventListener('load', performResize);
 window.addEventListener('transitionend', (e) => {
   if (e.target.closest('.state') || e.target.closest('.container')) {
     performResize();
+  }
+});
+
+document.addEventListener('contextmenu', (e) => {
+  if (!currentSettings?.debugging_enabled) {
+    e.preventDefault();
   }
 });
 // ---------------------------------------------------
@@ -918,6 +925,10 @@ window.addEventListener('transitionend', (e) => {
     shortcutInput.value = currentSettings.global_shortcut || 'F19';
     shortcutEnabledToggle.checked = currentSettings.global_shortcut_enabled;
     debugLoggingToggle.checked = currentSettings.debug_logging_enabled;
+    if (debugModeToggle) {
+      debugModeToggle.checked = currentSettings.debugging_enabled;
+    }
+    applyDebugMode(currentSettings.debugging_enabled);
     
     if (currentSettings.show_percentage) {
       unitPercent.classList.add('active');
@@ -964,6 +975,7 @@ window.addEventListener('transitionend', (e) => {
       global_shortcut: shortcutInput.value.trim() || 'F19',
       global_shortcut_enabled: shortcutEnabledToggle.checked,
       debug_logging_enabled: debugLoggingToggle.checked,
+      debugging_enabled: debugModeToggle ? debugModeToggle.checked : (currentSettings?.debugging_enabled ?? false),
       show_percentage: unitPercent.classList.contains('active'),
       show_remaining: typeRemaining.classList.contains('active'),
     };
@@ -987,6 +999,7 @@ window.addEventListener('transitionend', (e) => {
       }
 
       currentSettings = newSettings;
+      applyDebugMode(newSettings.debugging_enabled);
       if (resetHexAnimation) {
         currentAnimatedPct = 0;
       }
@@ -1113,6 +1126,9 @@ window.addEventListener('transitionend', (e) => {
   shortcutInput.onblur = () => saveSettingsAction(true);
   shortcutEnabledToggle.onchange = () => saveSettingsAction(true);
   debugLoggingToggle.onchange = () => saveSettingsAction(true);
+  if (debugModeToggle) {
+    debugModeToggle.onchange = () => saveSettingsAction(true);
+  }
 
   // Reset button - confirm and wipe data
   resetSettingsBtn.onclick = () => {
@@ -1154,31 +1170,59 @@ window.addEventListener('transitionend', (e) => {
     await loadBalance();
   };
 
-  // Toggle debug info on logo double click
+  // Debug UI helpers
   const bpLogo = document.getElementById('bpLogo');
   const checkLabel = document.getElementById('checkLabel');
   const openLogBtn = document.getElementById('openLogBtn');
-  
-  if (bpLogo && checkLabel) {
-    bpLogo.ondblclick = () => {
-      const isHidden = checkLabel.style.display === 'none';
-      checkLabel.style.display = isHidden ? 'block' : 'none';
-      
-      // Force initial status when showing
-      if (!isHidden) {
-        const focusLabel = document.getElementById('focusValue');
-        if (focusLabel) {
-          focusLabel.textContent = document.hasFocus() ? 'FOCUSED' : 'BLURRED';
-        }
-      }
-    };
-  }
-
   const logContent = document.getElementById('logContent');
   const logDrawer = document.getElementById('logDrawer');
   const openLogFileBtn = document.getElementById('openLogFileBtn');
   const closeLogDrawerBtn = document.getElementById('closeLogDrawerBtn');
   const clearLogsBtn = document.getElementById('clearLogsBtn');
+  
+  async function openLogDrawer() {
+    if (!logDrawer || !logDrawer.classList.contains('hidden')) return;
+    logDrawer.classList.remove('hidden');
+    const { getCurrentWindow } = window.__TAURI__.window;
+    await getCurrentWindow().setResizable(true);
+    await refreshLogsInUI();
+    performResize();
+  }
+
+  async function closeLogDrawer() {
+    if (!logDrawer || logDrawer.classList.contains('hidden')) return;
+    logDrawer.classList.add('hidden');
+    const { getCurrentWindow } = window.__TAURI__.window;
+    await getCurrentWindow().setResizable(false);
+    performResize();
+  }
+
+  function applyDebugMode(isEnabled) {
+    if (checkLabel) {
+      checkLabel.style.display = isEnabled ? 'block' : 'none';
+      if (isEnabled) {
+        const focusLabel = document.getElementById('focusValue');
+        if (focusLabel) {
+          focusLabel.textContent = document.hasFocus() ? 'FOCUSED' : 'BLURRED';
+        }
+      }
+    }
+
+    if (isEnabled) {
+      openLogDrawer();
+    } else {
+      closeLogDrawer();
+    }
+  }
+
+  // Toggle debug setting on logo double click
+  if (bpLogo) {
+    bpLogo.ondblclick = async () => {
+      if (!currentSettings || !debugModeToggle) return;
+      debugModeToggle.checked = !debugModeToggle.checked;
+      await saveSettingsAction(true);
+    };
+  }
 
   async function addLog(message, type = 'info') {
     const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
@@ -1208,25 +1252,17 @@ window.addEventListener('transitionend', (e) => {
 
   if (openLogBtn) {
     openLogBtn.onclick = async () => {
-      const isOpening = logDrawer.classList.contains('hidden');
-      logDrawer.classList.toggle('hidden');
-      
-      const { getCurrentWindow } = window.__TAURI__.window;
-      const appWindow = getCurrentWindow();
-      await appWindow.setResizable(isOpening);
-      
+      const isOpening = logDrawer?.classList.contains('hidden');
       if (isOpening) {
-        await refreshLogsInUI();
+        await openLogDrawer();
+      } else {
+        await closeLogDrawer();
       }
-      performResize();
     };
   }
 
   closeLogDrawerBtn.onclick = async () => {
-    logDrawer.classList.add('hidden');
-    const { getCurrentWindow } = window.__TAURI__.window;
-    await getCurrentWindow().setResizable(false);
-    performResize();
+    await closeLogDrawer();
   };
 
   clearLogsBtn.onclick = async () => {

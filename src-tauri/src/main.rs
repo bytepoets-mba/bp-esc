@@ -160,6 +160,8 @@ pub struct AppSettings {
     #[serde(default = "default_false")]
     pub debug_logging_enabled: bool,
     #[serde(default = "default_false")]
+    pub debugging_enabled: bool,
+    #[serde(default = "default_false")]
     pub menubar_monochrome: bool,
     #[serde(default = "default_pace_warn_threshold")]
     pub pace_warn_threshold: f64,
@@ -194,6 +196,7 @@ impl Default for AppSettings {
             unfocused_overlay: true,
             decimal_places: 0,
             debug_logging_enabled: false,
+            debugging_enabled: false,
             menubar_monochrome: false,
             pace_warn_threshold: 15.0,
             pace_over_threshold: 25.0,
