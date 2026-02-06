@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use chrono::{Datelike, Local, TimeZone, Timelike};
 use tauri::{
-    AppHandle, Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter, State, Theme,
+    AppHandle, Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter, State,
     menu::{Menu, MenuItemBuilder},
     tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
     image::Image
@@ -960,12 +960,7 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
         || balance.usage.is_some()
         || balance.limit.is_some();
     
-    let is_dark = app_handle
-        .get_webview_window("main")
-        .and_then(|window| window.theme().ok())
-        .map(|theme| matches!(theme, Theme::Dark))
-        .unwrap_or(false);
-    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance, is_dark)?;
+    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance)?;
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
         tray.set_icon(Some(icon))
             .map_err(|e| format!("Failed to update tray icon: {}", e))?;
@@ -980,7 +975,7 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
 }
 
 /// Generate hybrid menubar icon with logo and normal white text
-fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings, balance: &BalanceData, is_dark: bool) -> Result<Image<'static>, String> {
+fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings, balance: &BalanceData) -> Result<Image<'static>, String> {
     let scale = MENUBAR_RENDER_SCALE;
     
     // Load Logo
@@ -1085,8 +1080,7 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
 
     let border_thickness = (HEX_BORDER_PTS * scale) as i32;
     let white = Rgba([255, 255, 255, 255]);
-    let black = Rgba([0, 0, 0, 255]);
-    let stroke_color = if is_dark { white } else { black };
+    let stroke_color = white;
     let transparent = Rgba([0, 0, 0, 0]);
     let fill_color = if settings.menubar_monochrome {
         Rgba([255, 255, 255, 180])
@@ -1111,8 +1105,13 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
                 } else {
                     // Interior - vertical fill logic
                     let relative_y = (y as f32 - hex_y_offset) / hex_height;
-                    let inverted_fill = 1.0f32 - fill_pct;
-                    if relative_y > inverted_fill {
+                    let fill_from_top = !settings.show_remaining;
+                    let is_filled = if fill_from_top {
+                        relative_y < fill_pct
+                    } else {
+                        relative_y > (1.0f32 - fill_pct)
+                    };
+                    if is_filled {
                         img.put_pixel(x, y, fill_color);
                     } else {
                         img.put_pixel(x, y, transparent);
@@ -1293,11 +1292,6 @@ fn main() {
       let menu = Menu::with_items(app, &[&show_hide, &quit])?;
       
       // Create tray icon
-  let initial_is_dark = app
-    .get_webview_window("main")
-    .and_then(|window| window.theme().ok())
-    .map(|theme| matches!(theme, Theme::Dark))
-    .unwrap_or(false);
   let initial_icon = generate_hybrid_menubar_icon(0.0, true, false, true, &AppSettings::default(), &BalanceData {
       limit: None,
       usage: None,
@@ -1315,7 +1309,7 @@ fn main() {
       pace_day_delta_percent: None,
       pace_status: None,
       label: None,
-  }, initial_is_dark).ok();
+  }).ok();
       let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(initial_icon.unwrap_or_else(|| Image::from_bytes(include_bytes!("../icons/32x32.png")).unwrap()))
         .menu(&menu)

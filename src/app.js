@@ -807,12 +807,14 @@ window.addEventListener('transitionend', (e) => {
       c.closePath();
     }
 
-    // 1. Draw Fill (Bottom-to-Top)
+    // 1. Draw Fill (direction based on used/remaining)
     ctx.save();
     pathHex(ctx);
     ctx.clip();
     const fillPct = Math.max(0, Math.min(100, displayPct)) / 100;
-    const fillY = yOff + hexHeight * (1 - fillPct);
+    const fillHeight = hexHeight * fillPct;
+    const fillFromTop = !currentSettings?.show_remaining;
+    const fillY = fillFromTop ? yOff : yOff + (hexHeight - fillHeight);
     const fillColor = paceStatus === 'ahead'
       ? '#ef4444'
       : paceStatus === 'behind'
@@ -821,7 +823,7 @@ window.addEventListener('transitionend', (e) => {
       ? '#10b981'
       : '#006497';
     ctx.fillStyle = fillColor;
-    ctx.fillRect(0, fillY, size, size);
+    ctx.fillRect(0, fillY, size, fillHeight);
     ctx.restore();
 
     // 2. Real Inner Shadow
@@ -966,6 +968,8 @@ window.addEventListener('transitionend', (e) => {
       show_remaining: typeRemaining.classList.contains('active'),
     };
 
+    const resetHexAnimation = currentSettings?.show_remaining !== newSettings.show_remaining;
+
     try {
       await invoke('save_settings', { settings: newSettings });
       
@@ -983,6 +987,9 @@ window.addEventListener('transitionend', (e) => {
       }
 
       currentSettings = newSettings;
+      if (resetHexAnimation) {
+        currentAnimatedPct = 0;
+      }
       if (currentBalance) {
         displayBalance(currentBalance, false);
       }
