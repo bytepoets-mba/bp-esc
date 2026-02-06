@@ -2,6 +2,16 @@
 
 **A quiet companion for your AI budget.**
 
+<p align="center">
+  <a href="https://github.com/bytepoets-mba/bp-esc/releases/download/v0.5.1/BP-ESC_0.5.1_universal.dmg">
+    <img src="https://img.shields.io/badge/Download-v0.5.1-006497?style=for-the-badge&logo=apple&logoColor=white" alt="Download BP-ESC" />
+  </a>
+  &nbsp;
+  <img src="https://img.shields.io/badge/macOS_11+-universal-555?style=for-the-badge&logo=macos&logoColor=white" alt="macOS 11+" />
+  &nbsp;
+  <img src="https://img.shields.io/github/license/bytepoets-mba/bp-esc?style=for-the-badge&color=555" alt="License" />
+</p>
+
 BP-ESC is a native macOS menubar app that keeps your OpenRouter spending visible, paced, and under control. Built by [BYTEPOETS](https://bytepoets.com) — a team that believes writing code is an art form, and that good tools should feel like they belong on your desk.
 
 <p align="center">
