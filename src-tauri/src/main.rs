@@ -1,6 +1,8 @@
 // BYTEPOETS - Employee Self-Care App
 // macOS only application
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Suppress warnings from objc crate macros (msg_send!, class!)
+#![allow(unexpected_cfgs)]
 
 use std::fs;
 use std::path::PathBuf;
@@ -32,6 +34,7 @@ use objc::{class, msg_send, sel, sel_impl};
 #[cfg(target_os = "macos")]
 use std::ffi::CStr;
 use imageproc::drawing::draw_text_mut;
+use tauri_plugin_clipboard_manager::ClipboardExt;
 use tokio::time::{interval, Interval};
 use tokio::sync::Mutex as TokioMutex;
 
@@ -292,55 +295,10 @@ fn read_opencode_openrouter_key() -> Result<String, String> {
 }
 
 #[tauri::command]
-fn write_opencode_openrouter_key(api_key: String) -> Result<(), String> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| "Could not determine home directory".to_string())?;
-    let auth_dir = home
-        .join(".local")
-        .join("share")
-        .join("opencode");
-    let auth_path = auth_dir.join("auth.json");
-
-    // Read existing file or start with empty object
-    let mut root: serde_json::Map<String, Value> = if auth_path.exists() {
-        let contents = fs::read_to_string(&auth_path)
-            .map_err(|e| format!("Failed to read OpenCode auth file: {}", e))?;
-        match serde_json::from_str::<Value>(&contents) {
-            Ok(Value::Object(obj)) => obj,
-            _ => serde_json::Map::new(),
-        }
-    } else {
-        // Ensure directory exists
-        if !auth_dir.exists() {
-            fs::create_dir_all(&auth_dir)
-                .map_err(|e| format!("Failed to create OpenCode auth directory: {}", e))?;
-        }
-        serde_json::Map::new()
-    };
-
-    // Set providers.openrouter.api_key
-    let providers = root
-        .entry("providers")
-        .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    if let Value::Object(providers_map) = providers {
-        let openrouter = providers_map
-            .entry("openrouter")
-            .or_insert_with(|| Value::Object(serde_json::Map::new()));
-        if let Value::Object(or_map) = openrouter {
-            or_map.insert("api_key".to_string(), Value::String(api_key));
-        }
-    }
-
-    let contents = serde_json::to_string_pretty(&root)
-        .map_err(|e| format!("Failed to serialize OpenCode auth file: {}", e))?;
-    fs::write(&auth_path, contents)
-        .map_err(|e| format!("Failed to write OpenCode auth file: {}", e))?;
-
-    // Restrictive permissions
-    let perms = fs::Permissions::from_mode(0o600);
-    fs::set_permissions(&auth_path, perms)
-        .map_err(|e| format!("Failed to set auth file permissions: {}", e))?;
-
+fn copy_to_clipboard(app: AppHandle, text: String) -> Result<(), String> {
+    app.clipboard()
+        .write_text(text)
+        .map_err(|e| format!("Failed to copy to clipboard: {}", e))?;
     Ok(())
 }
 
@@ -1495,7 +1453,8 @@ fn main() {
   let mut builder = tauri::Builder::default()
     .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--quiet"])))
     .plugin(tauri_plugin_window_state::Builder::default().build())
-    .plugin(tauri_plugin_global_shortcut::Builder::new().build());
+    .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+    .plugin(tauri_plugin_clipboard_manager::init());
   
   #[cfg(target_os = "macos")]
   {
@@ -1632,7 +1591,7 @@ fn main() {
         save_api_key,
         read_settings,
         read_opencode_openrouter_key,
-        write_opencode_openrouter_key,
+        copy_to_clipboard,
         save_settings,
         reset_settings,
         fetch_balance,
