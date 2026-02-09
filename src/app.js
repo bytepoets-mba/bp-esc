@@ -132,10 +132,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // DOM elements - Actions
   const refreshBtn = document.getElementById('refreshBtn');
-  const openCodeBtn = document.getElementById('openCodeBtn');
-  const openCodeMenu = document.getElementById('openCodeMenu');
-  const openCodeSetItem = document.getElementById('openCodeSetItem');
-  const openCodeSetLabel = document.getElementById('openCodeSetLabel');
+  const moreBtn = document.getElementById('moreBtn');
+  const moreMenu = document.getElementById('moreMenu');
+  const copyKeyLabel = document.getElementById('copyKeyLabel');
   const quitBtn = document.getElementById('quitBtn');
   const hideBtn = document.getElementById('hideBtn');
   const prevKeyBtn = document.getElementById('prevKeyBtn');
@@ -470,58 +469,43 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function handleSetOpenCodeKey() {
+  async function handleCopyToClipboard() {
     const activeKey = currentSettings?.api_keys?.[currentSettings.active_api_key_index];
     if (!activeKey?.key) {
-      showError('No active API key to set.');
+      showError('No active API key to copy.');
       return;
     }
 
-    addLog(`Setting OpenCode key to: ${activeKey.label}`);
-    showToast('Setting OpenCode key...', 'info');
+    addLog(`Copying API key to clipboard: ${activeKey.label}`);
 
     try {
-      await invoke('write_opencode_openrouter_key', { apiKey: activeKey.key });
+      await invoke('copy_to_clipboard', { text: activeKey.key });
+      addLog(`API key copied to clipboard: ${activeKey.label}`);
+      showToast('Key copied to clipboard!', 'success');
     } catch (error) {
-      const message = error?.toString?.() || 'Failed to write OpenCode auth file.';
-      addLog(`OpenCode key write failed: ${message}`, 'error');
+      const message = error?.toString?.() || 'Failed to copy to clipboard.';
+      addLog(`Clipboard copy failed: ${message}`, 'error');
       showError(message);
-      return;
-    }
-
-    // Read back to confirm
-    try {
-      const readBack = await invoke('read_opencode_openrouter_key');
-      if (readBack?.trim() === activeKey.key) {
-        addLog(`OpenCode key confirmed set to: ${activeKey.label}`);
-        showToast(`OpenCode key set to "${activeKey.label}"`, 'success');
-      } else {
-        addLog('OpenCode key read-back mismatch', 'warn');
-        showToast('OpenCode key written but could not verify.', 'info');
-      }
-    } catch (error) {
-      addLog(`OpenCode key read-back failed: ${error}`, 'warn');
-      showToast(`OpenCode key set to "${activeKey.label}" (could not verify)`, 'info');
     }
   }
 
-  // OpenCode context menu helpers
-  function showOpenCodeMenu(x, y) {
+  // More options context menu helpers
+  function showMoreMenu(x, y) {
     // Update label to current active key
     const activeKey = currentSettings?.api_keys?.[currentSettings.active_api_key_index];
-    if (openCodeSetLabel) {
-      openCodeSetLabel.textContent = activeKey?.label || '…';
+    if (copyKeyLabel) {
+      copyKeyLabel.textContent = activeKey?.label || '…';
     }
-
-    openCodeMenu.style.left = 'auto';
-    openCodeMenu.style.right = '16px';
-    openCodeMenu.style.bottom = '60px';
-    openCodeMenu.style.top = 'auto';
-    openCodeMenu.classList.remove('hidden');
+    
+    moreMenu.style.left = 'auto';
+    moreMenu.style.right = '16px';
+    moreMenu.style.bottom = '60px';
+    moreMenu.style.top = 'auto';
+    moreMenu.classList.remove('hidden');
   }
 
-  function hideOpenCodeMenu() {
-    openCodeMenu.classList.add('hidden');
+  function hideMoreMenu() {
+    moreMenu.classList.add('hidden');
   }
 
   // State management
@@ -596,8 +580,8 @@ window.addEventListener('transitionend', (e) => {
 });
 
 document.addEventListener('contextmenu', (e) => {
-  // Allow right-click on OpenCode button (handled by its own listener)
-  if (e.target.closest('#openCodeBtn')) return;
+  // Allow right-click on More button (handled by its own listener)
+  if (e.target.closest('#moreBtn')) return;
   if (!currentSettings?.debugging_enabled) {
     e.preventDefault();
   }
@@ -1266,42 +1250,37 @@ document.addEventListener('contextmenu', (e) => {
     currentAnimatedPct = 0; // Reset for full build-up animation
     loadBalance();
   };
-  // OpenCode button: left-click = extract, right-click = context menu
-  if (openCodeBtn) {
-    openCodeBtn.onclick = (e) => {
+  // More button: click to show context menu
+  if (moreBtn) {
+    moreBtn.onclick = (e) => {
       e.stopPropagation();
-      handleExtractOpenCodeKey();
-    };
-    openCodeBtn.oncontextmenu = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      showOpenCodeMenu(e.clientX, e.clientY);
+      showMoreMenu(e.clientX, e.clientY);
     };
   }
 
   // Context menu item clicks
-  if (openCodeMenu) {
-    openCodeMenu.querySelectorAll('.opencode-ctx-item').forEach(item => {
+  if (moreMenu) {
+    moreMenu.querySelectorAll('.opencode-ctx-item').forEach(item => {
       item.onclick = (e) => {
         e.stopPropagation();
-        hideOpenCodeMenu();
+        hideMoreMenu();
         const action = item.getAttribute('data-action');
         if (action === 'extract') handleExtractOpenCodeKey();
-        else if (action === 'set') handleSetOpenCodeKey();
+        else if (action === 'copy') handleCopyToClipboard();
       };
     });
 
     // Dismiss on click outside
     document.addEventListener('click', (e) => {
-      if (!openCodeMenu.classList.contains('hidden') && !openCodeMenu.contains(e.target) && e.target !== openCodeBtn) {
-        hideOpenCodeMenu();
+      if (!moreMenu.classList.contains('hidden') && !moreMenu.contains(e.target) && e.target !== moreBtn) {
+        hideMoreMenu();
       }
     });
 
     // Dismiss on Escape
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !openCodeMenu.classList.contains('hidden')) {
-        hideOpenCodeMenu();
+      if (e.key === 'Escape' && !moreMenu.classList.contains('hidden')) {
+        hideMoreMenu();
       }
     });
   }

@@ -140,14 +140,18 @@
             <span id="lastUpdated" class="last-updated-text">Last updated: -</span>
             <button id="refreshBtn" class="btn-subtle">↻</button>
           </div>
-          <button id="openCodeBtn" class="opencode-icon-btn" aria-label="OpenCode">
-            <img src="assets/opencode.png" alt="OpenCode" width="16" height="16" />
-          </button>
+          <button id="moreBtn" class="btn-subtle" aria-label="More options">More ...</button>
 
-          <!-- OpenCode context menu -->
-          <div id="openCodeMenu" class="opencode-ctx-menu hidden">
-            <div class="opencode-ctx-item" data-action="extract">Extract OpenCode key</div>
-            <div class="opencode-ctx-item" data-action="set" id="openCodeSetItem">Set OpenCode key to <strong id="openCodeSetLabel">…</strong></div>
+          <!-- More options context menu -->
+          <div id="moreMenu" class="opencode-ctx-menu hidden">
+            <div class="opencode-ctx-item" data-action="extract">
+              <img src="assets/opencode.png" alt="OpenRouter" style="vertical-align: middle; margin-right: 8px; width: 16px; height: 16px;" />
+              Extract OpenRouter key
+            </div>
+            <div class="opencode-ctx-item" data-action="copy" id="copyKeyItem">
+              <span class="material-symbols-rounded" style="vertical-align: middle; margin-right: 8px; font-size: 1.1em;">content_copy</span>
+              Copy <strong id="copyKeyLabel">…</strong> to clipboard
+            </div>
           </div>
         </div>
       </div>
