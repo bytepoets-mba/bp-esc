@@ -1,6 +1,6 @@
 [package]
 name = "bp-esc"
-version = "0.5.1"
+version = "0.5.2"
 description = "BYTEPOETS Employee Self-Care App"
 authors = ["BYTEPOETS GmbH"]
 license = "AGPL-3.0-only"
@@ -31,6 +31,8 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-plugin-sparkle-updater = "0.2"
+cocoa = "0.25"
+objc = "0.2"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
