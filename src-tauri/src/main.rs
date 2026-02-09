@@ -22,6 +22,15 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState, Shortcut};
 use image::Rgba;
 use tauri_plugin_autostart::MacosLauncher;
 use ab_glyph::{FontVec, PxScale};
+
+#[cfg(target_os = "macos")]
+use cocoa::base::id;
+#[cfg(target_os = "macos")]
+use cocoa::foundation::NSString;
+#[cfg(target_os = "macos")]
+use objc::{class, msg_send, sel, sel_impl};
+#[cfg(target_os = "macos")]
+use std::ffi::CStr;
 use imageproc::drawing::draw_text_mut;
 use tokio::time::{interval, Interval};
 use tokio::sync::Mutex as TokioMutex;
@@ -395,6 +404,56 @@ const MENUBAR_UNIT_SIZE: f32 = MENUBAR_VALUE_SIZE;
 const LOGO_TEXT_GAP: f32 = 6.0;
 const UNIT_VALUE_GAP: f32 = 1.0;
 const END_PADDING: f32 = 4.0;
+
+/// Detect if macOS menubar is using dark appearance
+/// This checks the actual menubar tint which adapts to wallpaper, not just dark mode setting
+#[cfg(target_os = "macos")]
+fn is_macos_dark_mode() -> bool {
+    unsafe {
+        // Get NSStatusBar and create a temporary status item to check its appearance
+        let status_bar: id = msg_send![class!(NSStatusBar), systemStatusBar];
+        let temp_item: id = msg_send![status_bar, statusItemWithLength: -1.0]; // NSVariableStatusItemLength
+        
+        if temp_item.is_null() {
+            return false;
+        }
+        
+        // Get the button's effective appearance (this is what determines the actual icon color)
+        let button: id = msg_send![temp_item, button];
+        if button.is_null() {
+            return false;
+        }
+        
+        let effective_appearance: id = msg_send![button, effectiveAppearance];
+        if effective_appearance.is_null() {
+            return false;
+        }
+        
+        let appearance_name: id = msg_send![effective_appearance, name];
+        if appearance_name.is_null() {
+            return false;
+        }
+        
+        let name_str = NSString::UTF8String(appearance_name);
+        if name_str.is_null() {
+            return false;
+        }
+        
+        let name = CStr::from_ptr(name_str)
+            .to_string_lossy()
+            .to_string();
+        
+        // Clean up the temporary status item
+        let _: () = msg_send![status_bar, removeStatusItem: temp_item];
+        
+        name.contains("Dark")
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_macos_dark_mode() -> bool {
+    false
+}
 
 // ============================================================================
 
@@ -1130,7 +1189,8 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
         || balance.usage.is_some()
         || balance.limit.is_some();
     
-    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance)?;
+    let is_dark = is_macos_dark_mode();
+    let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance, is_dark)?;
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
         tray.set_icon(Some(icon))
             .map_err(|e| format!("Failed to update tray icon: {}", e))?;
@@ -1144,8 +1204,8 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
     Ok(())
 }
 
-/// Generate hybrid menubar icon with logo and normal white text
-fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings, balance: &BalanceData) -> Result<Image<'static>, String> {
+/// Generate hybrid menubar icon with logo and adaptive text color
+fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool, show_unit: bool, settings: &AppSettings, balance: &BalanceData, is_dark_mode: bool) -> Result<Image<'static>, String> {
     let scale = MENUBAR_RENDER_SCALE;
     
     // Load Logo
@@ -1249,8 +1309,12 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     };
 
     let border_thickness = (HEX_BORDER_PTS * scale) as i32;
-    let white = Rgba([255, 255, 255, 255]);
-    let stroke_color = white;
+    // Adaptive stroke/text color based on macOS appearance
+    let stroke_color = if is_dark_mode {
+        Rgba([255, 255, 255, 255])  // White for dark mode
+    } else {
+        Rgba([0, 0, 0, 255])        // Black for light mode
+    };
     let transparent = Rgba([0, 0, 0, 0]);
     let fill_color = if settings.menubar_monochrome {
         Rgba([255, 255, 255, 180])
@@ -1462,6 +1526,7 @@ fn main() {
       let menu = Menu::with_items(app, &[&show_hide, &quit])?;
       
       // Create tray icon
+  let is_dark = is_macos_dark_mode();
   let initial_icon = generate_hybrid_menubar_icon(0.0, true, false, true, &AppSettings::default(), &BalanceData {
       limit: None,
       usage: None,
@@ -1479,7 +1544,7 @@ fn main() {
       pace_day_delta_percent: None,
       pace_status: None,
       label: None,
-  }).ok();
+  }, is_dark).ok();
       let _tray = TrayIconBuilder::with_id("main-tray")
         .icon(initial_icon.unwrap_or_else(|| Image::from_bytes(include_bytes!("../icons/32x32.png")).unwrap()))
         .menu(&menu)
