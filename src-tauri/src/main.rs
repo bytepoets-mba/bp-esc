@@ -33,6 +33,12 @@ use cocoa::foundation::NSString;
 use objc::{class, msg_send, sel, sel_impl};
 #[cfg(target_os = "macos")]
 use std::ffi::CStr;
+#[cfg(target_os = "macos")]
+use objc::declare::ClassDecl;
+#[cfg(target_os = "macos")]
+use objc::runtime::{Class, Object, Sel};
+#[cfg(target_os = "macos")]
+use std::ffi::c_void;
 use imageproc::drawing::draw_text_mut;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tokio::time::{interval, Interval};
@@ -363,37 +369,151 @@ const LOGO_TEXT_GAP: f32 = 6.0;
 const UNIT_VALUE_GAP: f32 = 1.0;
 const END_PADDING: f32 = 4.0;
 
+// ============================================================================
+// macOS Appearance Observation (KVO for effectiveAppearance changes)
+// ============================================================================
+
+/// Register KVO observer class for effectiveAppearance changes
+#[cfg(target_os = "macos")]
+unsafe fn register_appearance_observer_class() -> &'static Class {
+    let superclass = class!(NSObject);
+    let mut decl = ClassDecl::new("MenubarAppearanceObserver", superclass)
+        .expect("Failed to declare MenubarAppearanceObserver class");
+    
+    // Store AppHandle pointer as ivar
+    decl.add_ivar::<*mut c_void>("app_handle_ptr");
+    
+    // KVO callback: observeValueForKeyPath:ofObject:change:context:
+    extern "C" fn observe_value(
+        this: &Object,
+        _sel: Sel,
+        _key_path: id,      // NSString - "effectiveAppearance"
+        _object: id,        // The NSView being observed
+        _change: id,        // NSDictionary of changes
+        _context: *mut c_void,
+    ) {
+        unsafe {
+            let ptr: *mut c_void = *this.get_ivar("app_handle_ptr");
+            if ptr.is_null() {
+                eprintln!("[KVO] AppHandle pointer is null, cannot trigger re-render");
+                return;
+            }
+            
+            // Reconstruct Arc reference (don't drop it)
+            let app_handle = &*(ptr as *const AppHandle);
+            
+            // Re-render menubar icon with new appearance
+            if let Some(state) = app_handle.try_state::<MenubarState>() {
+                let balance = state.balance.lock().ok().and_then(|stored| stored.clone());
+                let settings = state.settings.lock().ok().and_then(|stored| stored.clone());
+                
+                if let (Some(balance), Some(settings)) = (balance, settings) {
+                    if let Err(e) = update_menubar_display(app_handle.clone(), balance, settings) {
+                        eprintln!("[KVO] Failed to update menubar on appearance change: {}", e);
+                    }
+                } else {
+                    eprintln!("[KVO] No cached balance/settings available for re-render");
+                }
+            } else {
+                eprintln!("[KVO] MenubarState not found in AppHandle");
+            }
+        }
+    }
+    
+    unsafe {
+        decl.add_method(
+            sel!(observeValueForKeyPath:ofObject:change:context:),
+            observe_value as extern "C" fn(&Object, Sel, id, id, id, *mut c_void),
+        );
+    }
+    
+    decl.register()
+}
+
+/// Set up KVO observation for effectiveAppearance changes on a persistent sentinel status item
+#[cfg(target_os = "macos")]
+unsafe fn setup_appearance_observer(app_handle: AppHandle) {
+    // Register observer class
+    let observer_class = register_appearance_observer_class();
+    let observer: id = msg_send![observer_class, new];
+    
+    // Store AppHandle pointer in observer (leak Arc to keep it alive)
+    let handle_arc = Arc::new(app_handle);
+    let handle_ptr = Arc::into_raw(handle_arc) as *mut c_void;
+    (*observer).set_ivar("app_handle_ptr", handle_ptr);
+    
+    // Create a persistent zero-width sentinel status item for KVO observation
+    let status_bar: id = msg_send![class!(NSStatusBar), systemStatusBar];
+    let sentinel_item: id = msg_send![status_bar, statusItemWithLength: 0.0f64];
+    
+    if sentinel_item.is_null() {
+        eprintln!("[KVO Setup] Warning: failed to create sentinel status item");
+        return;
+    }
+    
+    // Retain it permanently (leak for app lifetime)
+    let _: id = msg_send![sentinel_item, retain];
+    
+    let button: id = msg_send![sentinel_item, button];
+    
+    if button.is_null() {
+        eprintln!("[KVO Setup] Warning: sentinel status item has no button, KVO observation failed");
+        return;
+    }
+    
+    // Add KVO observer for "effectiveAppearance" key path
+    let key_path = NSString::alloc(cocoa::base::nil).init_str("effectiveAppearance");
+    let options: usize = 0x01; // NSKeyValueObservingOptionNew
+    let context: *mut c_void = std::ptr::null_mut();
+    
+    let _: () = msg_send![
+        button,
+        addObserver: observer
+        forKeyPath: key_path
+        options: options
+        context: context
+    ];
+    
+    // Leak observer to keep it alive for app lifetime
+    let _: id = msg_send![observer, retain];
+    
+    println!("[KVO Setup] Appearance observer registered successfully");
+}
+
 /// Detect if macOS menubar is using dark appearance
 /// This checks the actual menubar tint which adapts to wallpaper, not just dark mode setting
 #[cfg(target_os = "macos")]
 fn is_macos_dark_mode() -> bool {
     unsafe {
-        // Get NSStatusBar and create a temporary status item to check its appearance
+        // Create a temp status item to check appearance (KVO will handle live updates)
         let status_bar: id = msg_send![class!(NSStatusBar), systemStatusBar];
-        let temp_item: id = msg_send![status_bar, statusItemWithLength: -1.0]; // NSVariableStatusItemLength
+        let temp_item: id = msg_send![status_bar, statusItemWithLength: -1.0];
         
         if temp_item.is_null() {
             return false;
         }
         
-        // Get the button's effective appearance (this is what determines the actual icon color)
         let button: id = msg_send![temp_item, button];
         if button.is_null() {
+            let _: () = msg_send![status_bar, removeStatusItem: temp_item];
             return false;
         }
         
         let effective_appearance: id = msg_send![button, effectiveAppearance];
         if effective_appearance.is_null() {
+            let _: () = msg_send![status_bar, removeStatusItem: temp_item];
             return false;
         }
         
         let appearance_name: id = msg_send![effective_appearance, name];
         if appearance_name.is_null() {
+            let _: () = msg_send![status_bar, removeStatusItem: temp_item];
             return false;
         }
         
         let name_str = NSString::UTF8String(appearance_name);
         if name_str.is_null() {
+            let _: () = msg_send![status_bar, removeStatusItem: temp_item];
             return false;
         }
         
@@ -401,9 +521,7 @@ fn is_macos_dark_mode() -> bool {
             .to_string_lossy()
             .to_string();
         
-        // Clean up the temporary status item
         let _: () = msg_send![status_bar, removeStatusItem: temp_item];
-        
         name.contains("Dark")
     }
 }
@@ -1530,6 +1648,15 @@ fn main() {
           }
         })
         .build(app)?;
+      
+      // Set up KVO observation for menubar appearance changes (wallpaper-driven tint)
+      #[cfg(target_os = "macos")]
+      {
+        let handle = app.app_handle().clone();
+        unsafe {
+          setup_appearance_observer(handle);
+        }
+      }
       
       // Register global shortcut
       let settings = read_settings().unwrap_or_default();
