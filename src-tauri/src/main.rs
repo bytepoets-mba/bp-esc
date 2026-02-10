@@ -180,7 +180,7 @@ pub struct AppSettings {
     pub debug_logging_enabled: bool,
     #[serde(default = "default_false")]
     pub debugging_enabled: bool,
-    #[serde(default = "default_false")]
+    #[serde(default = "default_true")]
     pub menubar_monochrome: bool,
     #[serde(default = "default_pace_warn_threshold")]
     pub pace_warn_threshold: f64,
@@ -216,7 +216,7 @@ impl Default for AppSettings {
             decimal_places: 0,
             debug_logging_enabled: false,
             debugging_enabled: false,
-            menubar_monochrome: false,
+            menubar_monochrome: true,
             pace_warn_threshold: 15.0,
             pace_over_threshold: 25.0,
         }
@@ -1273,7 +1273,10 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
         
         #[cfg(target_os = "macos")]
         {
-            tray.set_icon_as_template(settings.menubar_monochrome)
+            // Force template mode — Liquid Glass on macOS 26+ breaks effectiveAppearance-based
+            // tint detection, especially on multi-monitor setups. Template mode lets macOS
+            // handle per-monitor tinting automatically. See backlog item A20.226d315.
+            tray.set_icon_as_template(true)
                 .map_err(|e| format!("Failed to set icon template mode: {}", e))?;
         }
     }

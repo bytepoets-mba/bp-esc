@@ -588,6 +588,29 @@ input[type="text"] {
   -webkit-app-region: no-drag;
 }
 
+.checkbox-label.disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.info-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0, 100, 151, 0.12);
+  color: #006497;
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-style: italic;
+  cursor: help;
+  flex-shrink: 0;
+  position: relative;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
 .settings-footer {
   display: flex;
   justify-content: center;

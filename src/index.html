@@ -321,9 +321,10 @@
                 </div>
 
                 <div class="setting-item side">
-                  <label for="menubarMonochromeToggle" class="checkbox-label">
-                    <input type="checkbox" id="menubarMonochromeToggle">
+                  <label class="checkbox-label disabled">
+                    <input type="checkbox" id="menubarMonochromeToggle" checked disabled>
                     <span>Monochrome menubar</span>
+                    <span class="info-badge" id="monochromeInfo" title="Monochrome mode is required on macOS 26+ (Liquid Glass). The system's adaptive glass tinting prevents reliable dark/light detection, especially across multiple monitors. macOS handles icon tinting automatically in template mode.">i</span>
                   </label>
                 </div>
               </div>

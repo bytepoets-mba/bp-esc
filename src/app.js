@@ -1015,7 +1015,9 @@ document.addEventListener('contextmenu', (e) => {
     unfocusedOverlayToggle.checked = currentSettings.unfocused_overlay;
     decimalValue.textContent = currentSettings.decimal_places || 0;
     if (menubarMonochromeToggle) {
-      menubarMonochromeToggle.checked = currentSettings.menubar_monochrome || false;
+      // Force monochrome on — Liquid Glass workaround (see backlog A20.226d315)
+      menubarMonochromeToggle.checked = true;
+      menubarMonochromeToggle.disabled = true;
     }
     if (paceWarnValue && paceOverValue) {
       const { warn, over } = getPaceThresholds(currentSettings);
@@ -1070,7 +1072,7 @@ document.addEventListener('contextmenu', (e) => {
       always_on_top: alwaysOnTopToggle.checked,
       unfocused_overlay: unfocusedOverlayToggle.checked,
       decimal_places: parseInt(decimalValue.textContent),
-      menubar_monochrome: menubarMonochromeToggle ? menubarMonochromeToggle.checked : (currentSettings?.menubar_monochrome ?? false),
+      menubar_monochrome: true, // Forced — Liquid Glass workaround (see backlog A20.226d315)
       pace_warn_threshold: paceWarnValue ? parseFloat(paceWarnValue.textContent) : (currentSettings?.pace_warn_threshold ?? 15),
       pace_over_threshold: paceOverValue ? parseFloat(paceOverValue.textContent) : (currentSettings?.pace_over_threshold ?? 25),
       global_shortcut: shortcutInput.value.trim() || 'F19',
@@ -1182,9 +1184,7 @@ document.addEventListener('contextmenu', (e) => {
       document.body.classList.add('unfocused');
     }
   };
-  if (menubarMonochromeToggle) {
-    menubarMonochromeToggle.onchange = () => saveSettingsAction(true);
-  }
+  // menubarMonochromeToggle onchange removed — forced to true (Liquid Glass workaround)
   
   decimalMinus.onclick = async () => {
     let val = parseInt(decimalValue.textContent);
