@@ -26,6 +26,17 @@
 
 **Note**: The `.envrc` uses `devenv direnvrc` which provides the `use devenv` function for direnv integration.
 
+### Recommended Extensions
+
+To maintain the project's coding standards and improve development efficiency, the following VSCodium/VS Code extensions are recommended:
+
+- **Commit Genius - AI Commit Message Generator** (`aicommmit-publisher`)
+- **Markdown All in One** (`yzhang.markdown-all-in-one`)
+- **Nix IDE** (`jnoorthen`)
+- **opencode** (`SST`)
+- **OpenCode Sidebar TUI** (`islee23520`)
+- **Prettier - Code: formatter** (`Prettier`)
+
 ## Development Workflow
 
 ### Running in Development Mode

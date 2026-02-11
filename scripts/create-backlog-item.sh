@@ -1,64 +1,145 @@
 #!/bin/bash
 
-# Simple script to create a unique backlog file in the +pm folder.
-# 
-# USAGE: ./scripts/create-backlog-item.sh [priority] [short-description]
-# RUN FROM: Repository root (must have +pm/ directory)
+# Generic script to create backlog items in any directory
 #
-# EXAMPLE: ./scripts/create-backlog-item.sh 0100 document-pm-backlog-structure
-# 
+# USAGE: ./scripts/create-backlog-item.sh [priority] [description] [--dir target-dir] [--host hostname]
+# RUN FROM: Repository root
+#
+# EXAMPLES:
+#   # Infrastructure backlog (default)
+#   ./scripts/create-backlog-item.sh P50 fix-nix-flake
+#
+#   # Host-specific backlog with explicit directory
+#   ./scripts/create-backlog-item.sh P30 audit-docker --dir hosts/hsb0/docs/backlog
+# RUN FROM: Repository root
+#
+# EXAMPLES:
+#   ./scripts/create-backlog-item.sh A10 implement-feature
+#   ./scripts/create-backlog-item.sh P50 refactor-auth
+#
 # ARGUMENTS:
-#   priority: Numeric priority (default: 5000 if not provided)
-#   short-description: Slug (a-z, 0-9, hyphens) (default: timestamp YYYY-MM-DD-HH-MM-SS)
+#   priority: LNN format (A00-Z99, default: P50)
+#   description: kebab-case slug (default: timestamp YYYY-MM-DD)
 #
-# OUTPUT: +pm/{priority}.{hash}.{description}.md
+# OUTPUT: +pm/backlog/LNN--hash--description.md
+
+set -euo pipefail
 
 # Get script directory for sourcing lib
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Check we're in repo root with +pm/ directory
-if [[ ! -d "+pm" ]]; then
-  echo "Error: +pm/ directory not found. Run this script from the repository root."
-  exit 1
-fi
-
 # Source hash generation library
+# shellcheck source=scripts/lib/generate-hash.sh
 source "$SCRIPT_DIR/lib/generate-hash.sh"
 
-DIR="+pm/backlog"
+# Defaults
+priority=""
+desc=""
+dir=""
+host=""
 
-# Default priority to P50 if not provided or invalid
-if [[ -z "$1" ]] || ! [[ "$1" =~ ^[A-Z][0-9]{2}$ ]]; then
-  priority="P50"
-else
-  priority="$1"
+# Parse arguments
+positional_args=()
+while [[ $# -gt 0 ]]; do
+	case $1 in
+	--dir)
+		dir="$2"
+		shift 2
+		;;
+	--host)
+		host="$2"
+		shift 2
+		;;
+	-*)
+		echo "Unknown option: $1"
+		exit 1
+		;;
+	*)
+		positional_args+=("$1")
+		shift
+		;;
+	esac
+done
+
+# Restore positional parameters
+set -- "${positional_args[@]}"
+
+# Parse positional arguments
+if [[ $# -ge 1 ]]; then
+	priority="$1"
 fi
 
-# Generate default name with reverse timestamp if not provided or invalid
-if [[ -z "$2" ]] || ! [[ "$2" =~ ^[a-z0-9-]+$ ]]; then
-  # Generate reverse timestamp: year-month-day-hour-minute-second
-  desc=$(date +"%Y-%m-%d-%H-%M-%S")
-else
-  desc="$2"
+if [[ $# -ge 2 ]]; then
+	desc="$2"
 fi
 
-# Generate unique hash (collision-checked)
-hash=$(generate_unique_hash)
+# Validate and default priority
+if [[ -z "$priority" ]] || ! [[ "$priority" =~ ^[A-Z][0-9]{2}$ ]]; then
+	if [[ -n "$priority" ]]; then
+		echo "Warning: Invalid priority format '$priority' (expected LNN like P50), using P50"
+	fi
+	priority="P50"
+fi
 
-filename="$DIR/${priority}.${hash}.${desc}.md"
+# Generate default description if empty
+if [[ -z "$desc" ]]; then
+	desc=$(date +"%Y-%m-%d-%H-%M-%S")
+fi
 
-# Create the file with a basic Markdown template
-cat > "$filename" <<EOF
-# Title: ${desc}
+# Determine target directory
+if [[ -z "$dir" ]]; then
+	if [[ -n "$host" ]]; then
+		# Infer directory from host
+		dir="hosts/$host/docs/backlog"
+	else
+		# Default to infrastructure backlog
+		dir="+pm/backlog"
+	fi
+fi
 
-## Description
-[Detailed description of the backlog item goes here.]
+# Ensure target directory exists
+mkdir -p "$dir"
 
-## Priority
-${priority}
+# Generate unique hash (search entire repo to avoid collisions)
+hash=$(generate_unique_hash ".")
 
-## Additional Requirements
-[Add any other details, such as dependencies, estimates, or acceptance criteria.]
+# Build filename
+filename="$dir/${priority}--${hash}--${desc}.md"
+
+# Create template
+cat >"$filename" <<EOF
+# ${desc}
+
+**Priority**: ${priority}
+**Status**: Backlog
+**Created**: $(date +%Y-%m-%d)
+
+---
+
+## Problem
+
+[Brief description of what needs to be fixed or built]
+
+## Solution
+
+[How we're going to solve it]
+
+## Implementation
+
+- [ ] Task 1
+- [ ] Task 2
+- [ ] Documentation update
+- [ ] Test
+
+## Acceptance Criteria
+
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Tests pass
+
+## Notes
+
+[Optional: Dependencies, risks, references, related items]
 EOF
 
-echo "Created file: $filename"
+echo "Created: $filename"
