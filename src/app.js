@@ -127,9 +127,6 @@ window.addEventListener('DOMContentLoaded', () => {
   const paceWarnValue = document.getElementById('paceWarnValue');
   const paceWarnMinus = document.getElementById('paceWarnMinus');
   const paceWarnPlus = document.getElementById('paceWarnPlus');
-  const paceOverValue = document.getElementById('paceOverValue');
-  const paceOverMinus = document.getElementById('paceOverMinus');
-  const paceOverPlus = document.getElementById('paceOverPlus');
   const shortcutInput = document.getElementById('shortcutInput');
   const shortcutEnabledToggle = document.getElementById('shortcutEnabledToggle');
   const debugLoggingToggle = document.getElementById('debugLoggingToggle');
@@ -420,10 +417,17 @@ window.addEventListener('DOMContentLoaded', () => {
     }, timeout);
   }
 
+  /**
+   * Single Source of Truth for error messages
+   * - Shows toast notification to user
+   * - Logs to console
+   * - Writes to log file (async)
+   * - Updates log drawer if open
+   */
   function showError(message) {
     const ts = new Date().toISOString();
     console.error(`[${ts}] ${message}`);
-    addLog(message, 'error');
+    addLog(message, 'error'); // Fire and forget - logs async to file + drawer
     showToast(message, 'error', 5000);
   }
 
@@ -442,14 +446,12 @@ window.addEventListener('DOMContentLoaded', () => {
       extractedKey = await invoke('read_opencode_openrouter_key');
     } catch (error) {
       const message = error?.toString?.() || 'Failed to read OpenCode auth file.';
-      addLog(`OpenCode key extraction failed: ${message}`, 'error');
       showError(message);
       return;
     }
 
     const key = (extractedKey || '').trim();
     if (!key) {
-      addLog('OpenCode key extraction returned empty key', 'error');
       showError('OpenCode key not found in auth file.');
       return;
     }
@@ -491,7 +493,6 @@ window.addEventListener('DOMContentLoaded', () => {
       showToast('Key copied to clipboard!', 'success');
     } catch (error) {
       const message = error?.toString?.() || 'Failed to copy to clipboard.';
-      addLog(`Clipboard copy failed: ${message}`, 'error');
       showError(message);
     }
   }
@@ -654,19 +655,13 @@ document.addEventListener('contextmenu', (e) => {
     animationFrameId = requestAnimationFrame(step);
   }
 
-  function getPaceThresholds(settings) {
-    const warn = Math.max(0, Number(settings?.pace_warn_threshold ?? 15));
-    const over = Math.max(warn + 1, Number(settings?.pace_over_threshold ?? 25));
-    return { warn, over };
-  }
-
   function computePaceStatus(deltaPercent, settings) {
     if (deltaPercent == null) return null;
-    const { warn, over } = getPaceThresholds(settings);
+    const threshold = Math.max(0, Number(settings?.pace_warn_threshold ?? 20));
 
-    if (deltaPercent > over) return 'ahead';
-    if (deltaPercent > warn) return 'behind';
-    return 'on_track';
+    if (deltaPercent > threshold) return 'ahead';    // RED: way over pace
+    if (deltaPercent > 0) return 'behind';            // YELLOW: slightly over pace
+    return 'on_track';                                // GREEN: on/under pace
   }
 
   function getDayProgress(date = new Date()) {
@@ -791,14 +786,7 @@ document.addEventListener('contextmenu', (e) => {
     updateValue(usageWeekValue, formatCurrency(hasData ? balance.usage_weekly : null));
     updateValue(usageDayValue, formatCurrency(hasData ? balance.usage_daily : null));
     
-    // Color code remaining
-    if (hasData && monthlyRemaining !== null) {
-      if (monthlyRemaining < 0) remainingValue.style.color = '#dc2626';
-      else if (monthlyRemaining < 5) remainingValue.style.color = '#ea580c';
-      else remainingValue.style.color = '#006497';
-    } else {
-      remainingValue.style.color = ''; // Reset to default
-    }
+    // Remove color coding - let CSS handle it via .balance-item.highlight .value
 
     const updatePaceBar = (bar, fill, notch, notchLabel, valueEl, deltaPercent, target, actualValue, budget, timeframeLabelGray, timeframeLabelWhite, budgetValue) => {
       if (!bar || !fill || !notch || !notchLabel || !valueEl) return;
@@ -1064,10 +1052,8 @@ document.addEventListener('contextmenu', (e) => {
       menubarMonochromeToggle.checked = true;
       menubarMonochromeToggle.disabled = true;
     }
-    if (paceWarnValue && paceOverValue) {
-      const { warn, over } = getPaceThresholds(currentSettings);
-      paceWarnValue.textContent = Math.round(warn);
-      paceOverValue.textContent = Math.round(over);
+    if (paceWarnValue) {
+      paceWarnValue.textContent = Math.round(currentSettings?.pace_warn_threshold ?? 20);
     }
 
     shortcutInput.value = currentSettings.global_shortcut || 'F19';
@@ -1095,13 +1081,11 @@ document.addEventListener('contextmenu', (e) => {
     }
   }
 
-  function setPaceThresholds(nextWarn, nextOver, silent = true) {
-    if (!paceWarnValue || !paceOverValue) return;
+  function setPaceThreshold(nextWarn, silent = true) {
+    if (!paceWarnValue) return;
 
     const warn = Math.max(0, Math.min(100, Math.round(nextWarn)));
-    const over = Math.max(warn + 1, Math.min(100, Math.round(nextOver)));
     paceWarnValue.textContent = warn;
-    paceOverValue.textContent = over;
     saveSettingsAction(silent);
   }
 
@@ -1117,9 +1101,7 @@ document.addEventListener('contextmenu', (e) => {
       always_on_top: alwaysOnTopToggle.checked,
       unfocused_overlay: unfocusedOverlayToggle.checked,
       decimal_places: parseInt(decimalValue.textContent),
-      menubar_monochrome: true, // Forced — Liquid Glass workaround (see backlog A20.226d315)
-      pace_warn_threshold: paceWarnValue ? parseFloat(paceWarnValue.textContent) : (currentSettings?.pace_warn_threshold ?? 15),
-      pace_over_threshold: paceOverValue ? parseFloat(paceOverValue.textContent) : (currentSettings?.pace_over_threshold ?? 25),
+      pace_warn_threshold: paceWarnValue ? parseFloat(paceWarnValue.textContent) : (currentSettings?.pace_warn_threshold ?? 20),
       global_shortcut: shortcutInput.value.trim() || 'F19',
       global_shortcut_enabled: shortcutEnabledToggle.checked,
       debug_logging_enabled: debugLoggingToggle.checked,
@@ -1246,26 +1228,14 @@ document.addEventListener('contextmenu', (e) => {
     }
   };
 
-  if (paceWarnMinus && paceWarnPlus && paceOverMinus && paceOverPlus) {
+  if (paceWarnMinus && paceWarnPlus) {
     paceWarnMinus.onclick = () => {
       const warn = parseInt(paceWarnValue.textContent);
-      const over = parseInt(paceOverValue.textContent);
-      setPaceThresholds(warn - 1, over, true);
+      setPaceThreshold(warn - 1, true);
     };
     paceWarnPlus.onclick = () => {
       const warn = parseInt(paceWarnValue.textContent);
-      const over = parseInt(paceOverValue.textContent);
-      setPaceThresholds(warn + 1, over, true);
-    };
-    paceOverMinus.onclick = () => {
-      const warn = parseInt(paceWarnValue.textContent);
-      const over = parseInt(paceOverValue.textContent);
-      setPaceThresholds(warn, over - 1, true);
-    };
-    paceOverPlus.onclick = () => {
-      const warn = parseInt(paceWarnValue.textContent);
-      const over = parseInt(paceOverValue.textContent);
-      setPaceThresholds(warn, over + 1, true);
+      setPaceThreshold(warn + 1, true);
     };
   }
 
@@ -1501,14 +1471,20 @@ document.addEventListener('contextmenu', (e) => {
     };
   }
 
+  /**
+   * Unified logging function - Single Source of Truth for all logs
+   * - Writes to log file (via Rust backend)
+   * - Updates log drawer UI if open
+   * Use this for info/warn logs. For errors, use showError() instead.
+   */
   async function addLog(message, type = 'info') {
     const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
     const formatted = `[${ts}] [${type.toUpperCase()}] ${message}`;
     
-    // SSOT: Log to file
+    // SSOT: Write to log file
     await invoke('log_message', { message: formatted }).catch(() => {});
     
-    // Update drawer if visible
+    // Update drawer UI if visible
     if (!logDrawer.classList.contains('hidden')) {
       await refreshLogsInUI();
     }

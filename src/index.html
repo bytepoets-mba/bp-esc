@@ -71,7 +71,6 @@
               <div class="balance-card">
                 <div class="balance-card-header">
                   <span>Credit</span>
-                  <span class="badge" id="monthBadge">This month</span>
                 </div>
                 <div class="balance-item">
                   <span class="label">Limit</span>
@@ -93,7 +92,7 @@
                 </div>
                 <div class="usage-row">
                   <span>Month</span>
-                  <span id="usageMonthPaceValue" class="pace-value">-</span>
+                  <span id="usageMonthValue" class="usage-row-amount">-</span>
                   <span class="pace-cell">
                     <span id="usageMonthBar" class="pace-bar" title="-">
                       <span id="usageMonthBarFill" class="pace-bar-fill pace-bar-fill--neutral"></span>
@@ -104,11 +103,11 @@
                       <span class="usage-row-timeframe-label usage-row-timeframe-label-white" id="usageMonthTimeframeLabelWhite" style="clip-path: inset(0 100% 0 0);">-</span>
                     </span>
                   </span>
-                  <span id="usageMonthValue" class="usage-row-amount">-</span>
+                  <span id="usageMonthPaceValue" class="pace-value">-</span>
                 </div>
                 <div class="usage-row">
                   <span>Week</span>
-                  <span id="usageWeekPaceValue" class="pace-value">-</span>
+                  <span id="usageWeekValue" class="usage-row-amount">-</span>
                   <span class="pace-cell">
                     <span id="usageWeekBar" class="pace-bar" title="-">
                       <span id="usageWeekBarFill" class="pace-bar-fill pace-bar-fill--neutral"></span>
@@ -119,11 +118,11 @@
                       <span class="usage-row-timeframe-label usage-row-timeframe-label-white" id="usageWeekTimeframeLabelWhite" style="clip-path: inset(0 100% 0 0);">-</span>
                     </span>
                   </span>
-                  <span id="usageWeekValue" class="usage-row-amount">-</span>
+                  <span id="usageWeekPaceValue" class="pace-value">-</span>
                 </div>
                 <div class="usage-row">
                   <span>Day</span>
-                  <span id="usageDayPaceValue" class="pace-value">-</span>
+                  <span id="usageDayValue" class="usage-row-amount">-</span>
                   <span class="pace-cell">
                     <span id="usageDayBar" class="pace-bar" title="-">
                       <span id="usageDayBarFill" class="pace-bar-fill pace-bar-fill--neutral"></span>
@@ -134,7 +133,7 @@
                       <span class="usage-row-timeframe-label usage-row-timeframe-label-white" id="usageDayTimeframeLabelWhite" style="clip-path: inset(0 100% 0 0);">-</span>
                     </span>
                   </span>
-                  <span id="usageDayValue" class="usage-row-amount">-</span>
+                  <span id="usageDayPaceValue" class="pace-value">-</span>
                 </div>
               </div>
             </div>
@@ -250,18 +249,12 @@
                 </div>
 
                 <div class="setting-item">
-                  <label class="subheader">Pace thresholds</label>
+                  <label class="subheader">Pace warning</label>
                   <div class="number-input">
                     <button id="paceWarnMinus" class="btn-icon">−</button>
-                    <span id="paceWarnValue">15</span>
+                    <span id="paceWarnValue">20</span>
                     <button id="paceWarnPlus" class="btn-icon">+</button>
-                    <span class="unit">% Slightly over</span>
-                  </div>
-                  <div class="number-input" style="margin-top: 0.5rem;">
-                    <button id="paceOverMinus" class="btn-icon">−</button>
-                    <span id="paceOverValue">25</span>
-                    <button id="paceOverPlus" class="btn-icon">+</button>
-                    <span class="unit">% Over pace</span>
+                    <span class="unit">% Over pace → Red</span>
                   </div>
                 </div>
               </div>

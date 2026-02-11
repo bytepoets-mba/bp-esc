@@ -184,8 +184,6 @@ pub struct AppSettings {
     pub menubar_monochrome: bool,
     #[serde(default = "default_pace_warn_threshold")]
     pub pace_warn_threshold: f64,
-    #[serde(default = "default_pace_over_threshold")]
-    pub pace_over_threshold: f64,
 }
 
 fn default_refresh_interval() -> u32 { 5 }
@@ -193,8 +191,7 @@ fn default_true() -> bool { true }
 fn default_false() -> bool { false }
 fn default_zero() -> u32 { 0 }
 fn default_shortcut() -> String { "F19".to_string() }
-fn default_pace_warn_threshold() -> f64 { 15.0 }
-fn default_pace_over_threshold() -> f64 { 25.0 }
+fn default_pace_warn_threshold() -> f64 { 20.0 }
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -217,8 +214,7 @@ impl Default for AppSettings {
             debug_logging_enabled: false,
             debugging_enabled: false,
             menubar_monochrome: true,
-            pace_warn_threshold: 15.0,
-            pace_over_threshold: 25.0,
+            pace_warn_threshold: 20.0,
         }
     }
 }
@@ -1029,9 +1025,8 @@ async fn fetch_balance(app: AppHandle, api_key: String) -> Result<BalanceData, S
         };
 
     let pace_status = pace_month_delta_percent.map(|delta| {
-        let warn = default_pace_warn_threshold();
-        let over = default_pace_over_threshold();
-        pace_status_from_delta(delta, warn, over).to_string()
+        let threshold = default_pace_warn_threshold();
+        pace_status_from_delta(delta, threshold).to_string()
     });
     
     Ok(BalanceData {
@@ -1179,26 +1174,20 @@ fn calculate_text_width(text: &str, font: &FontVec, scale: PxScale) -> i32 {
     width as i32
 }
 
-fn normalized_pace_thresholds(settings: &AppSettings) -> (f64, f64) {
-    let warn = settings.pace_warn_threshold.max(0.0);
-    let over = settings.pace_over_threshold.max(warn + 1.0);
-    (warn, over)
-}
-
-fn pace_status_from_delta(delta_percent: f64, warn: f64, over: f64) -> &'static str {
-    if delta_percent > over {
-        "ahead"
-    } else if delta_percent > warn {
-        "behind"
+fn pace_status_from_delta(delta_percent: f64, threshold: f64) -> &'static str {
+    if delta_percent > threshold {
+        "ahead"       // RED: way over pace
+    } else if delta_percent > 0.0 {
+        "behind"      // YELLOW: slightly over pace
     } else {
-        "on_track"
+        "on_track"    // GREEN: on/under pace
     }
 }
 
 fn compute_pace_status(balance: &BalanceData, settings: &AppSettings) -> Option<&'static str> {
-    let (warn, over) = normalized_pace_thresholds(settings);
+    let threshold = settings.pace_warn_threshold.max(0.0);
     if let Some(delta_percent) = balance.pace_month_delta_percent {
-        return Some(pace_status_from_delta(delta_percent, warn, over));
+        return Some(pace_status_from_delta(delta_percent, threshold));
     }
 
     let pace_ratio = balance.pace_ratio?;
@@ -1211,7 +1200,7 @@ fn compute_pace_status(balance: &BalanceData, settings: &AppSettings) -> Option<
     let usage_ratio = (usage / limit) * 100.0;
     let pace_percent = (pace_ratio * 100.0).clamp(0.0, 100.0);
     let delta_percent = usage_ratio - pace_percent;
-    Some(pace_status_from_delta(delta_percent, warn, over))
+    Some(pace_status_from_delta(delta_percent, threshold))
 }
 
 /// Update system tray icon with current balance percentage or absolute value

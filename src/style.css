@@ -709,7 +709,7 @@ input[type="text"] {
 .balance-card-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   font-size: 0.8rem;
   font-weight: 700;
   color: #111827;
@@ -731,13 +731,13 @@ input[type="text"] {
 
 .balance-item .value {
   font-family: 'SF Mono', monospace;
-  font-weight: 700;
-  font-size: 0.98rem;
-  color: #111827;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #6b7280;
 }
 
-.balance-item .value.used {
-  color: #6b7280;
+.balance-item.highlight .value {
+  color: #10b981;
 }
 
 .balance-summary {
@@ -972,7 +972,7 @@ input[type="text"] {
 .usage-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   font-size: 0.8rem;
   font-weight: 700;
   color: #111827;
@@ -1117,6 +1117,7 @@ input[type="text"] {
 .usage-row-detail {
   font-family: 'SF Mono', monospace;
   font-weight: 600;
+  font-size: 0.9rem;
   color: #6b7280;
 }
 
@@ -1295,6 +1296,8 @@ input[type="text"] {
   white-space: pre-wrap;
   word-break: break-all;
   background: #0f0f0f;
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 
 .log-line {
@@ -1302,6 +1305,8 @@ input[type="text"] {
   line-height: 1.2;
   border-bottom: 1px solid #262626;
   padding-bottom: 2px;
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 
 .log-ts {
