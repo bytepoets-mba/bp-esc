@@ -123,6 +123,9 @@ window.addEventListener('DOMContentLoaded', () => {
   const decimalValue = document.getElementById('decimalValue');
   const decimalMinus = document.getElementById('decimalMinus');
   const decimalPlus = document.getElementById('decimalPlus');
+  const timeframeMonthly = document.getElementById('timeframeMonthly');
+  const timeframeWeekly = document.getElementById('timeframeWeekly');
+  const timeframeDaily = document.getElementById('timeframeDaily');
   const menubarMonochromeToggle = document.getElementById('menubarMonochromeToggle');
   const paceWarnValue = document.getElementById('paceWarnValue');
   const paceWarnMinus = document.getElementById('paceWarnMinus');
@@ -715,12 +718,41 @@ document.addEventListener('contextmenu', (e) => {
     let paceDayDeltaPercent = balance?.pace_day_delta_percent ?? null;
     let dailyBudget = null;
     
-    // Calculate percentage
-    const usageRatio = (hasData && limitValueRaw > 0 && monthlyUsage != null)
-      ? (monthlyUsage / limitValueRaw) * 100
+    // Calculate daily budget for weekly/daily calculations
+    if (limitValueRaw > 0) {
+      const { daysInMonth } = getMonthContext();
+      dailyBudget = daysInMonth > 0 ? limitValueRaw / daysInMonth : 0;
+    }
+    
+    // Get timeframe-specific values based on settings
+    const timeframe = currentSettings?.menubar_timeframe || 'monthly';
+    let selectedUsage, selectedRemaining, selectedBudget, selectedPaceDelta;
+    
+    if (timeframe === 'weekly') {
+      const weeklyBudget = dailyBudget ? dailyBudget * 7 : limitValueRaw;
+      selectedUsage = balance?.usage_weekly ?? 0;
+      selectedRemaining = weeklyBudget - selectedUsage;
+      selectedBudget = weeklyBudget;
+      selectedPaceDelta = paceWeekDeltaPercent;
+    } else if (timeframe === 'daily') {
+      selectedUsage = balance?.usage_daily ?? 0;
+      selectedRemaining = dailyBudget - selectedUsage;
+      selectedBudget = dailyBudget;
+      selectedPaceDelta = paceDayDeltaPercent;
+    } else {
+      // monthly (default)
+      selectedUsage = monthlyUsage;
+      selectedRemaining = monthlyRemaining;
+      selectedBudget = limitValueRaw;
+      selectedPaceDelta = paceMonthDeltaPercent;
+    }
+    
+    // Calculate percentage for hexagon based on selected timeframe
+    const usageRatio = (hasData && selectedBudget > 0 && selectedUsage != null)
+      ? (selectedUsage / selectedBudget) * 100
       : 0;
-    const remainingRatio = (hasData && limitValueRaw > 0 && monthlyRemaining != null)
-      ? (monthlyRemaining / limitValueRaw) * 100
+    const remainingRatio = (hasData && selectedBudget > 0 && selectedRemaining != null)
+      ? (selectedRemaining / selectedBudget) * 100
       : 0;
     const rawPercentage = currentSettings?.show_remaining ? remainingRatio : usageRatio;
 
@@ -747,7 +779,7 @@ document.addEventListener('contextmenu', (e) => {
       }
     }
 
-    const paceStatus = computePaceStatus(paceMonthDeltaPercent, currentSettings);
+    const paceStatus = computePaceStatus(selectedPaceDelta, currentSettings);
     
     // Exact percentage display
     const exactPercentEl = document.getElementById('exactPercent');
@@ -756,8 +788,13 @@ document.addEventListener('contextmenu', (e) => {
       exactPercentEl.textContent = hasData ? rawPercentage.toFixed(decimals) : '-';
     }
 
+    // Update caption with timeframe context
     if (percentCaption) {
-      percentCaption.textContent = currentSettings?.show_remaining ? 'remaining' : 'used';
+      const showRemaining = currentSettings?.show_remaining;
+      const timeframeText = timeframe === 'weekly' ? ' THIS WEEK' : 
+                            timeframe === 'daily' ? ' TODAY' : 
+                            ' THIS MONTH';
+      percentCaption.textContent = (showRemaining ? 'REMAINING' : 'USED') + timeframeText;
     }
 
     // Pie chart drawing with animation
@@ -1079,6 +1116,12 @@ document.addEventListener('contextmenu', (e) => {
       typeRemaining.classList.remove('active');
       typeUsed.classList.add('active');
     }
+    
+    // Timeframe toggle buttons
+    const timeframe = currentSettings.menubar_timeframe || 'monthly';
+    timeframeMonthly.classList.toggle('active', timeframe === 'monthly');
+    timeframeWeekly.classList.toggle('active', timeframe === 'weekly');
+    timeframeDaily.classList.toggle('active', timeframe === 'daily');
   }
 
   function setPaceThreshold(nextWarn, silent = true) {
@@ -1108,9 +1151,13 @@ document.addEventListener('contextmenu', (e) => {
       debugging_enabled: debugModeToggle ? debugModeToggle.checked : (currentSettings?.debugging_enabled ?? false),
       show_percentage: unitPercent.classList.contains('active'),
       show_remaining: typeRemaining.classList.contains('active'),
+      menubar_timeframe: timeframeMonthly.classList.contains('active') ? 'monthly' :
+                         timeframeWeekly.classList.contains('active') ? 'weekly' :
+                         timeframeDaily.classList.contains('active') ? 'daily' : 'monthly',
     };
 
-    const resetHexAnimation = currentSettings?.show_remaining !== newSettings.show_remaining;
+    const resetHexAnimation = currentSettings?.show_remaining !== newSettings.show_remaining ||
+                                currentSettings?.menubar_timeframe !== newSettings.menubar_timeframe;
 
     try {
       await invoke('save_settings', { settings: newSettings });
@@ -1177,6 +1224,29 @@ document.addEventListener('contextmenu', (e) => {
   typeUsed.onclick = async () => {
     typeRemaining.classList.remove('active');
     typeUsed.classList.add('active');
+    await saveSettingsAction(true);
+    if (currentBalance) displayBalance(currentBalance, false);
+  };
+
+  // Timeframe toggle buttons
+  timeframeMonthly.onclick = async () => {
+    timeframeMonthly.classList.add('active');
+    timeframeWeekly.classList.remove('active');
+    timeframeDaily.classList.remove('active');
+    await saveSettingsAction(true);
+    if (currentBalance) displayBalance(currentBalance, false);
+  };
+  timeframeWeekly.onclick = async () => {
+    timeframeMonthly.classList.remove('active');
+    timeframeWeekly.classList.add('active');
+    timeframeDaily.classList.remove('active');
+    await saveSettingsAction(true);
+    if (currentBalance) displayBalance(currentBalance, false);
+  };
+  timeframeDaily.onclick = async () => {
+    timeframeMonthly.classList.remove('active');
+    timeframeWeekly.classList.remove('active');
+    timeframeDaily.classList.add('active');
     await saveSettingsAction(true);
     if (currentBalance) displayBalance(currentBalance, false);
   };

@@ -184,6 +184,8 @@ pub struct AppSettings {
     pub menubar_monochrome: bool,
     #[serde(default = "default_pace_warn_threshold")]
     pub pace_warn_threshold: f64,
+    #[serde(default = "default_menubar_timeframe")]
+    pub menubar_timeframe: String,  // "monthly" | "weekly" | "daily"
 }
 
 fn default_refresh_interval() -> u32 { 5 }
@@ -192,6 +194,7 @@ fn default_false() -> bool { false }
 fn default_zero() -> u32 { 0 }
 fn default_shortcut() -> String { "F19".to_string() }
 fn default_pace_warn_threshold() -> f64 { 20.0 }
+fn default_menubar_timeframe() -> String { "monthly".to_string() }
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -215,6 +218,7 @@ impl Default for AppSettings {
             debugging_enabled: false,
             menubar_monochrome: true,
             pace_warn_threshold: 20.0,
+            menubar_timeframe: "monthly".to_string(),
         }
     }
 }
@@ -524,6 +528,40 @@ fn is_macos_dark_mode() -> bool {
 
 #[cfg(not(target_os = "macos"))]
 fn is_macos_dark_mode() -> bool {
+    false
+}
+
+/// Detect if system language is German
+#[cfg(target_os = "macos")]
+fn is_german_locale() -> bool {
+    unsafe {
+        let locale: id = msg_send![class!(NSLocale), currentLocale];
+        if locale.is_null() {
+            return false;
+        }
+        
+        let lang_code_key = NSString::alloc(cocoa::base::nil).init_str("kCFLocaleLanguageCodeKey");
+        let lang_code: id = msg_send![locale, objectForKey: lang_code_key];
+        
+        if lang_code.is_null() {
+            return false;
+        }
+        
+        let lang_str = NSString::UTF8String(lang_code);
+        if lang_str.is_null() {
+            return false;
+        }
+        
+        let lang = CStr::from_ptr(lang_str)
+            .to_string_lossy()
+            .to_string();
+        
+        lang.starts_with("de")
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_german_locale() -> bool {
     false
 }
 
@@ -1186,7 +1224,15 @@ fn pace_status_from_delta(delta_percent: f64, threshold: f64) -> &'static str {
 
 fn compute_pace_status(balance: &BalanceData, settings: &AppSettings) -> Option<&'static str> {
     let threshold = settings.pace_warn_threshold.max(0.0);
-    if let Some(delta_percent) = balance.pace_month_delta_percent {
+    
+    // Use the appropriate delta based on selected timeframe
+    let delta_percent = match settings.menubar_timeframe.as_str() {
+        "weekly" => balance.pace_week_delta_percent,
+        "daily" => balance.pace_day_delta_percent,
+        _ => balance.pace_month_delta_percent, // "monthly" or fallback
+    };
+    
+    if let Some(delta_percent) = delta_percent {
         return Some(pace_status_from_delta(delta_percent, threshold));
     }
 
@@ -1214,28 +1260,70 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
             *stored = Some(settings.clone());
         }
     }
-    let display_value = if settings.show_percentage {
-        // Percentage logic: relative to limit
-        let val = if let Some(limit) = balance.limit {
-            if limit > 0.0 {
-                if settings.show_remaining {
-                    (balance.remaining_monthly.or(balance.remaining).unwrap_or(0.0) / limit) * 100.0
-                } else {
-                    (balance.usage_monthly.or(balance.usage).unwrap_or(0.0) / limit) * 100.0
-                }
+    // Calculate daily budget for weekly/daily remaining
+    let limit = balance.limit.unwrap_or(0.0);
+    let daily_budget = if limit > 0.0 {
+        let now = chrono::Local::now();
+        let days_in_month = {
+            let year = now.year();
+            let month = now.month();
+            let first_next_month = if month == 12 {
+                chrono::Local.with_ymd_and_hms(year + 1, 1, 1, 0, 0, 0).unwrap()
             } else {
-                0.0
+                chrono::Local.with_ymd_and_hms(year, month + 1, 1, 0, 0, 0).unwrap()
+            };
+            let last_this_month = first_next_month - chrono::Duration::days(1);
+            last_this_month.day() as f64
+        };
+        if days_in_month > 0.0 { limit / days_in_month } else { 0.0 }
+    } else {
+        0.0
+    };
+    
+    // Get timeframe-specific usage and remaining values
+    let (usage_value, remaining_value) = match settings.menubar_timeframe.as_str() {
+        "weekly" => {
+            let weekly_budget = daily_budget * 7.0;
+            let usage = balance.usage_weekly.unwrap_or(0.0);
+            let remaining = weekly_budget - usage;
+            (usage, remaining)
+        },
+        "daily" => {
+            let usage = balance.usage_daily.unwrap_or(0.0);
+            let remaining = daily_budget - usage;
+            (usage, remaining)
+        },
+        _ => {
+            // "monthly" or fallback
+            let usage = balance.usage_monthly.or(balance.usage).unwrap_or(0.0);
+            let remaining = balance.remaining_monthly.or(balance.remaining).unwrap_or(0.0);
+            (usage, remaining)
+        }
+    };
+    
+    let display_value = if settings.show_percentage {
+        // Percentage logic: relative to limit (or budget for weekly/daily)
+        let budget = match settings.menubar_timeframe.as_str() {
+            "weekly" => daily_budget * 7.0,
+            "daily" => daily_budget,
+            _ => limit,
+        };
+        
+        if budget > 0.0 {
+            if settings.show_remaining {
+                (remaining_value / budget) * 100.0
+            } else {
+                (usage_value / budget) * 100.0
             }
         } else {
             0.0
-        };
-        val
+        }
     } else {
-        // Absolute $ logic: directly from balance
+        // Absolute $ logic
         if settings.show_remaining {
-            balance.remaining_monthly.or(balance.remaining).unwrap_or(0.0)
+            remaining_value
         } else {
-            balance.usage_monthly.or(balance.usage).unwrap_or(0.0)
+            usage_value
         }
     };
     
@@ -1309,25 +1397,47 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     };
     let unit_text = if is_percentage { "%" } else { "$" };
     
+    // Timeframe indicator (superscript)
+    let is_german = is_german_locale();
+    let timeframe_indicator = match settings.menubar_timeframe.as_str() {
+        "weekly" => if is_german { "W" } else { "W" },
+        "daily" => if is_german { "T" } else { "D" },
+        _ => "M", // monthly - same for both languages
+    };
+    
     let (val_font, _) = try_load_font(MENUBAR_VALUE_FONT).ok_or("Value font not found")?;
     let (unt_font, _) = try_load_font(MENUBAR_UNIT_FONT).ok_or("Unit font not found")?;
     
     let val_scale = PxScale::from(MENUBAR_VALUE_SIZE * scale);
     let unt_scale = PxScale::from(MENUBAR_UNIT_SIZE * scale);
     
+    // Superscript: 60% of value size
+    let sup_scale = PxScale::from(MENUBAR_VALUE_SIZE * 0.6 * scale);
+    
     let val_width = calculate_text_width(&value_text, &val_font, val_scale);
     let unt_width = calculate_text_width(unit_text, &unt_font, unt_scale);
+    let sup_width = calculate_text_width(timeframe_indicator, &val_font, sup_scale);
     
     // Calculate total width (logical points then scale)
-    // Layout: [hexagon] [gap] [unit/val] [val/unit] [padding]
+    // Layout: [hexagon] [gap] [value] [fraction or %+superscript] [padding]
     let mut total_width_pts = HEX_SIZE_PTS;
     
     if has_data {
-        let text_part_width = if show_unit {
-            (val_width as f32 / scale) + UNIT_VALUE_GAP + (unt_width as f32 / scale)
+        let mut text_part_width = val_width as f32 / scale;
+        
+        if is_percentage {
+            // Percent mode: 75% M (unit + superscript timeframe)
+            if show_unit {
+                text_part_width += UNIT_VALUE_GAP + (unt_width as f32 / scale);
+            }
+            text_part_width += 2.0 + (sup_width as f32 / scale);
         } else {
-            val_width as f32 / scale
-        };
+            // Dollar mode: 42$/D (diagonal fraction)
+            // Width is diagonal: wider of $ or D/W/M, plus small gap
+            let fraction_width = unt_width.max(sup_width) as f32 / scale;
+            text_part_width += 2.0 + fraction_width;
+        }
+        
         total_width_pts += LOGO_TEXT_GAP + text_part_width + END_PADDING;
     }
         
@@ -1356,19 +1466,48 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     ];
 
     // Calculate fill level (rising from bottom)
-    // Percentage used for the fill should be the selected balance %
+    // Percentage used for the fill should be the selected balance % based on timeframe
     let fill_pct = if has_data {
-        if let Some(limit) = balance.limit {
-            if limit > 0.0 {
-                let fill_val = if settings.show_remaining {
-                    balance.remaining_monthly.or(balance.remaining).unwrap_or(0.0)
-                } else {
-                    balance.usage_monthly.or(balance.usage).unwrap_or(0.0)
+        let limit = balance.limit.unwrap_or(0.0);
+        if limit > 0.0 {
+            // Calculate daily budget for weekly/daily
+            let daily_budget = {
+                let now = chrono::Local::now();
+                let days_in_month = {
+                    let year = now.year();
+                    let month = now.month();
+                    let first_next_month = if month == 12 {
+                        chrono::Local.with_ymd_and_hms(year + 1, 1, 1, 0, 0, 0).unwrap()
+                    } else {
+                        chrono::Local.with_ymd_and_hms(year, month + 1, 1, 0, 0, 0).unwrap()
+                    };
+                    let last_this_month = first_next_month - chrono::Duration::days(1);
+                    last_this_month.day() as f64
                 };
-                (fill_val as f32 / limit as f32).clamp(0.0, 1.0)
+                if days_in_month > 0.0 { limit / days_in_month } else { 0.0 }
+            };
+            
+            let (usage_val, budget) = match settings.menubar_timeframe.as_str() {
+                "weekly" => {
+                    let weekly_budget = daily_budget * 7.0;
+                    (balance.usage_weekly.unwrap_or(0.0), weekly_budget)
+                },
+                "daily" => {
+                    (balance.usage_daily.unwrap_or(0.0), daily_budget)
+                },
+                _ => {
+                    // monthly
+                    (balance.usage_monthly.or(balance.usage).unwrap_or(0.0), limit)
+                }
+            };
+            
+            let fill_val = if settings.show_remaining {
+                budget - usage_val
             } else {
-                1.0f32
-            }
+                usage_val
+            };
+            
+            (fill_val as f32 / budget as f32).clamp(0.0, 1.0)
         } else {
             1.0f32
         }
@@ -1433,25 +1572,40 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     let mut current_x = (HEX_SIZE_PTS + LOGO_TEXT_GAP) * scale;
     
     if is_percentage {
-        // Percent mode: 75 %
+        // Percent mode: 75% M
         let val_y = (canvas_height as f32 - (MENUBAR_VALUE_SIZE * scale)) / 2.0;
         draw_text_mut(&mut img, text_color, current_x as i32, val_y as i32, val_scale, &val_font, &value_text);
+        current_x += val_width as f32;
         
         if show_unit {
-            current_x += val_width as f32 + (UNIT_VALUE_GAP * scale);
+            current_x += UNIT_VALUE_GAP * scale;
             let unt_y = (canvas_height as f32 - (MENUBAR_UNIT_SIZE * scale)) / 2.0;
             draw_text_mut(&mut img, text_color, current_x as i32, unt_y as i32, unt_scale, &unt_font, unit_text);
+            current_x += unt_width as f32;
         }
+        
+        // Superscript timeframe indicator
+        current_x += 2.0 * scale;
+        let sup_y = val_y - (MENUBAR_VALUE_SIZE * 0.3 * scale) + 2.0; // Baseline shift up, down 2px to prevent clipping
+        draw_text_mut(&mut img, text_color, current_x as i32, sup_y as i32, sup_scale, &val_font, timeframe_indicator);
     } else {
-        // Dollar mode: $ 42
-        if show_unit {
-            let unt_y = (canvas_height as f32 - (MENUBAR_UNIT_SIZE * scale)) / 2.0;
-            draw_text_mut(&mut img, text_color, current_x as i32, unt_y as i32, unt_scale, &unt_font, unit_text);
-            current_x += unt_width as f32 + (UNIT_VALUE_GAP * scale);
-        }
-        
+        // Dollar mode: 42$/D (diagonal fraction like ⅓)
         let val_y = (canvas_height as f32 - (MENUBAR_VALUE_SIZE * scale)) / 2.0;
         draw_text_mut(&mut img, text_color, current_x as i32, val_y as i32, val_scale, &val_font, &value_text);
+        current_x += val_width as f32;
+        
+        // Diagonal fraction: $ on top-left, D/W/M on bottom-right
+        current_x += 2.0 * scale;
+        let center_y = canvas_height as f32 / 2.0;
+        
+        // $ symbol (superscript position - top left of fraction)
+        let dollar_y = center_y - (4.0 * scale);
+        draw_text_mut(&mut img, text_color, current_x as i32, dollar_y as i32, sup_scale, &unt_font, unit_text);
+        
+        // D/W/M (subscript position - bottom right of fraction)
+        let timeframe_x = current_x + (unt_width as f32 * 0.5); // Offset right for diagonal
+        let timeframe_y = center_y + (2.0 * scale);
+        draw_text_mut(&mut img, text_color, timeframe_x as i32, timeframe_y as i32, sup_scale, &val_font, timeframe_indicator);
     }
     
     let rgba = img.into_raw();
