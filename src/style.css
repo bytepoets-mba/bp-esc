@@ -1036,6 +1036,7 @@ input[type="text"] {
   height: 100%;
   border-radius: 999px;
   width: 0;
+  transition: width 800ms ease;
 }
 
 .pace-bar-fill--ahead {
@@ -1059,15 +1060,14 @@ input[type="text"] {
   top: -3px;
   bottom: -3px;
   width: 0;
-  border-left: 1px dotted rgba(75, 85, 99, 0.5);
   pointer-events: none;
 }
 
 .pace-bar-notch-label {
   position: absolute;
-  top: -12px;
+  top: 50%;
   left: 0;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   padding: 1px 4px;
   border-radius: 6px;
   background: rgba(249, 250, 251, 0.9);
@@ -1077,6 +1077,36 @@ input[type="text"] {
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pace-bar:hover .pace-bar-notch-label {
+  opacity: 1;
+  transition: opacity 300ms ease;
+}
+
+.usage-row-timeframe-label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 4px;
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.usage-row-timeframe-label-gray {
+  color: #9ca3af;
+  transition: opacity 300ms ease;
+}
+
+.usage-row-timeframe-label-white {
+  color: white;
+  transition: clip-path 800ms ease;
 }
 
 .usage-row-amount {

@@ -90,6 +90,12 @@ window.addEventListener('DOMContentLoaded', () => {
   const usageMonthBarNotchLabel = document.getElementById('usageMonthBarNotchLabel');
   const usageWeekBarNotchLabel = document.getElementById('usageWeekBarNotchLabel');
   const usageDayBarNotchLabel = document.getElementById('usageDayBarNotchLabel');
+  const usageMonthTimeframeLabelGray = document.getElementById('usageMonthTimeframeLabelGray');
+  const usageMonthTimeframeLabelWhite = document.getElementById('usageMonthTimeframeLabelWhite');
+  const usageWeekTimeframeLabelGray = document.getElementById('usageWeekTimeframeLabelGray');
+  const usageWeekTimeframeLabelWhite = document.getElementById('usageWeekTimeframeLabelWhite');
+  const usageDayTimeframeLabelGray = document.getElementById('usageDayTimeframeLabelGray');
+  const usageDayTimeframeLabelWhite = document.getElementById('usageDayTimeframeLabelWhite');
   const usageMonthPaceValue = document.getElementById('usageMonthPaceValue');
   const usageWeekPaceValue = document.getElementById('usageWeekPaceValue');
   const usageDayPaceValue = document.getElementById('usageDayPaceValue');
@@ -132,6 +138,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // DOM elements - Actions
   const refreshBtn = document.getElementById('refreshBtn');
+  const debugBalanceBtn = document.getElementById('debugBalanceBtn');
   const moreBtn = document.getElementById('moreBtn');
   const moreMenu = document.getElementById('moreMenu');
   const copyKeyLabel = document.getElementById('copyKeyLabel');
@@ -793,7 +800,7 @@ document.addEventListener('contextmenu', (e) => {
       remainingValue.style.color = ''; // Reset to default
     }
 
-    const updatePaceBar = (bar, fill, notch, notchLabel, valueEl, deltaPercent, target, actualValue, budget) => {
+    const updatePaceBar = (bar, fill, notch, notchLabel, valueEl, deltaPercent, target, actualValue, budget, timeframeLabelGray, timeframeLabelWhite, budgetValue) => {
       if (!bar || !fill || !notch || !notchLabel || !valueEl) return;
       fill.classList.remove('pace-bar-fill--ahead', 'pace-bar-fill--on_track', 'pace-bar-fill--behind', 'pace-bar-fill--neutral');
       valueEl.classList.remove('pace-value--ahead', 'pace-value--on_track', 'pace-value--behind', 'pace-value--neutral');
@@ -811,6 +818,12 @@ document.addEventListener('contextmenu', (e) => {
       bar.title = target == null ? '-' : `Target: ${formatCurrency(target)}`;
       const maxBarWidth = 300;
       const fillRatio = budget > 0 && actualValue != null ? Math.min(actualValue / budget, 1) : 0;
+      
+      // Animate fill bar from 0 to target width
+      fill.style.transition = 'none';
+      fill.style.width = '0px';
+      void fill.offsetWidth; // Force reflow
+      fill.style.transition = 'width 800ms ease';
       fill.style.width = `${Math.round(fillRatio * maxBarWidth)}px`;
 
       const notchRatio = budget > 0 && target != null ? Math.min(target / budget, 1) : null;
@@ -819,8 +832,31 @@ document.addEventListener('contextmenu', (e) => {
         notchLabel.textContent = '-';
       } else {
         notch.style.display = '';
-        notch.style.left = `${Math.round(notchRatio * maxBarWidth)}px`;
+        const targetLeft = Math.round(notchRatio * maxBarWidth);
+        notch.style.left = `${targetLeft}px`;
         notchLabel.textContent = target == null ? '-' : `$${target.toFixed(2)}`;
+      }
+
+      // Update timeframe label with clip-path for color transition
+      if (timeframeLabelGray && timeframeLabelWhite && budgetValue != null) {
+        const labelText = `$${budgetValue.toFixed(2)}`;
+        timeframeLabelGray.textContent = labelText;
+        timeframeLabelWhite.textContent = labelText;
+        
+        // Calculate clip-path based on fill width
+        // Label is at right: 4px, so it starts at ~296px from left
+        const fillWidth = Math.round(fillRatio * maxBarWidth);
+        const labelStartPos = maxBarWidth - 50; // Approximate label position (adjust based on text width)
+        
+        if (fillWidth > labelStartPos) {
+          // Fill overlaps label - reveal white text proportionally
+          const overlapRatio = Math.min((fillWidth - labelStartPos) / 50, 1);
+          const clipRight = Math.round((1 - overlapRatio) * 100);
+          timeframeLabelWhite.style.clipPath = `inset(0 ${clipRight}% 0 0)`;
+        } else {
+          // No overlap - hide white text completely
+          timeframeLabelWhite.style.clipPath = 'inset(0 100% 0 0)';
+        }
       }
     };
 
@@ -837,6 +873,9 @@ document.addEventListener('contextmenu', (e) => {
       paceMonthDeltaPercent,
       paceMonthTarget,
       monthlyUsage,
+      monthBudget,
+      usageMonthTimeframeLabelGray,
+      usageMonthTimeframeLabelWhite,
       monthBudget
     );
     updatePaceBar(
@@ -848,6 +887,9 @@ document.addEventListener('contextmenu', (e) => {
       paceWeekDeltaPercent,
       paceWeekTarget,
       balance?.usage_weekly ?? null,
+      weekBudget,
+      usageWeekTimeframeLabelGray,
+      usageWeekTimeframeLabelWhite,
       weekBudget
     );
     updatePaceBar(
@@ -859,6 +901,9 @@ document.addEventListener('contextmenu', (e) => {
       paceDayDeltaPercent,
       paceDayTarget,
       balance?.usage_daily ?? null,
+      dayBudget,
+      usageDayTimeframeLabelGray,
+      usageDayTimeframeLabelWhite,
       dayBudget
     );
 
@@ -1250,6 +1295,11 @@ document.addEventListener('contextmenu', (e) => {
     currentAnimatedPct = 0; // Reset for full build-up animation
     loadBalance();
   };
+
+  debugBalanceBtn.onclick = () => {
+    logBalanceDebugInfo();
+  };
+
   // More button: click to show context menu
   if (moreBtn) {
     moreBtn.onclick = (e) => {
@@ -1332,6 +1382,94 @@ document.addEventListener('contextmenu', (e) => {
     performResize();
   }
 
+  function logBalanceDebugInfo() {
+    if (!currentBalance) {
+      addLog('=== BALANCE DEBUG: No balance data available ===');
+      return;
+    }
+
+    const balance = currentBalance;
+    const monthlyUsage = balance?.usage_monthly ?? balance?.usage ?? null;
+    const monthlyRemaining = balance?.remaining_monthly ?? (balance?.limit != null && monthlyUsage != null ? balance.limit - monthlyUsage : null);
+    const limitValueRaw = balance?.limit ?? null;
+    
+    let dailyBudget = null;
+    let paceMonthTarget = balance?.pace_month_target ?? null;
+    let paceWeekTarget = balance?.pace_week_target ?? null;
+    let paceDayTarget = balance?.pace_day_target ?? null;
+    
+    if (limitValueRaw > 0) {
+      const { daysInMonth, elapsedDays, dayFraction } = getMonthContext();
+      dailyBudget = daysInMonth > 0 ? limitValueRaw / daysInMonth : 0;
+      if (paceMonthTarget == null) paceMonthTarget = dailyBudget * elapsedDays;
+      if (paceWeekTarget == null) paceWeekTarget = dailyBudget * getWeekElapsedDays();
+      if (paceDayTarget == null) paceDayTarget = dailyBudget * dayFraction;
+    }
+
+    const monthBudget = limitValueRaw;
+    const weekBudget = dailyBudget != null ? dailyBudget * 7 : null;
+    const dayBudget = dailyBudget;
+
+    const usageRatio = (limitValueRaw > 0 && monthlyUsage != null) ? (monthlyUsage / limitValueRaw) * 100 : 0;
+    const remainingRatio = (limitValueRaw > 0 && monthlyRemaining != null) ? (monthlyRemaining / limitValueRaw) * 100 : 0;
+
+    addLog('=== BALANCE DEBUG INFO ===');
+    addLog('--- RAW VALUES ---');
+    addLog(`Limit: ${balance?.limit ?? 'null'}`);
+    addLog(`Usage (legacy): ${balance?.usage ?? 'null'}`);
+    addLog(`Usage Monthly: ${balance?.usage_monthly ?? 'null'}`);
+    addLog(`Usage Weekly: ${balance?.usage_weekly ?? 'null'}`);
+    addLog(`Usage Daily: ${balance?.usage_daily ?? 'null'}`);
+    addLog(`Remaining (legacy): ${balance?.remaining ?? 'null'}`);
+    addLog(`Remaining Monthly: ${balance?.remaining_monthly ?? 'null'}`);
+    addLog(`Pace Ratio: ${balance?.pace_ratio ?? 'null'}`);
+    
+    addLog('--- CALCULATED VALUES ---');
+    addLog(`Monthly Usage (computed): ${monthlyUsage}`);
+    addLog(`Monthly Remaining (computed): ${monthlyRemaining}`);
+    addLog(`Daily Budget: ${dailyBudget}`);
+    
+    addLog('--- BUDGETS ---');
+    addLog(`Month Budget: ${monthBudget}`);
+    addLog(`Week Budget: ${weekBudget}`);
+    addLog(`Day Budget: ${dayBudget}`);
+    
+    addLog('--- PACE TARGETS ---');
+    addLog(`Month Target: ${paceMonthTarget}`);
+    addLog(`Week Target: ${paceWeekTarget}`);
+    addLog(`Day Target: ${paceDayTarget}`);
+    
+    addLog('--- PACE DELTAS ---');
+    addLog(`Month Delta %: ${balance?.pace_month_delta_percent ?? 'null'}`);
+    addLog(`Week Delta %: ${balance?.pace_week_delta_percent ?? 'null'}`);
+    addLog(`Day Delta %: ${balance?.pace_day_delta_percent ?? 'null'}`);
+    
+    addLog('--- PERCENTAGES ---');
+    addLog(`Usage Ratio: ${usageRatio.toFixed(2)}%`);
+    addLog(`Remaining Ratio: ${remainingRatio.toFixed(2)}%`);
+    
+    addLog('--- CALCULATIONS ---');
+    const { daysInMonth, elapsedDays, dayFraction } = getMonthContext();
+    addLog(`Days in Month: ${daysInMonth}`);
+    addLog(`Elapsed Days (fractional): ${elapsedDays.toFixed(3)}`);
+    addLog(`Day Fraction: ${dayFraction.toFixed(3)}`);
+    addLog(`Week Elapsed Days: ${getWeekElapsedDays().toFixed(3)}`);
+    
+    if (dailyBudget) {
+      addLog(`Daily Budget Calc: ${limitValueRaw} / ${daysInMonth} = ${dailyBudget.toFixed(4)}`);
+      addLog(`Month Target Calc: ${dailyBudget.toFixed(4)} * ${elapsedDays.toFixed(3)} = ${(dailyBudget * elapsedDays).toFixed(4)}`);
+      addLog(`Week Target Calc: ${dailyBudget.toFixed(4)} * ${getWeekElapsedDays().toFixed(3)} = ${(dailyBudget * getWeekElapsedDays()).toFixed(4)}`);
+      addLog(`Day Target Calc: ${dailyBudget.toFixed(4)} * ${dayFraction.toFixed(3)} = ${(dailyBudget * dayFraction).toFixed(4)}`);
+    }
+    
+    if (paceMonthTarget != null && monthlyUsage != null && paceMonthTarget > 0) {
+      const delta = ((monthlyUsage - paceMonthTarget) / paceMonthTarget) * 100;
+      addLog(`Month Delta % Calc: ((${monthlyUsage} - ${paceMonthTarget}) / ${paceMonthTarget}) * 100 = ${delta.toFixed(2)}%`);
+    }
+    
+    addLog('=== END BALANCE DEBUG ===');
+  }
+
   function applyDebugMode(isEnabled) {
     if (checkLabel) {
       checkLabel.style.display = isEnabled ? 'block' : 'none';
@@ -1341,6 +1479,10 @@ document.addEventListener('contextmenu', (e) => {
           focusLabel.textContent = document.hasFocus() ? 'FOCUSED' : 'BLURRED';
         }
       }
+    }
+
+    if (debugBalanceBtn) {
+      debugBalanceBtn.style.display = isEnabled ? '' : 'none';
     }
 
     if (isEnabled) {

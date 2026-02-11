@@ -1,6 +1,6 @@
 [package]
 name = "bp-esc"
-version = "0.5.4"
+version = "0.5.5"
 description = "BYTEPOETS Employee Self-Care App"
 authors = ["BYTEPOETS GmbH"]
 license = "AGPL-3.0-only"
@@ -16,7 +16,7 @@ tauri-build = { version = "=2.5.3", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri-plugin-window-state = "2.2.0"
-tauri = { version = "=2.9.5", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri = { version = "=2.9.5", features = ["tray-icon", "image-png", "macos-private-api", "devtools"] }
 reqwest = { version = "0.12", features = ["json"] }
 dirs = "5.0"
 image = "0.25"
