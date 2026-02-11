@@ -1600,17 +1600,17 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
         let center_y = canvas_height as f32 / 2.0;
         
         // $ symbol (superscript position - top of fraction)
-        let dollar_y = center_y - (6.5 * scale); // Move up more to use vertical space
+        let dollar_y = center_y - (6.5 * scale) - (4.0 * scale); // Move up 4px more
         draw_text_mut(&mut img, text_color, current_x as i32, dollar_y as i32, sup_scale, &unt_font, unit_text);
         
         // / slash (between $ and D)
         let slash_x = current_x + (unt_width as f32 * 0.4);
-        let slash_y = center_y - (2.0 * scale);
+        let slash_y = center_y - (2.0 * scale) - (4.0 * scale); // Move up 4px
         draw_text_mut(&mut img, text_color, slash_x as i32, slash_y as i32, sup_scale, &val_font, "/");
         
         // D/W/M (subscript position - bottom of fraction)
         let timeframe_x = current_x + (unt_width as f32 * 0.7); // Offset right for diagonal
-        let timeframe_y = center_y + (3.0 * scale); // Move down more
+        let timeframe_y = center_y + (3.0 * scale) - (4.0 * scale); // Move up 4px
         draw_text_mut(&mut img, text_color, timeframe_x as i32, timeframe_y as i32, sup_scale, &val_font, timeframe_indicator);
     }
     
