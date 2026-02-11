@@ -1417,7 +1417,6 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     let val_width = calculate_text_width(&value_text, &val_font, val_scale);
     let unt_width = calculate_text_width(unit_text, &unt_font, unt_scale);
     let sup_width = calculate_text_width(timeframe_indicator, &val_font, sup_scale);
-    let slash_width = calculate_text_width("/", &val_font, sup_scale);
     
     // Calculate total width (logical points then scale)
     // Layout: [hexagon] [gap] [value] [fraction or %+superscript] [padding]
@@ -1433,10 +1432,8 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
             }
             text_part_width += 2.0 + (sup_width as f32 / scale);
         } else {
-            // Dollar mode: 42$/D (diagonal fraction with slash)
-            // Width accounts for diagonal layout: $ / D positioned diagonally
-            let fraction_width = (unt_width.max(sup_width) as f32 + slash_width as f32) * 0.8 / scale;
-            text_part_width += 1.5 + fraction_width;
+            // Dollar mode: 42$ (D/W/M goes in hexagon, not counted in width)
+            text_part_width += UNIT_VALUE_GAP + (unt_width as f32 / scale);
         }
         
         total_width_pts += LOGO_TEXT_GAP + text_part_width + END_PADDING;
@@ -1590,30 +1587,29 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
         let sup_y = val_y - (MENUBAR_VALUE_SIZE * 0.3 * scale) + 2.0; // Baseline shift up, down 2px to prevent clipping
         draw_text_mut(&mut img, text_color, current_x as i32, sup_y as i32, sup_scale, &val_font, timeframe_indicator);
     } else {
-        // Dollar mode: 42$/D (diagonal fraction like ⅓)
+        // Dollar mode: 42$ with D/W/M in hexagon center
         let val_y = (canvas_height as f32 - (MENUBAR_VALUE_SIZE * scale)) / 2.0;
         draw_text_mut(&mut img, text_color, current_x as i32, val_y as i32, val_scale, &val_font, &value_text);
         current_x += val_width as f32;
         
-        // Diagonal fraction: $/D with slash separator
-        current_x += 1.5 * scale;
-        let center_y = canvas_height as f32 / 2.0;
+        // $ symbol after value (slightly bigger than original superscript)
+        current_x += UNIT_VALUE_GAP * scale;
+        let dollar_scale = PxScale::from(MENUBAR_VALUE_SIZE * 0.61 * scale); // 1px bigger than 0.6
+        let dollar_y = (canvas_height as f32 - (MENUBAR_VALUE_SIZE * 0.61 * scale)) / 2.0;
+        draw_text_mut(&mut img, text_color, current_x as i32, dollar_y as i32, dollar_scale, &val_font, unit_text);
+    }
+    
+    // Draw timeframe indicator (D/W/M) in hexagon center for dollar mode
+    if !is_percentage && has_data {
+        let hex_center_x = hex_x_offset + hex_width / 2.0;
+        let hex_center_y = hex_y_offset + hex_height / 2.0;
         
-        // All elements use same font (val_font) for consistency
-        // $ symbol (superscript position - top of fraction)
-        let dollar_y = center_y - (6.5 * scale) - (4.0 * scale); // Move up 4px more
-        draw_text_mut(&mut img, text_color, current_x as i32, dollar_y as i32, sup_scale, &val_font, unit_text);
+        // Center the text
+        let indicator_width = calculate_text_width(timeframe_indicator, &val_font, sup_scale);
+        let indicator_x = hex_center_x - (indicator_width as f32 / 2.0);
+        let indicator_y = hex_center_y - (MENUBAR_VALUE_SIZE * 0.6 * scale / 2.0);
         
-        // / slash (between $ and D) - larger size for visibility
-        let slash_scale = PxScale::from(MENUBAR_VALUE_SIZE * 0.75 * scale);
-        let slash_x = current_x + (unt_width as f32 * 0.4);
-        let slash_y = center_y - (2.0 * scale) - (4.0 * scale); // Move up 4px
-        draw_text_mut(&mut img, text_color, slash_x as i32, slash_y as i32, slash_scale, &val_font, "/");
-        
-        // D/W/M (subscript position - bottom of fraction)
-        let timeframe_x = current_x + (unt_width as f32 * 0.7); // Offset right for diagonal
-        let timeframe_y = center_y + (3.0 * scale) - (4.0 * scale); // Move up 4px
-        draw_text_mut(&mut img, text_color, timeframe_x as i32, timeframe_y as i32, sup_scale, &val_font, timeframe_indicator);
+        draw_text_mut(&mut img, text_color, indicator_x as i32, indicator_y as i32, sup_scale, &val_font, timeframe_indicator);
     }
     
     let rgba = img.into_raw();
