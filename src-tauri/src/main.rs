@@ -1417,6 +1417,7 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     let val_width = calculate_text_width(&value_text, &val_font, val_scale);
     let unt_width = calculate_text_width(unit_text, &unt_font, unt_scale);
     let sup_width = calculate_text_width(timeframe_indicator, &val_font, sup_scale);
+    let slash_width = calculate_text_width("/", &val_font, sup_scale);
     
     // Calculate total width (logical points then scale)
     // Layout: [hexagon] [gap] [value] [fraction or %+superscript] [padding]
@@ -1432,10 +1433,10 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
             }
             text_part_width += 2.0 + (sup_width as f32 / scale);
         } else {
-            // Dollar mode: 42$/D (diagonal fraction)
-            // Width is diagonal: wider of $ or D/W/M, plus small gap
-            let fraction_width = unt_width.max(sup_width) as f32 / scale;
-            text_part_width += 2.0 + fraction_width;
+            // Dollar mode: 42$/D (diagonal fraction with slash)
+            // Width accounts for diagonal layout: $ / D positioned diagonally
+            let fraction_width = (unt_width.max(sup_width) as f32 + slash_width as f32) * 0.8 / scale;
+            text_part_width += 1.5 + fraction_width;
         }
         
         total_width_pts += LOGO_TEXT_GAP + text_part_width + END_PADDING;
@@ -1594,17 +1595,22 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
         draw_text_mut(&mut img, text_color, current_x as i32, val_y as i32, val_scale, &val_font, &value_text);
         current_x += val_width as f32;
         
-        // Diagonal fraction: $ on top-left, D/W/M on bottom-right
-        current_x += 2.0 * scale;
+        // Diagonal fraction: $/D with slash separator
+        current_x += 1.5 * scale;
         let center_y = canvas_height as f32 / 2.0;
         
-        // $ symbol (superscript position - top left of fraction)
-        let dollar_y = center_y - (4.0 * scale);
+        // $ symbol (superscript position - top of fraction)
+        let dollar_y = center_y - (6.5 * scale); // Move up more to use vertical space
         draw_text_mut(&mut img, text_color, current_x as i32, dollar_y as i32, sup_scale, &unt_font, unit_text);
         
-        // D/W/M (subscript position - bottom right of fraction)
-        let timeframe_x = current_x + (unt_width as f32 * 0.5); // Offset right for diagonal
-        let timeframe_y = center_y + (2.0 * scale);
+        // / slash (between $ and D)
+        let slash_x = current_x + (unt_width as f32 * 0.4);
+        let slash_y = center_y - (2.0 * scale);
+        draw_text_mut(&mut img, text_color, slash_x as i32, slash_y as i32, sup_scale, &val_font, "/");
+        
+        // D/W/M (subscript position - bottom of fraction)
+        let timeframe_x = current_x + (unt_width as f32 * 0.7); // Offset right for diagonal
+        let timeframe_y = center_y + (3.0 * scale); // Move down more
         draw_text_mut(&mut img, text_color, timeframe_x as i32, timeframe_y as i32, sup_scale, &val_font, timeframe_indicator);
     }
     
