@@ -185,33 +185,32 @@
           
           <!-- OpenRouter Sub-Tab -->
           <div id="openrouterTab" class="settings-sub-content hidden">
-            <div class="settings-grid" style="grid-template-columns: 1fr;">
-              <div class="setting-item">
-                <label>OpenRouter API Keys:</label>
-                <div id="apiKeyList" class="api-key-list">
-                  <!-- Keys injected here -->
-                </div>
-                <div class="api-key-add-row" style="margin-top: 0.5rem;">
-                  <input type="password" id="newApiKeyInput" placeholder="sk-or-v1-..." autocomplete="off">
-                  <button id="addApiKeyBtn" class="btn-primary">Add</button>
-                </div>
-              </div>
-            </div>
-            
             <div class="settings-grid">
               <div class="settings-col">
                 <div class="setting-item side">
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="showUnitToggle">
-                    <span>Show Unit</span>
-                  </label>
+                  <label class="subheader">Appearance</label>
                 </div>
 
                 <div class="setting-item side">
-                  <label>Display Unit:</label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="showUnitToggle">
+                    <span>Unit</span>
+                  </label>
                   <div class="toggle-group">
                     <button id="unitPercent" class="btn-toggle active">%</button>
                     <button id="unitDollar" class="btn-toggle">$</button>
+                  </div>
+                </div>
+
+                <div class="setting-item side">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="showTimeframeIndicatorToggle">
+                    <span>Timeframe</span>
+                  </label>
+                  <div class="toggle-group">
+                    <button id="timeframeMonthly" class="btn-toggle active">Month</button>
+                    <button id="timeframeWeekly" class="btn-toggle">Week</button>
+                    <button id="timeframeDaily" class="btn-toggle">Day</button>
                   </div>
                 </div>
 
@@ -224,37 +223,25 @@
                   </div>
                 </div>
 
+              </div>
+              
+              <div class="settings-col">
                 <div class="setting-item side">
-                  <label>Menubar Timeframe:</label>
-                  <div class="toggle-group">
-                    <button id="timeframeMonthly" class="btn-toggle active">Month</button>
-                    <button id="timeframeWeekly" class="btn-toggle">Week</button>
-                    <button id="timeframeDaily" class="btn-toggle">Day</button>
-                  </div>
-                </div>
-
-                <div class="setting-item side">
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="showTimeframeIndicatorToggle">
-                    <span>Show Timeframe Indicator</span>
-                  </label>
+                  <label class="subheader">Tracking</label>
                 </div>
 
                 <div id="absTypeSection" class="setting-item side">
-                  <label>Show Value:</label>
+                  <label>Value:</label>
                   <div class="toggle-group">
                     <button id="typeRemaining" class="btn-toggle active">Remaining</button>
                     <button id="typeUsed" class="btn-toggle">Used</button>
                   </div>
                 </div>
 
-              </div>
-
-              <div class="settings-col">
                 <div class="setting-item side">
                   <label class="checkbox-label">
                     <input type="checkbox" id="autocheckToggle">
-                    <span>Auto-refresh</span>
+                    <span>Refresh</span>
                   </label>
                   <div class="number-input">
                     <button id="refreshMinus" class="btn-icon">−</button>
@@ -264,14 +251,27 @@
                   </div>
                 </div>
 
-                <div class="setting-item">
-                  <label class="subheader">Pace warning</label>
+                <div class="setting-item side">
+                  <label>Over Pace</label>
                   <div class="number-input">
                     <button id="paceWarnMinus" class="btn-icon">−</button>
                     <span id="paceWarnValue">20</span>
                     <button id="paceWarnPlus" class="btn-icon">+</button>
-                    <span class="unit">% Over pace → Red</span>
+                    <span class="unit">% → Red</span>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-grid" style="grid-template-columns: 1fr;">
+              <div class="setting-item">
+                <label>OpenRouter API Keys:</label>
+                <div id="apiKeyList" class="api-key-list">
+                  <!-- Keys injected here -->
+                </div>
+                <div class="api-key-add-row" style="margin-top: 0.5rem;">
+                  <input type="password" id="newApiKeyInput" placeholder="sk-or-v1-..." autocomplete="off">
+                  <button id="addApiKeyBtn" class="btn-primary">Add</button>
                 </div>
               </div>
             </div>
