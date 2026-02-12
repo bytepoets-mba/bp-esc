@@ -115,6 +115,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const typeRemaining = document.getElementById('typeRemaining');
   const typeUsed = document.getElementById('typeUsed');
   const showUnitToggle = document.getElementById('showUnitToggle');
+  const showTimeframeIndicatorToggle = document.getElementById('showTimeframeIndicatorToggle');
   const autocheckToggle = document.getElementById('autocheckToggle');
   const startWindowToggle = document.getElementById('startWindowToggle');
   const launchAtLoginToggle = document.getElementById('launchAtLoginToggle');
@@ -1078,6 +1079,9 @@ document.addEventListener('contextmenu', (e) => {
     renderApiKeyList();
     refreshValue.textContent = currentSettings.refresh_interval_minutes;
     showUnitToggle.checked = currentSettings.show_unit;
+    if (showTimeframeIndicatorToggle) {
+      showTimeframeIndicatorToggle.checked = currentSettings.show_timeframe_indicator !== false;
+    }
     autocheckToggle.checked = currentSettings.auto_refresh_enabled;
     startWindowToggle.checked = currentSettings.show_window_on_start;
     launchAtLoginToggle.checked = currentSettings.launch_at_login;
@@ -1138,6 +1142,7 @@ document.addEventListener('contextmenu', (e) => {
       ...currentSettings,
       refresh_interval_minutes: parseInt(refreshValue.textContent),
       show_unit: showUnitToggle.checked,
+      show_timeframe_indicator: showTimeframeIndicatorToggle ? showTimeframeIndicatorToggle.checked : (currentSettings?.show_timeframe_indicator ?? true),
       auto_refresh_enabled: autocheckToggle.checked,
       show_window_on_start: startWindowToggle.checked,
       launch_at_login: launchAtLoginToggle.checked,
@@ -1266,6 +1271,9 @@ document.addEventListener('contextmenu', (e) => {
   };
 
   showUnitToggle.onchange = () => saveSettingsAction(true);
+  if (showTimeframeIndicatorToggle) {
+    showTimeframeIndicatorToggle.onchange = () => saveSettingsAction(true);
+  }
   autocheckToggle.onchange = async () => {
     await saveSettingsAction(true);
     // Rust backend will automatically restart timer with new settings

@@ -161,6 +161,8 @@ pub struct AppSettings {
     #[serde(default = "default_true")]
     pub show_unit: bool,              // true = display % or $, false = hide unit
     #[serde(default = "default_true")]
+    pub show_timeframe_indicator: bool,
+    #[serde(default = "default_true")]
     pub auto_refresh_enabled: bool,
     #[serde(default = "default_true")]
     pub show_window_on_start: bool,
@@ -206,6 +208,7 @@ impl Default for AppSettings {
             show_percentage: true,
             show_remaining: true,
             show_unit: true,
+            show_timeframe_indicator: true,
             auto_refresh_enabled: true,
             show_window_on_start: true,
             launch_at_login: true,
@@ -356,18 +359,15 @@ const HEX_SIZE_PTS: f32 = 18.0;
 /// Border thickness of the hexagon in logical points
 const HEX_BORDER_PTS: f32 = 1.5;
 
-// --- VALUE CONFIGURATION (the number, e.g., "42") ---
-
-/// Font for the unit symbol
-const MENUBAR_UNIT_FONT: &str = "SF-Pro-Rounded-Heavy";
+// --- UNIT CONFIGURATION (the symbol, e.g., "%" or "$") ---
 
 /// Font size for the unit in points
 const MENUBAR_UNIT_SIZE: f32 = MENUBAR_VALUE_SIZE;
 
 // --- SPACING (logical points) ---
-const LOGO_TEXT_GAP: f32 = 6.0;
+const LOGO_TEXT_GAP: f32 = 4.0;
 const UNIT_VALUE_GAP: f32 = 1.0;
-const END_PADDING: f32 = 4.0;
+const END_PADDING: f32 = 0.0;
 
 // ============================================================================
 // macOS Appearance Observation (KVO for effectiveAppearance changes)
@@ -1405,35 +1405,38 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
         _ => "M", // monthly - same for both languages
     };
     
+    // All menubar text uses Semibold for consistent appearance
     let (val_font, _) = try_load_font(MENUBAR_VALUE_FONT).ok_or("Value font not found")?;
-    let (unt_font, _) = try_load_font(MENUBAR_UNIT_FONT).ok_or("Unit font not found")?;
     
     let val_scale = PxScale::from(MENUBAR_VALUE_SIZE * scale);
     let unt_scale = PxScale::from(MENUBAR_UNIT_SIZE * scale);
     
+    let show_timeframe_indicator = settings.show_timeframe_indicator;
+
     // Superscript: 60% of value size
     let sup_scale = PxScale::from(MENUBAR_VALUE_SIZE * 0.6 * scale);
     
     let val_width = calculate_text_width(&value_text, &val_font, val_scale);
-    let unt_width = calculate_text_width(unit_text, &unt_font, unt_scale);
-    let sup_width = calculate_text_width(timeframe_indicator, &val_font, sup_scale);
+    let unt_width = calculate_text_width(unit_text, &val_font, unt_scale);
+    let sup_width = if show_timeframe_indicator {
+        calculate_text_width(timeframe_indicator, &val_font, sup_scale)
+    } else {
+        0
+    };
     
     // Calculate total width (logical points then scale)
-    // Layout: [hexagon] [gap] [value] [fraction or %+superscript] [padding]
+    // Layout: [hexagon] [gap] [value] [unit?] [superscript_indicator] [padding]
     let mut total_width_pts = HEX_SIZE_PTS;
     
     if has_data {
         let mut text_part_width = val_width as f32 / scale;
         
-        if is_percentage {
-            // Percent mode: 75% M (unit + superscript timeframe)
-            if show_unit {
-                text_part_width += UNIT_VALUE_GAP + (unt_width as f32 / scale);
-            }
-            text_part_width += 2.0 + (sup_width as f32 / scale);
-        } else {
-            // Dollar mode: 42$ (D/W/M goes in hexagon, not counted in width)
+        // Both modes: show unit + optional superscript indicator
+        if show_unit {
             text_part_width += UNIT_VALUE_GAP + (unt_width as f32 / scale);
+        }
+        if show_timeframe_indicator {
+            text_part_width += 2.0 + (sup_width as f32 / scale);
         }
         
         total_width_pts += LOGO_TEXT_GAP + text_part_width + END_PADDING;
@@ -1566,50 +1569,26 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
     }
 
     // 2. Draw Text (White)
+    // Unified: [value] [unit?] [superscript D/W/M]
     let text_color = stroke_color;
     let mut current_x = (HEX_SIZE_PTS + LOGO_TEXT_GAP) * scale;
     
-    if is_percentage {
-        // Percent mode: 75% M
-        let val_y = (canvas_height as f32 - (MENUBAR_VALUE_SIZE * scale)) / 2.0;
-        draw_text_mut(&mut img, text_color, current_x as i32, val_y as i32, val_scale, &val_font, &value_text);
-        current_x += val_width as f32;
-        
-        if show_unit {
-            current_x += UNIT_VALUE_GAP * scale;
-            let unt_y = (canvas_height as f32 - (MENUBAR_UNIT_SIZE * scale)) / 2.0;
-            draw_text_mut(&mut img, text_color, current_x as i32, unt_y as i32, unt_scale, &unt_font, unit_text);
-            current_x += unt_width as f32;
-        }
-        
-        // Superscript timeframe indicator
-        current_x += 2.0 * scale;
-        let sup_y = val_y - (MENUBAR_VALUE_SIZE * 0.3 * scale) + 2.0; // Baseline shift up, down 2px to prevent clipping
-        draw_text_mut(&mut img, text_color, current_x as i32, sup_y as i32, sup_scale, &val_font, timeframe_indicator);
-    } else {
-        // Dollar mode: 42$ with D/W/M in hexagon center
-        let val_y = (canvas_height as f32 - (MENUBAR_VALUE_SIZE * scale)) / 2.0;
-        draw_text_mut(&mut img, text_color, current_x as i32, val_y as i32, val_scale, &val_font, &value_text);
-        current_x += val_width as f32;
-        
-        // $ symbol after value (slightly bigger than original superscript)
+    let val_y = (canvas_height as f32 - (MENUBAR_VALUE_SIZE * scale)) / 2.0;
+    draw_text_mut(&mut img, text_color, current_x as i32, val_y as i32, val_scale, &val_font, &value_text);
+    current_x += val_width as f32;
+    
+    if show_unit {
         current_x += UNIT_VALUE_GAP * scale;
-        let dollar_scale = PxScale::from(MENUBAR_VALUE_SIZE * 0.61 * scale); // 1px bigger than 0.6
-        let dollar_y = (canvas_height as f32 - (MENUBAR_VALUE_SIZE * 0.61 * scale)) / 2.0;
-        draw_text_mut(&mut img, text_color, current_x as i32, dollar_y as i32, dollar_scale, &val_font, unit_text);
+        let unt_y = (canvas_height as f32 - (MENUBAR_UNIT_SIZE * scale)) / 2.0;
+        draw_text_mut(&mut img, text_color, current_x as i32, unt_y as i32, unt_scale, &val_font, unit_text);
+        current_x += unt_width as f32;
     }
     
-    // Draw timeframe indicator (D/W/M) in hexagon center for dollar mode
-    if !is_percentage && has_data {
-        let hex_center_x = hex_x_offset + hex_width / 2.0;
-        let hex_center_y = hex_y_offset + hex_height / 2.0;
-        
-        // Center the text
-        let indicator_width = calculate_text_width(timeframe_indicator, &val_font, sup_scale);
-        let indicator_x = hex_center_x - (indicator_width as f32 / 2.0);
-        let indicator_y = hex_center_y - (MENUBAR_VALUE_SIZE * 0.6 * scale / 2.0);
-        
-        draw_text_mut(&mut img, text_color, indicator_x as i32, indicator_y as i32, sup_scale, &val_font, timeframe_indicator);
+    if show_timeframe_indicator {
+        // Superscript timeframe indicator (D/W/M)
+        current_x += 2.0 * scale;
+        let sup_y = val_y - (MENUBAR_VALUE_SIZE * 0.3 * scale) + 2.0;
+        draw_text_mut(&mut img, text_color, current_x as i32, sup_y as i32, sup_scale, &val_font, timeframe_indicator);
     }
     
     let rgba = img.into_raw();
