@@ -3,8 +3,8 @@
 **A quiet companion for your AI budget.**
 
 <p align="center">
-  <a href="https://github.com/bytepoets-mba/bp-esc/releases/download/v0.5.1/BP-ESC_0.5.1_universal.dmg">
-    <img src="https://img.shields.io/badge/Download-v0.5.1-006497?style=for-the-badge&logo=apple&logoColor=white" alt="Download BP-ESC" />
+  <a href="https://github.com/bytepoets-mba/bp-esc/releases/latest">
+    <img src="https://img.shields.io/github/v/release/bytepoets-mba/bp-esc?style=for-the-badge&logo=apple&logoColor=white&label=Download&color=006497" alt="Download BP-ESC" />
   </a>
   &nbsp;
   <img src="https://img.shields.io/badge/macOS_11+-universal-555?style=for-the-badge&logo=macos&logoColor=white" alt="macOS 11+" />
@@ -22,9 +22,10 @@ BP-ESC is a native macOS menubar app that keeps your OpenRouter spending visible
 
 - **Live balance at a glance** — limit, used, remaining. Month, week, day. All in one calm view.
 - **Menubar icon** — a tiny hexagon that fills as you spend, colored by pace. You never need to open the window to know where you stand.
+- **Timeframe selector** — switch the menubar between monthly, weekly, and daily views. A diagonal fraction indicator shows your pace at a glance.
+- **Adaptive appearance** — icon colors follow your system theme automatically; forced monochrome on macOS 26+; wallpaper tint changes detected via KVO.
 - **Pace tracking** — are you ahead, on track, or behind your monthly budget? Visual bars and percentage deltas tell you instantly.
-- **Multi-key management** — label your keys, reorder them, switch between them. One click.
-- **OpenCode integration** — extract or set your active OpenRouter key directly into [OpenCode](https://opencode.ai)'s auth config.
+- **Multi-key management** — label your keys, reorder them, switch between them. Redesigned key menu with clipboard copy for easy use with [OpenCode](https://opencode.ai) and other tools.
 - **Auto-refresh** — balance updates silently in the background, even when the window is hidden.
 - **Native macOS feel** — launch at login, global keyboard shortcut, always-on-top, unfocused dimming, Sparkle auto-updates.
 
