@@ -312,7 +312,7 @@ dependencies = [
 
 [[package]]
 name = "bp-esc"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "ab_glyph",
  "chrono",
