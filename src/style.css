@@ -1067,7 +1067,7 @@ input[type="text"] {
   position: absolute;
   top: 50%;
   left: 0;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, calc(-50% - 13px));
   padding: 1px 4px;
   border-radius: 6px;
   background: rgba(249, 250, 251, 0.9);
@@ -1079,6 +1079,7 @@ input[type="text"] {
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
+  z-index: 9999;
 }
 
 .pace-bar:hover .pace-bar-notch-label {
@@ -1601,6 +1602,16 @@ input[type="text"] {
   border-color: rgba(0, 100, 151, 0.35);
 }
 
+.mood-my-vote-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  padding: 0 2px;
+  margin-bottom: 2px;
+}
+
 .mood-row-name {
   font-size: 0.72rem;
   font-weight: 700;
@@ -1695,14 +1706,25 @@ input[type="text"] {
 
 /* Connection status bar in settings */
 .mood-connection-status {
-  font-size: 0.78rem;
-  padding: 0.35rem 0.6rem;
   border-radius: 6px;
-  min-height: 1.5rem;
-  transition: background 0.2s, color 0.2s;
+  cursor: text;
+  font-size: 0.78rem;
+  min-height: 2rem;
+  padding: 0.45rem 0.7rem;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
   -webkit-user-select: text;
   user-select: text;
-  cursor: text;
+}
+
+.mood-connection-status:empty {
+  display: none;
+}
+
+.mood-status-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
 }
 
 .mood-conn-ok {

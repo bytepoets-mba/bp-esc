@@ -1866,6 +1866,7 @@ document.addEventListener('contextmenu', (e) => {
   const moodTestBtn            = document.getElementById('moodTestConnectionBtn');
   const moodSettingsSave       = document.getElementById('moodSettingsSaveBtn');
   const moodConnectionStatus   = document.getElementById('moodConnectionStatus');
+  const moodConnectionStatusWrap = document.getElementById('moodConnectionStatusWrap');
 
   // Returns week number (1-53) for a date offset by N weeks from today
   function isoWeekForOffset(offsetWeeks) {
@@ -1909,11 +1910,14 @@ document.addEventListener('contextmenu', (e) => {
     if (moodTable) moodTable.innerHTML = '<div class="mood-loading">Loading…</div>';
 
     try {
+      const activeOrKey = currentSettings.api_keys?.[currentSettings.active_api_key_index]?.key || '';
       const rows = await invoke('fetch_mood_data', {
         sheetId: mood_sheet_id,
         saEmail: mood_service_account_email,
         saKey: mood_service_account_private_key,
         week: String(weekNum),
+        orKey: activeOrKey,
+        tag: mood_my_name || '',
       });
       renderMoodTable(rows, mood_my_name || '', isCurrentWeek);
     } catch (e) {
@@ -1925,20 +1929,23 @@ document.addEventListener('contextmenu', (e) => {
   function renderMoodTable(rows, myName, isCurrentWeek) {
     if (!moodTable) return;
 
-    if (rows.length === 0) {
-      moodTable.innerHTML = '<div class="mood-empty">No entries this week yet.</div>';
-    } else {
-      const html = rows.map(row => {
-        const emoji = MOOD_EMOJIS[row.mood] || '—';
-        const label = MOOD_LABELS[row.mood] || '';
-        const isMe = myName && row.name.toLowerCase() === myName.toLowerCase();
-        return `<div class="mood-row${isMe ? ' mood-row-me' : ''}">
-          <span class="mood-row-name">${escapeHtml(row.name)}</span>
-          <span class="mood-row-emoji" title="${row.mood} – ${label}">${emoji}</span>
-          <span class="mood-row-comment">${escapeHtml(row.comment)}</span>
+    // Only show own row — never expose other users' votes
+    const myRow = myName ? rows.find(r => r.name.toLowerCase() === myName.toLowerCase()) : null;
+
+    if (myRow) {
+      const emoji = MOOD_EMOJIS[myRow.mood] || '—';
+      const label = MOOD_LABELS[myRow.mood] || '';
+      moodTable.innerHTML = `
+        <div class="mood-my-vote-label">My vote</div>
+        <div class="mood-row mood-row-me">
+          <span class="mood-row-emoji" title="${myRow.mood} – ${label}">${emoji}</span>
+          <span class="mood-row-comment">${escapeHtml(myRow.comment) || '<span style="opacity:0.35">no comment</span>'}</span>
         </div>`;
-      }).join('');
-      moodTable.innerHTML = html;
+    } else if (rows.length > 0) {
+      // Others exist but I haven't voted yet
+      moodTable.innerHTML = '<div class="mood-empty">No vote yet this week.</div>';
+    } else {
+      moodTable.innerHTML = '<div class="mood-empty">No entries this week yet.</div>';
     }
 
     // Show editor whenever name is configured (past weeks editable too)
@@ -1947,7 +1954,6 @@ document.addEventListener('contextmenu', (e) => {
       if (moodEditorLabel) {
         moodEditorLabel.textContent = isCurrentWeek ? 'My mood this week' : `My mood — KW ${weekForOffset(moodWeekOffset)}`;
       }
-      const myRow = rows.find(r => r.name.toLowerCase() === myName.toLowerCase());
       moodSelectedValue = myRow ? myRow.mood : 0;
       if (moodComment) moodComment.value = myRow ? myRow.comment : '';
       updateMoodPickerUI();
@@ -2069,15 +2075,17 @@ document.addEventListener('contextmenu', (e) => {
     if (!moodConnectionStatus) return;
     moodConnectionStatus.textContent = message;
     moodConnectionStatus.className = 'mood-connection-status mood-conn-' + type;
+    if (moodConnectionStatusWrap) moodConnectionStatusWrap.classList.remove('hidden');
   }
 
   function clearMoodConnectionStatus() {
     if (!moodConnectionStatus) return;
     moodConnectionStatus.textContent = '';
     moodConnectionStatus.className = 'mood-connection-status';
+    if (moodConnectionStatusWrap) moodConnectionStatusWrap.classList.add('hidden');
   }
 
-  async function runMoodConnectionTest(sheetId, saEmail, saKey, silent = false) {
+  async function runMoodConnectionTest(sheetId, saEmail, saKey, orKey, tag, silent = false) {
     if (!sheetId || !saEmail || !saKey) {
       if (!silent) setMoodConnectionStatus('error', 'Fill in all fields first.');
       return false;
@@ -2087,6 +2095,8 @@ document.addEventListener('contextmenu', (e) => {
         sheetId,
         saEmail,
         saKey,
+        orKey: orKey || '',
+        tag: tag || '',
       });
       setMoodConnectionStatus('ok', '✓ ' + result);
       return true;
@@ -2108,10 +2118,11 @@ document.addEventListener('contextmenu', (e) => {
     if (moodSaEmailInput) moodSaEmailInput.value = currentSettings.mood_service_account_email || '';
     if (moodSaKeyInput)   moodSaKeyInput.value   = currentSettings.mood_service_account_private_key || '';
     clearMoodConnectionStatus();
-    // Auto-test if configured
-    const { mood_sheet_id, mood_service_account_email, mood_service_account_private_key } = currentSettings;
-    if (mood_sheet_id && mood_service_account_email && mood_service_account_private_key) {
-      runMoodConnectionTest(mood_sheet_id, mood_service_account_email, mood_service_account_private_key, true);
+    // Auto-test if fully configured
+    const { mood_sheet_id, mood_service_account_email, mood_service_account_private_key, mood_my_name } = currentSettings;
+    const activeOrKey = currentSettings.api_keys?.[currentSettings.active_api_key_index]?.key || '';
+    if (mood_sheet_id && mood_service_account_email && mood_service_account_private_key && mood_my_name && activeOrKey) {
+      runMoodConnectionTest(mood_sheet_id, mood_service_account_email, mood_service_account_private_key, activeOrKey, mood_my_name, true);
     }
   }
 
@@ -2124,12 +2135,25 @@ document.addEventListener('contextmenu', (e) => {
         return;
       }
       const rawSheetId = moodSheetIdInput ? moodSheetIdInput.value.trim() : '';
+      const sheetId = extractSheetId(rawSheetId);
+      const saEmail = moodSaEmailInput ? moodSaEmailInput.value.trim() : '';
+      const saKey   = moodSaKeyInput   ? moodSaKeyInput.value.trim()   : '';
+      const activeOrKey = currentSettings.api_keys?.[currentSettings.active_api_key_index]?.key || '';
+
+      // Auth check before saving
+      moodSettingsSave.disabled = true;
+      moodSettingsSave.textContent = 'Checking…';
+      const authOk = await runMoodConnectionTest(sheetId, saEmail, saKey, activeOrKey, name, false);
+      moodSettingsSave.disabled = false;
+      moodSettingsSave.textContent = 'Save Settings';
+      if (!authOk) return;
+
       const newSettings = {
         ...currentSettings,
         mood_my_name: name,
-        mood_sheet_id: extractSheetId(rawSheetId),
-        mood_service_account_email: moodSaEmailInput ? moodSaEmailInput.value.trim() : '',
-        mood_service_account_private_key: moodSaKeyInput ? moodSaKeyInput.value.trim() : '',
+        mood_sheet_id: sheetId,
+        mood_service_account_email: saEmail,
+        mood_service_account_private_key: saKey,
       };
       try {
         await invoke('save_settings', { settings: newSettings });
@@ -2159,9 +2183,11 @@ document.addEventListener('contextmenu', (e) => {
       const sheetId = extractSheetId(moodSheetIdInput ? moodSheetIdInput.value : '');
       const saEmail = moodSaEmailInput ? moodSaEmailInput.value.trim() : '';
       const saKey   = moodSaKeyInput   ? moodSaKeyInput.value.trim()   : '';
-      await runMoodConnectionTest(sheetId, saEmail, saKey, false);
+      const tag     = moodMyNameInput  ? moodMyNameInput.value.trim().toLowerCase() : '';
+      const activeOrKey = currentSettings?.api_keys?.[currentSettings.active_api_key_index]?.key || '';
+      await runMoodConnectionTest(sheetId, saEmail, saKey, activeOrKey, tag, false);
       moodTestBtn.disabled = false;
-      moodTestBtn.textContent = 'Test';
+      moodTestBtn.textContent = 'Test Connection';
     });
   }
 
