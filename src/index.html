@@ -405,46 +405,56 @@
 
           <!-- Mood Sub-Tab -->
           <div id="moodSettingsTab" class="settings-sub-content hidden">
-            <div class="settings-grid" style="grid-template-columns: 1fr; gap: 0.6rem;">
+            <div class="settings-grid">
 
-              <div class="setting-item side">
-                <label class="subheader" style="margin-bottom: 0;">Identity</label>
-              </div>
-
-              <div class="setting-item side">
-                <label for="moodMyNameInput">My tag</label>
-                <input type="text" id="moodMyNameInput" placeholder="mba" maxlength="3" autocomplete="off" style="width: 60px; text-transform: lowercase; text-align: center;">
-              </div>
-
-              <div class="setting-item side" style="margin-top: 0.6rem;">
-                <label class="subheader" style="margin-bottom: 0;">Google Sheets</label>
-              </div>
-
-              <div class="setting-item">
-                <label for="moodSheetIdInput">Sheet <span id="moodSheetIdExtracted" class="mood-extracted-id"></span></label>
-                <input type="text" id="moodSheetIdInput" placeholder="Sheet ID or full URL" autocomplete="off">
-              </div>
-
-              <div class="setting-item">
-                <label for="moodSaEmailInput">Service Account</label>
-                <input type="text" id="moodSaEmailInput" placeholder="name@project.iam.gserviceaccount.com" autocomplete="off">
-              </div>
-
-              <div class="setting-item">
-                <label for="moodSaKeyInput">Private Key</label>
-                <textarea id="moodSaKeyInput" rows="4" placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;..." autocomplete="off" style="font-family: 'SF Mono', monospace; font-size: 10px; resize: none; width: 100%; overflow-y: auto;"></textarea>
-              </div>
-
-              <div class="button-row" style="gap: 10px;">
-                <button id="moodTestConnectionBtn" class="btn-secondary">Test Connection</button>
-                <button id="moodSettingsSaveBtn" class="btn-primary">Save Settings</button>
-              </div>
-
-              <div id="moodConnectionStatusWrap" class="mood-status-wrap hidden">
-                <div class="setting-item side" style="margin-bottom: 0.3rem;">
-                  <label class="subheader" style="margin-bottom: 0;">Connection Status</label>
+              <!-- Left col: Identity + actions -->
+              <div class="settings-col">
+                <div class="setting-item side">
+                  <label class="subheader">Identity</label>
                 </div>
-                <div id="moodConnectionStatus" class="mood-connection-status"></div>
+
+                <div class="setting-item side">
+                  <label for="moodMyNameInput">My tag</label>
+                  <input type="text" id="moodMyNameInput" placeholder="mba" maxlength="3" autocomplete="off" style="width: 60px; text-transform: lowercase; text-align: center;">
+                </div>
+
+                <div class="setting-item side" style="margin-top: 1rem;">
+                  <label class="subheader">Actions</label>
+                </div>
+
+                <div class="button-row" style="gap: 8px; flex-direction: column;">
+                  <button id="moodTestConnectionBtn" class="btn-secondary" style="width: 100%;">Test Connection</button>
+                  <button id="moodSettingsSaveBtn" class="btn-primary" style="width: 100%;">Save Settings</button>
+                </div>
+
+                <div id="moodConnectionStatusWrap" class="mood-status-wrap hidden" style="margin-top: 0.6rem;">
+                  <div class="setting-item side" style="margin-bottom: 0.3rem;">
+                    <label class="subheader" style="margin-bottom: 0;">Connection Status</label>
+                  </div>
+                  <div id="moodConnectionStatus" class="mood-connection-status"></div>
+                </div>
+              </div>
+
+              <!-- Right col: Google Sheets credentials -->
+              <div class="settings-col">
+                <div class="setting-item side">
+                  <label class="subheader">Google Sheets</label>
+                </div>
+
+                <div class="setting-item">
+                  <label for="moodSheetIdInput">Sheet <span id="moodSheetIdExtracted" class="mood-extracted-id"></span></label>
+                  <input type="text" id="moodSheetIdInput" placeholder="Sheet ID or full URL" autocomplete="off">
+                </div>
+
+                <div class="setting-item">
+                  <label for="moodSaEmailInput">Service Account</label>
+                  <input type="text" id="moodSaEmailInput" placeholder="name@project.iam.gserviceaccount.com" autocomplete="off">
+                </div>
+
+                <div class="setting-item">
+                  <label for="moodSaKeyInput">Private Key</label>
+                  <textarea id="moodSaKeyInput" rows="5" placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;..." autocomplete="off" style="font-family: 'SF Mono', monospace; font-size: 10px; resize: none; width: 100%; overflow-y: auto;"></textarea>
+                </div>
               </div>
 
             </div>
