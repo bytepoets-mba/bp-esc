@@ -2100,7 +2100,7 @@ async fn has_missing_mood_entry(settings: &AppSettings) -> bool {
     };
 
     let url = format!(
-        "https://sheets.googleapis.com/v4/spreadsheets/{}/values/Mood!A2:F5000",
+        "https://sheets.googleapis.com/v4/spreadsheets/{}/values/Mood!A2:F5000?valueRenderOption=UNFORMATTED_VALUE",
         settings.mood_sheet_id
     );
 
