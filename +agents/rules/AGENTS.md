@@ -66,8 +66,19 @@ Work style: telegraph; noun-phrases ok; minimal grammar; min tokens.
 - `Z99` = Lowest priority.
 - AI should "fit in" based on existing items. Higher priority means earlier letter (A-O) or lower number (00-49).
 
+**After running the script, always fill in the generated template**:
+- Replace placeholder `## Problem` with a clear description of the issue
+- Replace `## Solution` with the intended approach
+- Replace `## Implementation` checklist with concrete tasks
+- Replace `## Acceptance Criteria` with testable conditions
+- Add relevant context to `## Notes` (related files, risks, dependencies)
+
+**Developer role**: when working in this repo, always assume the developer role. If a task surfaces a bug, security issue, or architectural concern worth tracking, proactively create a backlog item without being asked.
+
 **Rules**:
 - ✅ Use scripts (collision-free hashes, validation)
+- ✅ Always fill in the template after creation
+- ✅ Proactively create backlog items for bugs/risks/tech-debt found during work
 - ❌ Never create +pm files manually
 - ❌ Never generate hashes yourself
 
