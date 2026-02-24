@@ -18,6 +18,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const loadingState = document.getElementById('loadingState');
   const balanceState = document.getElementById('balanceState');
   const timeState = document.getElementById('timeState');
+  const moodState = document.getElementById('moodState');
   const settingsState = document.getElementById('settingsState');
   
   // Tab elements
@@ -35,6 +36,11 @@ window.addEventListener('DOMContentLoaded', () => {
       // Show state
       if (target === 'balance') showState('balance');
       else if (target === 'time') showState('time');
+      else if (target === 'mood') {
+        moodWeekOffset = 0;
+        showState('mood');
+        loadMoodData();
+      }
       else if (target === 'settings') {
         syncSettingsToUI();
         showState('settings');
@@ -46,20 +52,27 @@ window.addEventListener('DOMContentLoaded', () => {
   const settingsSubTabs = document.querySelectorAll('.settings-sub-tab');
   const openrouterTab = document.getElementById('openrouterTab');
   const generalTab = document.getElementById('generalTab');
+  const moodSettingsTab = document.getElementById('moodSettingsTab');
   const defaultSubTab = document.querySelector('.settings-sub-tab[data-sub-tab="general"]');
   const openrouterSubTab = document.querySelector('.settings-sub-tab[data-sub-tab="openrouter"]');
+  const moodSettingsSubTab = document.querySelector('.settings-sub-tab[data-sub-tab="mood"]');
 
   const setSettingsSubTab = (target) => {
     settingsSubTabs.forEach(t => t.classList.remove('active'));
-    
+    generalTab.classList.add('hidden');
+    openrouterTab.classList.add('hidden');
+    if (moodSettingsTab) moodSettingsTab.classList.add('hidden');
+
     if (target === 'general') {
       generalTab.classList.remove('hidden');
-      openrouterTab.classList.add('hidden');
       if (defaultSubTab) defaultSubTab.classList.add('active');
-    } else {
+    } else if (target === 'openrouter') {
       openrouterTab.classList.remove('hidden');
-      generalTab.classList.add('hidden');
       if (openrouterSubTab) openrouterSubTab.classList.add('active');
+    } else if (target === 'mood') {
+      if (moodSettingsTab) moodSettingsTab.classList.remove('hidden');
+      if (moodSettingsSubTab) moodSettingsSubTab.classList.add('active');
+      syncMoodSettingsToUI();
     }
   };
 
@@ -522,7 +535,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // State management
   async function showState(state) {
-    [loadingState, balanceState, timeState, settingsState].forEach(s => s.classList.add('hidden'));
+    [loadingState, balanceState, timeState, moodState, settingsState].forEach(s => s.classList.add('hidden'));
     
     // Update active tab UI if state change was programmatic
     tabs.forEach(t => {
@@ -533,6 +546,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (state === 'loading') loadingState.classList.remove('hidden');
     else if (state === 'balance') balanceState.classList.remove('hidden');
     else if (state === 'time') timeState.classList.remove('hidden');
+    else if (state === 'mood') moodState.classList.remove('hidden');
     else if (state === 'settings') {
       settingsState.classList.remove('hidden');
       if (!apiKeyInputSettings.value) apiKeyInputSettings.focus();
@@ -1126,6 +1140,9 @@ document.addEventListener('contextmenu', (e) => {
     timeframeMonthly.classList.toggle('active', timeframe === 'monthly');
     timeframeWeekly.classList.toggle('active', timeframe === 'weekly');
     timeframeDaily.classList.toggle('active', timeframe === 'daily');
+
+    // Mood settings
+    syncMoodSettingsToUI();
   }
 
   function setPaceThreshold(nextWarn, silent = true) {
@@ -1747,6 +1764,23 @@ document.addEventListener('contextmenu', (e) => {
       
       // Setup Rust auto-refresh listener (works even when window hidden)
       await setupRustAutoRefreshListener();
+
+      // Navigate to a specific tab when Rust emits navigate-tab
+      await window.__TAURI__.event.listen('navigate-tab', (event) => {
+        const target = event.payload;
+        const tab = document.querySelector(`.nav-tab[data-tab="${target}"]`);
+        if (tab) {
+          tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          if (target === 'mood') {
+            moodWeekOffset = 0;
+            showState('mood');
+            loadMoodData();
+          } else if (target === 'balance') {
+            showState('balance');
+          }
+        }
+      });
       
       // Setup update checker (macOS only)
       setupUpdateChecker();
@@ -1798,4 +1832,337 @@ document.addEventListener('contextmenu', (e) => {
   }
 
   init();
+
+  // ============================================================================
+  // MOOD TAB
+  // ============================================================================
+
+  const MOOD_EMOJIS = { 1: '😞', 2: '😕', 3: '😐', 4: '😊', 5: '😄', 6: '🤩' };
+  const MOOD_LABELS = { 1: 'Rough', 2: 'Meh', 3: 'OK', 4: 'Good', 5: 'Great', 6: 'Amazing' };
+
+  let moodSelectedValue = 0; // currently selected emoji value in editor
+  let moodWeekOffset = 0;    // 0 = current week, -1 = last week, etc.
+
+  // DOM refs - mood tab
+  const moodKwLabel       = document.getElementById('moodKwLabel');
+  const moodYearLabel     = document.getElementById('moodYearLabel');
+  const moodTable         = document.getElementById('moodTable');
+  const moodEditor        = document.getElementById('moodEditor');
+  const moodNotConfigured = document.getElementById('moodNotConfigured');
+  const moodRefreshBtn    = document.getElementById('moodRefreshBtn');
+  const moodPrevBtn       = document.getElementById('moodPrevBtn');
+  const moodNextBtn       = document.getElementById('moodNextBtn');
+  const moodEditorLabel   = document.getElementById('moodEditorLabel');
+  const moodPicker        = document.getElementById('moodPicker');
+  const moodComment       = document.getElementById('moodComment');
+  const moodSaveBtn       = document.getElementById('moodSaveBtn');
+
+  // DOM refs - mood settings
+  const moodMyNameInput        = document.getElementById('moodMyNameInput');
+  const moodSheetIdInput       = document.getElementById('moodSheetIdInput');
+  const moodSheetIdExtracted   = document.getElementById('moodSheetIdExtracted');
+  const moodSaEmailInput       = document.getElementById('moodSaEmailInput');
+  const moodSaKeyInput         = document.getElementById('moodSaKeyInput');
+  const moodTestBtn            = document.getElementById('moodTestConnectionBtn');
+  const moodSettingsSave       = document.getElementById('moodSettingsSaveBtn');
+  const moodConnectionStatus   = document.getElementById('moodConnectionStatus');
+
+  // Returns week number (1-53) for a date offset by N weeks from today
+  function isoWeekForOffset(offsetWeeks) {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetWeeks * 7);
+    // ISO week calculation
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+    return Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
+  }
+
+  function weekForOffset(offset) {
+    return isoWeekForOffset(offset);
+  }
+
+  async function loadMoodData() {
+    if (!currentSettings) return;
+
+    const { mood_sheet_id, mood_service_account_email, mood_service_account_private_key, mood_my_name } = currentSettings;
+    const weekNum = weekForOffset(moodWeekOffset);
+    const isCurrentWeek = moodWeekOffset === 0;
+    const viewedYear = new Date().getFullYear(); // always current year — no cross-year nav
+
+    if (moodKwLabel) moodKwLabel.textContent = `KW ${weekNum}`;
+    if (moodYearLabel) moodYearLabel.textContent = viewedYear;
+    if (moodNextBtn) moodNextBtn.disabled = isCurrentWeek;
+    // Disable prev if we're already at week 1 of this year
+    if (moodPrevBtn) moodPrevBtn.disabled = weekNum <= 1;
+
+    const configured = mood_sheet_id && mood_service_account_email && mood_service_account_private_key;
+
+    if (!configured) {
+      if (moodTable) moodTable.innerHTML = '';
+      if (moodEditor) moodEditor.classList.add('hidden');
+      if (moodNotConfigured) moodNotConfigured.classList.remove('hidden');
+      return;
+    }
+
+    if (moodNotConfigured) moodNotConfigured.classList.add('hidden');
+    if (moodTable) moodTable.innerHTML = '<div class="mood-loading">Loading…</div>';
+
+    try {
+      const rows = await invoke('fetch_mood_data', {
+        sheetId: mood_sheet_id,
+        saEmail: mood_service_account_email,
+        saKey: mood_service_account_private_key,
+        week: String(weekNum),
+      });
+      renderMoodTable(rows, mood_my_name || '', isCurrentWeek);
+    } catch (e) {
+      if (moodTable) moodTable.innerHTML = `<div class="mood-error">${e}</div>`;
+      showError('Mood fetch failed: ' + e);
+    }
+  }
+
+  function renderMoodTable(rows, myName, isCurrentWeek) {
+    if (!moodTable) return;
+
+    if (rows.length === 0) {
+      moodTable.innerHTML = '<div class="mood-empty">No entries this week yet.</div>';
+    } else {
+      const html = rows.map(row => {
+        const emoji = MOOD_EMOJIS[row.mood] || '—';
+        const label = MOOD_LABELS[row.mood] || '';
+        const isMe = myName && row.name.toLowerCase() === myName.toLowerCase();
+        return `<div class="mood-row${isMe ? ' mood-row-me' : ''}">
+          <span class="mood-row-name">${escapeHtml(row.name)}</span>
+          <span class="mood-row-emoji" title="${row.mood} – ${label}">${emoji}</span>
+          <span class="mood-row-comment">${escapeHtml(row.comment)}</span>
+        </div>`;
+      }).join('');
+      moodTable.innerHTML = html;
+    }
+
+    // Show editor whenever name is configured (past weeks editable too)
+    if (moodEditor && myName) {
+      moodEditor.classList.remove('hidden');
+      if (moodEditorLabel) {
+        moodEditorLabel.textContent = isCurrentWeek ? 'My mood this week' : `My mood — KW ${weekForOffset(moodWeekOffset)}`;
+      }
+      const myRow = rows.find(r => r.name.toLowerCase() === myName.toLowerCase());
+      moodSelectedValue = myRow ? myRow.mood : 0;
+      if (moodComment) moodComment.value = myRow ? myRow.comment : '';
+      updateMoodPickerUI();
+    } else {
+      if (moodEditor) moodEditor.classList.add('hidden');
+    }
+  }
+
+  function updateMoodPickerUI() {
+    if (!moodPicker) return;
+    moodPicker.querySelectorAll('.mood-btn').forEach(btn => {
+      const val = parseInt(btn.getAttribute('data-value'));
+      btn.classList.toggle('selected', val === moodSelectedValue);
+    });
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // Mood picker click
+  if (moodPicker) {
+    moodPicker.addEventListener('click', e => {
+      const btn = e.target.closest('.mood-btn');
+      if (!btn) return;
+      moodSelectedValue = parseInt(btn.getAttribute('data-value'));
+      updateMoodPickerUI();
+    });
+  }
+
+  // Mood save
+  if (moodSaveBtn) {
+    moodSaveBtn.addEventListener('click', async () => {
+      if (!currentSettings) return;
+      if (moodSelectedValue < 1 || moodSelectedValue > 6) {
+        showError('Pick a mood first.');
+        return;
+      }
+      const myName = currentSettings.mood_my_name;
+      if (!myName) {
+        showError('Set your 3-char name in Settings → Mood first.');
+        return;
+      }
+      moodSaveBtn.disabled = true;
+      moodSaveBtn.textContent = 'Saving…';
+      try {
+        const activeOrKey = currentSettings.api_keys?.[currentSettings.active_api_key_index]?.key || '';
+        await invoke('write_mood_entry', {
+          sheetId: currentSettings.mood_sheet_id,
+          saEmail: currentSettings.mood_service_account_email,
+          saKey: currentSettings.mood_service_account_private_key,
+          name: myName,
+          mood: moodSelectedValue,
+          comment: moodComment ? moodComment.value.trim() : '',
+          week: String(weekForOffset(moodWeekOffset)),
+          orKey: activeOrKey,
+        });
+        showToast('Mood saved!', 'success');
+        await invoke('notify_mood_entered').catch(() => {});
+        await loadMoodData(); // refresh table
+      } catch (e) {
+        showError('Failed to save mood: ' + e);
+      } finally {
+        moodSaveBtn.disabled = false;
+        moodSaveBtn.textContent = 'Save';
+      }
+    });
+  }
+
+  // Mood refresh button
+  if (moodRefreshBtn) {
+    moodRefreshBtn.addEventListener('click', () => loadMoodData());
+  }
+
+  // Mood week navigation
+  if (moodPrevBtn) {
+    moodPrevBtn.addEventListener('click', () => {
+      if (weekForOffset(moodWeekOffset) > 1) {
+        moodWeekOffset--;
+        loadMoodData();
+      }
+    });
+  }
+  if (moodNextBtn) {
+    moodNextBtn.addEventListener('click', () => {
+      if (moodWeekOffset < 0) {
+        moodWeekOffset++;
+        loadMoodData();
+      }
+    });
+  }
+
+  // ---- Mood Settings ----
+
+  function extractSheetId(value) {
+    // Accept full URL or bare ID
+    const match = value.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : value.trim();
+  }
+
+  function updateSheetIdExtractedLabel(raw) {
+    if (!moodSheetIdExtracted) return;
+    const extracted = extractSheetId(raw);
+    const isUrl = raw.includes('/spreadsheets/d/');
+    if (isUrl && extracted) {
+      moodSheetIdExtracted.textContent = `→ ${extracted}`;
+      moodSheetIdExtracted.style.display = 'inline';
+    } else {
+      moodSheetIdExtracted.textContent = '';
+      moodSheetIdExtracted.style.display = 'none';
+    }
+  }
+
+  function setMoodConnectionStatus(type, message) {
+    if (!moodConnectionStatus) return;
+    moodConnectionStatus.textContent = message;
+    moodConnectionStatus.className = 'mood-connection-status mood-conn-' + type;
+  }
+
+  function clearMoodConnectionStatus() {
+    if (!moodConnectionStatus) return;
+    moodConnectionStatus.textContent = '';
+    moodConnectionStatus.className = 'mood-connection-status';
+  }
+
+  async function runMoodConnectionTest(sheetId, saEmail, saKey, silent = false) {
+    if (!sheetId || !saEmail || !saKey) {
+      if (!silent) setMoodConnectionStatus('error', 'Fill in all fields first.');
+      return false;
+    }
+    try {
+      const result = await invoke('test_mood_connection', {
+        sheetId,
+        saEmail,
+        saKey,
+      });
+      setMoodConnectionStatus('ok', '✓ ' + result);
+      return true;
+    } catch (e) {
+      setMoodConnectionStatus('error', '✗ ' + e);
+      if (!silent) showError('Connection test failed: ' + e);
+      addLog('[Mood] Connection test FAILED: ' + e, 'error');
+      return false;
+    }
+  }
+
+  function syncMoodSettingsToUI() {
+    if (!currentSettings) return;
+    if (moodMyNameInput)  moodMyNameInput.value  = currentSettings.mood_my_name || '';
+    if (moodSheetIdInput) {
+      moodSheetIdInput.value = currentSettings.mood_sheet_id || '';
+      updateSheetIdExtractedLabel(currentSettings.mood_sheet_id || '');
+    }
+    if (moodSaEmailInput) moodSaEmailInput.value = currentSettings.mood_service_account_email || '';
+    if (moodSaKeyInput)   moodSaKeyInput.value   = currentSettings.mood_service_account_private_key || '';
+    clearMoodConnectionStatus();
+    // Auto-test if configured
+    const { mood_sheet_id, mood_service_account_email, mood_service_account_private_key } = currentSettings;
+    if (mood_sheet_id && mood_service_account_email && mood_service_account_private_key) {
+      runMoodConnectionTest(mood_sheet_id, mood_service_account_email, mood_service_account_private_key, true);
+    }
+  }
+
+  if (moodSettingsSave) {
+    moodSettingsSave.addEventListener('click', async () => {
+      if (!currentSettings) return;
+      const name = moodMyNameInput ? moodMyNameInput.value.trim().toLowerCase() : '';
+      if (name && name.length > 3) {
+        showError('Name must be 3 characters or fewer.');
+        return;
+      }
+      const rawSheetId = moodSheetIdInput ? moodSheetIdInput.value.trim() : '';
+      const newSettings = {
+        ...currentSettings,
+        mood_my_name: name,
+        mood_sheet_id: extractSheetId(rawSheetId),
+        mood_service_account_email: moodSaEmailInput ? moodSaEmailInput.value.trim() : '',
+        mood_service_account_private_key: moodSaKeyInput ? moodSaKeyInput.value.trim() : '',
+      };
+      try {
+        await invoke('save_settings', { settings: newSettings });
+        currentSettings = newSettings;
+        showToast('Mood settings saved.', 'success');
+      } catch (e) {
+        showError('Failed to save mood settings: ' + e);
+      }
+    });
+  }
+
+  if (moodSheetIdInput) {
+    moodSheetIdInput.addEventListener('input', () => {
+      updateSheetIdExtractedLabel(moodSheetIdInput.value);
+    });
+    moodSheetIdInput.addEventListener('paste', () => {
+      // Run after paste value is committed
+      setTimeout(() => updateSheetIdExtractedLabel(moodSheetIdInput.value), 0);
+    });
+  }
+
+  if (moodTestBtn) {
+    moodTestBtn.addEventListener('click', async () => {
+      moodTestBtn.disabled = true;
+      moodTestBtn.textContent = 'Testing…';
+      clearMoodConnectionStatus();
+      const sheetId = extractSheetId(moodSheetIdInput ? moodSheetIdInput.value : '');
+      const saEmail = moodSaEmailInput ? moodSaEmailInput.value.trim() : '';
+      const saKey   = moodSaKeyInput   ? moodSaKeyInput.value.trim()   : '';
+      await runMoodConnectionTest(sheetId, saEmail, saKey, false);
+      moodTestBtn.disabled = false;
+      moodTestBtn.textContent = 'Test';
+    });
+  }
+
 });

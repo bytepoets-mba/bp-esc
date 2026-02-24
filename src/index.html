@@ -28,6 +28,9 @@
       <div class="nav-tab" data-tab="time">
         <span class="material-symbols-rounded">schedule</span>Time
       </div>
+      <div class="nav-tab" data-tab="mood">
+        <span class="material-symbols-rounded">sentiment_satisfied</span>Mood
+      </div>
       <div class="nav-tab" data-tab="settings" style="margin-left: auto">
         <span class="material-symbols-rounded">settings</span>Settings
       </div>
@@ -171,6 +174,51 @@
         </div>
       </div>
 
+      <!-- Mood State -->
+      <div id="moodState" class="state hidden">
+        <div class="mood-header">
+          <span id="moodYearLabel" class="mood-year-label">—</span>
+          <div class="mood-nav">
+            <button id="moodPrevBtn" class="btn-subtle mood-nav-btn" title="Previous week">
+              <span class="material-symbols-rounded">chevron_left</span>
+            </button>
+            <span id="moodKwLabel" class="mood-kw-label">KW —</span>
+            <button id="moodNextBtn" class="btn-subtle mood-nav-btn" title="Next week" disabled>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </button>
+          </div>
+          <button id="moodRefreshBtn" class="btn-subtle mood-nav-btn" title="Refresh">
+            <span class="material-symbols-rounded">refresh</span>
+          </button>
+        </div>
+
+        <!-- Team mood table -->
+        <div id="moodTable" class="mood-table">
+          <div class="mood-loading">Loading…</div>
+        </div>
+
+        <!-- My entry editor (shown for own row) -->
+        <div id="moodEditor" class="mood-editor hidden">
+          <div id="moodEditorLabel" class="mood-editor-label">My mood this week</div>
+          <div class="mood-picker" id="moodPicker">
+            <button class="mood-btn" data-value="1" title="1 – Rough">😞</button>
+            <button class="mood-btn" data-value="2" title="2 – Meh">😕</button>
+            <button class="mood-btn" data-value="3" title="3 – OK">😐</button>
+            <button class="mood-btn" data-value="4" title="4 – Good">😊</button>
+            <button class="mood-btn" data-value="5" title="5 – Great">😄</button>
+            <button class="mood-btn" data-value="6" title="6 – Amazing">🤩</button>
+          </div>
+          <textarea id="moodComment" placeholder="Add a comment (optional)" autocomplete="off" maxlength="500" style="height: 250px; resize: none; width: 100%;"></textarea>
+          <button id="moodSaveBtn" class="btn-primary" style="width: 100%; margin-top: 0.5rem;">Save</button>
+        </div>
+
+        <!-- Not configured notice -->
+        <div id="moodNotConfigured" class="mood-notice hidden">
+          <span class="material-symbols-rounded" style="font-size: 2rem; opacity: 0.4;">settings</span>
+          <p>Configure Mood in Settings first.</p>
+        </div>
+      </div>
+
       <!-- Settings State -->
       <div id="settingsState" class="state hidden">
         <div class="settings-section">
@@ -180,6 +228,9 @@
             </button>
             <button class="settings-sub-tab" data-sub-tab="openrouter">
               <span class="material-symbols-rounded">key</span>OpenRouter
+            </button>
+            <button class="settings-sub-tab" data-sub-tab="mood">
+              <span class="material-symbols-rounded">sentiment_satisfied</span>Mood
             </button>
           </div>
           
@@ -351,6 +402,41 @@
               <button id="resetSettingsBtn" class="btn-secondary btn-reset">Reset App Data</button>
             </div>
           </div>
+
+          <!-- Mood Sub-Tab -->
+          <div id="moodSettingsTab" class="settings-sub-content hidden">
+            <div class="settings-grid" style="grid-template-columns: 1fr; gap: 0.6rem;">
+
+              <div class="setting-item side">
+                <input type="text" id="moodMyNameInput" placeholder="mba" maxlength="3" autocomplete="off" style="width: 60px; text-transform: lowercase;">
+                <label for="moodMyNameInput">My tag</label>
+              </div>
+
+              <div class="setting-item">
+                <label for="moodSheetIdInput">Sheet <span id="moodSheetIdExtracted" class="mood-extracted-id"></span></label>
+                <input type="text" id="moodSheetIdInput" placeholder="Sheet ID or full URL" autocomplete="off">
+              </div>
+
+              <div class="setting-item">
+                <label for="moodSaEmailInput">Service Account</label>
+                <input type="text" id="moodSaEmailInput" placeholder="name@project.iam.gserviceaccount.com" autocomplete="off">
+              </div>
+
+              <div class="setting-item">
+                <label for="moodSaKeyInput">Private Key</label>
+                <textarea id="moodSaKeyInput" rows="4" placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;..." autocomplete="off" style="font-family: 'SF Mono', monospace; font-size: 10px; resize: none; width: 100%; overflow-y: auto;"></textarea>
+              </div>
+
+              <div class="button-row" style="gap: 10px;">
+                <button id="moodTestConnectionBtn" class="btn-secondary">Test</button>
+                <button id="moodSettingsSaveBtn" class="btn-primary">Save</button>
+              </div>
+
+              <div id="moodConnectionStatus" class="mood-connection-status"></div>
+
+            </div>
+          </div>
+
         </div>
       </div>
     </main>

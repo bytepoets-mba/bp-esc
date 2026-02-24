@@ -43,6 +43,7 @@ use imageproc::drawing::draw_text_mut;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tokio::time::{interval, Interval};
 use tokio::sync::Mutex as TokioMutex;
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 
 // ============================================================================
 // AUTO-REFRESH STATE
@@ -117,6 +118,8 @@ async fn start_auto_refresh_timer(app: AppHandle, state: State<'_, AutoRefreshSt
                     let _ = app.emit("rust-auto-refresh", ());
                 }
             }
+            // Also re-evaluate mood blink condition on each refresh tick
+            check_and_update_mood_blink(app.clone());
         }
     });
     
@@ -132,6 +135,26 @@ fn stop_auto_refresh_timer(state: &AutoRefreshState) -> Result<(), String> {
 #[tauri::command]
 async fn restart_auto_refresh(app: AppHandle, state: State<'_, AutoRefreshState>) -> Result<(), String> {
     start_auto_refresh_timer(app, state).await
+}
+
+// ============================================================================
+// MOOD BLINK STATE
+// ============================================================================
+
+pub struct MoodBlinkState {
+    pub is_blinking: Arc<Mutex<bool>>,
+}
+
+impl MoodBlinkState {
+    fn new() -> Self {
+        Self {
+            is_blinking: Arc::new(Mutex::new(false)),
+        }
+    }
+}
+
+impl Default for MoodBlinkState {
+    fn default() -> Self { Self::new() }
 }
 
 // ============================================================================
@@ -188,6 +211,16 @@ pub struct AppSettings {
     pub pace_warn_threshold: f64,
     #[serde(default = "default_menubar_timeframe")]
     pub menubar_timeframe: String,  // "monthly" | "weekly" | "daily"
+
+    // Mood / Team
+    #[serde(default)]
+    pub mood_sheet_id: String,
+    #[serde(default)]
+    pub mood_service_account_email: String,
+    #[serde(default)]
+    pub mood_service_account_private_key: String,
+    #[serde(default)]
+    pub mood_my_name: String,  // 3-char identifier e.g. "mba"
 }
 
 fn default_refresh_interval() -> u32 { 5 }
@@ -222,6 +255,10 @@ impl Default for AppSettings {
             menubar_monochrome: true,
             pace_warn_threshold: 20.0,
             menubar_timeframe: "monthly".to_string(),
+            mood_sheet_id: String::new(),
+            mood_service_account_email: String::new(),
+            mood_service_account_private_key: String::new(),
+            mood_my_name: String::new(),
         }
     }
 }
@@ -714,7 +751,9 @@ fn log_message(_app: AppHandle, message: String) -> Result<(), String> {
         Err(_) => return Ok(()), // Silent fail if settings unreadable
     };
 
-    if !settings.debug_logging_enabled {
+    // Errors always log; other levels respect the debug_logging_enabled flag
+    let is_error = message.contains("[ERROR]");
+    if !settings.debug_logging_enabled && !is_error {
         return Ok(());
     }
 
@@ -895,6 +934,7 @@ pub struct BalanceData {
 struct MenubarState {
     balance: Mutex<Option<BalanceData>>,
     settings: Mutex<Option<AppSettings>>,
+    is_dark: Mutex<bool>,
 }
 
 /// Response from OpenRouter API /api/v1/key endpoint
@@ -1252,12 +1292,16 @@ fn compute_pace_status(balance: &BalanceData, settings: &AppSettings) -> Option<
 /// Update system tray icon with current balance percentage or absolute value
 #[tauri::command]
 fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, settings: AppSettings) -> Result<(), String> {
+    let is_dark = is_macos_dark_mode(); // must be called on main thread — cache it
     if let Some(state) = app_handle.try_state::<MenubarState>() {
         if let Ok(mut stored) = state.balance.lock() {
             *stored = Some(balance.clone());
         }
         if let Ok(mut stored) = state.settings.lock() {
             *stored = Some(settings.clone());
+        }
+        if let Ok(mut stored) = state.is_dark.lock() {
+            *stored = is_dark;
         }
     }
     // Calculate daily budget for weekly/daily remaining
@@ -1342,7 +1386,6 @@ fn update_menubar_display(app_handle: tauri::AppHandle, balance: BalanceData, se
         || balance.usage.is_some()
         || balance.limit.is_some();
     
-    let is_dark = is_macos_dark_mode();
     let icon = generate_hybrid_menubar_icon(final_value, settings.show_percentage, has_data, settings.show_unit, &settings, &balance, is_dark)?;
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
         tray.set_icon(Some(icon))
@@ -1665,6 +1708,12 @@ fn toggle_window(app: &AppHandle) {
             let _ = window.show();
             let _ = window.set_focus();
             let _ = window.emit("refresh-balance", ());
+            // Navigate to Mood tab if blinking, otherwise OpenRouter
+            let is_blinking = app.try_state::<MoodBlinkState>()
+                .and_then(|s| s.is_blinking.lock().ok().map(|g| *g))
+                .unwrap_or(false);
+            let tab = if is_blinking { "mood" } else { "balance" };
+            let _ = window.emit("navigate-tab", tab);
         }
     }
 }
@@ -1696,6 +1745,598 @@ async fn set_window_height(window: tauri::Window, height: f64) -> Result<(), Str
         .map_err(|e| e.to_string())
 }
 
+// ============================================================================
+// MOOD / GOOGLE SHEETS
+// ============================================================================
+
+/// ISO week number as plain integer string, e.g. "9"
+fn iso_week_number(date: chrono::NaiveDate) -> String {
+    date.iso_week().week().to_string()
+}
+
+/// Current ISO week number string
+fn current_iso_week() -> String {
+    iso_week_number(Local::now().date_naive())
+}
+
+/// Google Sheets serial timestamp: days since Dec 30, 1899 (as float with fractional day)
+fn sheets_timestamp_serial() -> f64 {
+    let epoch = chrono::NaiveDate::from_ymd_opt(1899, 12, 30).unwrap();
+    let now = Local::now();
+    let days = (now.date_naive() - epoch).num_days() as f64;
+    let secs_in_day = 86400.0_f64;
+    let time_frac = (now.num_seconds_from_midnight() as f64) / secs_in_day;
+    days + time_frac
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MoodRow {
+    pub kw: String,
+    pub name: String,
+    pub mood: u8,       // 1-6
+    pub comment: String,
+    pub timestamp: String,
+    pub row_index: u32, // 1-based sheet row number (for updates)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ServiceAccountClaims {
+    iss: String,
+    scope: String,
+    aud: String,
+    exp: u64,
+    iat: u64,
+}
+
+/// Exchange a service account private key for a short-lived Bearer token.
+/// Uses RS256 JWT posted to Google's token endpoint.
+async fn get_google_access_token(sa_email: &str, private_key_pem: &str) -> Result<String, String> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_secs();
+
+    let claims = ServiceAccountClaims {
+        iss: sa_email.to_string(),
+        scope: "https://www.googleapis.com/auth/spreadsheets".to_string(),
+        aud: "https://oauth2.googleapis.com/token".to_string(),
+        exp: now + 3600,
+        iat: now,
+    };
+
+    // Normalise the PEM: JSON keys ship with literal \n instead of newlines
+    let pem = private_key_pem.replace("\\n", "\n");
+
+    let encoding_key = EncodingKey::from_rsa_pem(pem.as_bytes())
+        .map_err(|e| format!("Invalid private key: {}", e))?;
+
+    let jwt = encode(&Header::new(Algorithm::RS256), &claims, &encoding_key)
+        .map_err(|e| format!("JWT encode error: {}", e))?;
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let params = [
+        ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
+        ("assertion", jwt.as_str()),
+    ];
+
+    let resp = client
+        .post("https://oauth2.googleapis.com/token")
+        .form(&params)
+        .send()
+        .await
+        .map_err(|e| format!("Token request failed: {}", e))?;
+
+    let body: Value = resp.json().await
+        .map_err(|e| format!("Token response parse error: {}", e))?;
+
+    body["access_token"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| format!("No access_token in response: {}", body))
+}
+
+/// Fetch mood rows for a given week number (or current week if None).
+#[tauri::command]
+/// Internal helper — fetch mood rows for a given week. Not a Tauri command.
+async fn fetch_mood_rows(
+    sheet_id: &str,
+    sa_email: &str,
+    sa_key: &str,
+    week: Option<String>,
+) -> Result<Vec<MoodRow>, String> {
+    let token = get_google_access_token(sa_email, sa_key).await?;
+    let filter_kw = week.unwrap_or_else(current_iso_week);
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let url = format!(
+        "https://sheets.googleapis.com/v4/spreadsheets/{}/values/Mood!A2:E1000",
+        sheet_id
+    );
+
+    let resp = client
+        .get(&url)
+        .bearer_auth(&token)
+        .send()
+        .await
+        .map_err(|e| format!("Sheets fetch error: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("Sheets API error {}: {}", status, body));
+    }
+
+    let body: Value = resp.json().await
+        .map_err(|e| format!("Sheets response parse error: {}", e))?;
+
+    let mut rows: Vec<MoodRow> = Vec::new();
+    if let Some(sheet_rows) = body["values"].as_array() {
+        for (i, row) in sheet_rows.iter().enumerate() {
+            let cols = row.as_array().map(|a| a.as_slice()).unwrap_or(&[]);
+            let kw = cols.get(0).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if kw != filter_kw {
+                continue;
+            }
+            let name = cols.get(1).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let mood: u8 = cols.get(2).and_then(|v| v.as_str()).unwrap_or("0").parse().unwrap_or(0);
+            let comment = cols.get(3).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let timestamp = cols.get(4).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            rows.push(MoodRow {
+                kw,
+                name,
+                mood,
+                comment,
+                timestamp,
+                row_index: (i + 2) as u32,
+            });
+        }
+    }
+
+    Ok(rows)
+}
+
+/// Tauri command — thin wrapper around fetch_mood_rows.
+#[tauri::command]
+async fn fetch_mood_data(
+    sheet_id: String,
+    sa_email: String,
+    sa_key: String,
+    week: Option<String>,
+) -> Result<Vec<MoodRow>, String> {
+    if sheet_id.is_empty() || sa_email.is_empty() || sa_key.is_empty() {
+        return Err("Mood not configured. Set Sheet ID and service account in Settings.".to_string());
+    }
+    fetch_mood_rows(&sheet_id, &sa_email, &sa_key, week).await
+}
+
+/// Write (append or update) a mood entry for the current week.
+/// If a row with matching kw+name exists, update it. Otherwise append.
+#[tauri::command]
+async fn write_mood_entry(
+    sheet_id: String,
+    sa_email: String,
+    sa_key: String,
+    name: String,
+    mood: u8,
+    comment: String,
+    week: Option<String>,
+    or_key: Option<String>,
+) -> Result<(), String> {
+    if sheet_id.is_empty() || sa_email.is_empty() || sa_key.is_empty() {
+        return Err("Mood not configured. Set Sheet ID and service account in Settings.".to_string());
+    }
+    if name.is_empty() {
+        return Err("Your 3-char name is not set. Check Settings → Mood.".to_string());
+    }
+    if mood < 1 || mood > 6 {
+        return Err(format!("Invalid mood value: {}. Must be 1-6.", mood));
+    }
+
+    let token = get_google_access_token(&sa_email, &sa_key).await?;
+    let kw = week.unwrap_or_else(current_iso_week);
+    let timestamp_serial = sheets_timestamp_serial();
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    // Check if an existing row for this kw+name exists
+    let existing_rows = fetch_mood_rows(&sheet_id, &sa_email, &sa_key, Some(kw.clone())).await?;
+    let existing = existing_rows.iter().find(|r| {
+        r.kw == kw && r.name.to_lowercase() == name.to_lowercase()
+    });
+
+    let key_marker = match or_key.as_deref() {
+        Some(k) if !k.is_empty() => {
+            let suffix = if k.len() > 8 { &k[k.len() - 8..] } else { k };
+            format!("...{}", suffix)
+        },
+        _ => "missing!".to_string(),
+    };
+    let row_values = serde_json::json!({
+        "values": [[kw, name, mood.to_string(), comment, timestamp_serial, key_marker]]
+    });
+
+    if let Some(existing_row) = existing {
+        // UPDATE existing row
+        let range = format!("Mood!A{}:F{}", existing_row.row_index, existing_row.row_index);
+        let url = format!(
+            "https://sheets.googleapis.com/v4/spreadsheets/{}/values/{}?valueInputOption=RAW",
+            sheet_id,
+            urlencoding::encode(&range)
+        );
+        let resp = client
+            .put(&url)
+            .bearer_auth(&token)
+            .json(&row_values)
+            .send()
+            .await
+            .map_err(|e| format!("Sheets update error: {}", e))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!("Sheets update failed {}: {}", status, body));
+        }
+    } else {
+        // APPEND new row
+        let url = format!(
+            "https://sheets.googleapis.com/v4/spreadsheets/{}/values/Mood!A:F:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS",
+            sheet_id
+        );
+        let resp = client
+            .post(&url)
+            .bearer_auth(&token)
+            .json(&row_values)
+            .send()
+            .await
+            .map_err(|e| format!("Sheets append error: {}", e))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!("Sheets append failed {}: {}", status, body));
+        }
+    }
+
+    Ok(())
+}
+
+/// Test connectivity: get a token and do a lightweight metadata read.
+#[tauri::command]
+async fn test_mood_connection(
+    sheet_id: String,
+    sa_email: String,
+    sa_key: String,
+) -> Result<String, String> {
+    if sheet_id.is_empty() || sa_email.is_empty() || sa_key.is_empty() {
+        return Err("Sheet ID, service account email, and private key are all required.".to_string());
+    }
+
+    let token = get_google_access_token(&sa_email, &sa_key).await?;
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    // Read just the header row as a lightweight check
+    let url = format!(
+        "https://sheets.googleapis.com/v4/spreadsheets/{}/values/Mood!A1:E1",
+        sheet_id
+    );
+
+    let resp = client
+        .get(&url)
+        .bearer_auth(&token)
+        .send()
+        .await
+        .map_err(|e| format!("Connection test request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("Connection test failed ({}): {}", status, body));
+    }
+
+    let body: Value = resp.json().await
+        .map_err(|e| format!("Response parse error: {}", e))?;
+
+    let header = body["values"]
+        .as_array()
+        .and_then(|rows| rows.first())
+        .and_then(|row| row.as_array())
+        .map(|cols| cols.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(", "))
+        .unwrap_or_else(|| "(empty sheet — add a header row)".to_string());
+
+    Ok(format!("Connected. Sheet header: {}", header))
+}
+
+// ============================================================================
+// MOOD BLINK
+// ============================================================================
+
+/// Returns true if mood settings are fully configured.
+fn mood_configured(settings: &AppSettings) -> bool {
+    !settings.mood_sheet_id.is_empty()
+        && !settings.mood_service_account_email.is_empty()
+        && !settings.mood_service_account_private_key.is_empty()
+        && !settings.mood_my_name.is_empty()
+}
+
+/// Check the sheet for any missing mood entry by the current user
+/// for any week from week 1 of the current year up to and including the current week.
+/// Returns true if at least one week is missing an entry.
+async fn has_missing_mood_entry(settings: &AppSettings) -> bool {
+    let now = Local::now();
+    let current_week = now.date_naive().iso_week().week(); // 1-based
+    let current_year = now.year();
+
+    // Fetch ALL rows from the sheet (no week filter — pass a sentinel that won't match)
+    // We re-use get_google_access_token + a direct read of all rows.
+    let token = match get_google_access_token(
+        &settings.mood_service_account_email,
+        &settings.mood_service_account_private_key,
+    ).await {
+        Ok(t) => t,
+        Err(_) => return false, // can't connect — don't blink
+    };
+
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+
+    let url = format!(
+        "https://sheets.googleapis.com/v4/spreadsheets/{}/values/Mood!A2:F5000",
+        settings.mood_sheet_id
+    );
+
+    let resp = match client.get(&url).bearer_auth(&token).send().await {
+        Ok(r) => r,
+        Err(_) => return false,
+    };
+
+    let body: Value = match resp.json().await {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+
+    // Collect all week numbers this user has entries for (current year only).
+    // Use the timestamp serial (col E) to distinguish current-year entries from prior years.
+    let my_name = settings.mood_my_name.to_lowercase();
+    let mut entered_weeks: std::collections::HashSet<u32> = std::collections::HashSet::new();
+
+    // Sheets serial for Jan 1 of current year
+    let epoch = chrono::NaiveDate::from_ymd_opt(1899, 12, 30).unwrap();
+    let jan1_serial = (chrono::NaiveDate::from_ymd_opt(current_year, 1, 1).unwrap() - epoch).num_days() as f64;
+    let dec31_serial = (chrono::NaiveDate::from_ymd_opt(current_year, 12, 31).unwrap() - epoch).num_days() as f64 + 1.0;
+
+    if let Some(rows) = body["values"].as_array() {
+        for row in rows {
+            let cols = row.as_array().map(|a| a.as_slice()).unwrap_or(&[]);
+            let name = cols.get(1).and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+            if name != my_name {
+                continue;
+            }
+            // Verify timestamp (col E) is within current year
+            let ts_serial: f64 = cols.get(4)
+                .and_then(|v| v.as_str().and_then(|s| s.parse().ok())
+                    .or_else(|| v.as_f64()))
+                .unwrap_or(0.0);
+            if ts_serial < jan1_serial || ts_serial >= dec31_serial {
+                continue; // entry is from a different year
+            }
+            let kw_str = cols.get(0).and_then(|v| v.as_str()).unwrap_or("");
+            if let Ok(week_num) = kw_str.trim().parse::<u32>() {
+                if week_num >= 1 && week_num <= 53 {
+                    entered_weeks.insert(week_num);
+                }
+            }
+        }
+    }
+
+    // Condition 1: any past week (< current week) missing → blink immediately
+    for week in 1..current_week {
+        if !entered_weeks.contains(&week) {
+            return true;
+        }
+    }
+
+    // Condition 2: current week missing AND it's Friday ≥ 12:00
+    if !entered_weeks.contains(&current_week) {
+        let now = Local::now();
+        if now.weekday() == chrono::Weekday::Fri && (now.hour() > 8 || (now.hour() == 8 && now.minute() >= 30)) {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Generate a "MOOD" text-only icon in the same style as the regular menubar icon.
+fn generate_mood_text_icon(is_dark_mode: bool) -> Result<Image<'static>, String> {
+    let scale = MENUBAR_RENDER_SCALE;
+    let (font, _) = try_load_font(MENUBAR_VALUE_FONT).ok_or("Value font not found")?;
+    let text = "MOOD";
+    let text_scale = PxScale::from(MENUBAR_VALUE_SIZE * 0.85 * scale); // slightly smaller to fit
+
+    let text_width = calculate_text_width(text, &font, text_scale);
+    let canvas_width = (text_width as f32 + 8.0 * scale) as u32; // small padding each side
+    let canvas_height = (22.0 * scale) as u32;
+
+    let mut img = image::RgbaImage::new(canvas_width, canvas_height);
+    let text_color = if is_dark_mode {
+        Rgba([255, 255, 255, 255])
+    } else {
+        Rgba([0, 0, 0, 255])
+    };
+
+    let x = (4.0 * scale) as i32;
+    let y = ((canvas_height as f32 - MENUBAR_VALUE_SIZE * 0.85 * scale) / 2.0) as i32;
+    draw_text_mut(&mut img, text_color, x, y, text_scale, &font, text);
+
+    let rgba = img.into_raw();
+    Ok(Image::new_owned(rgba, canvas_width, canvas_height))
+}
+
+/// Generate the normal menubar icon from cached state without calling set_icon_as_template.
+fn generate_normal_icon_from_state(app: &AppHandle) -> Option<Image<'static>> {
+    let state = app.try_state::<MenubarState>()?;
+    let balance = state.balance.lock().ok()?.clone()?;
+    let settings = state.settings.lock().ok()?.clone()?;
+    let is_dark = *state.is_dark.lock().ok()?; // cached on main thread — safe to read here
+
+    let limit = balance.limit.unwrap_or(0.0);
+
+    // Minimal value calculation to regenerate the icon
+    let has_data = balance.remaining_monthly.is_some()
+        || balance.usage_monthly.is_some()
+        || balance.remaining.is_some()
+        || balance.usage.is_some()
+        || balance.limit.is_some();
+
+    let daily_budget = if limit > 0.0 {
+        let now = chrono::Local::now();
+        let year = now.year();
+        let month = now.month();
+        let first_next = if month == 12 {
+            chrono::Local.with_ymd_and_hms(year + 1, 1, 1, 0, 0, 0).unwrap()
+        } else {
+            chrono::Local.with_ymd_and_hms(year, month + 1, 1, 0, 0, 0).unwrap()
+        };
+        let days = (first_next - chrono::Duration::days(1)).day() as f64;
+        limit / days
+    } else { 0.0 };
+
+    let (usage_value, remaining_value) = match settings.menubar_timeframe.as_str() {
+        "weekly" => {
+            let wb = daily_budget * 7.0;
+            let u = balance.usage_weekly.unwrap_or(0.0);
+            (u, wb - u)
+        },
+        "daily" => {
+            let u = balance.usage_daily.unwrap_or(0.0);
+            (u, daily_budget - u)
+        },
+        _ => {
+            let u = balance.usage_monthly.or(balance.usage).unwrap_or(0.0);
+            let r = balance.remaining_monthly.or(balance.remaining).unwrap_or(0.0);
+            (u, r)
+        }
+    };
+
+    let budget = match settings.menubar_timeframe.as_str() {
+        "weekly" => daily_budget * 7.0,
+        "daily"  => daily_budget,
+        _        => limit,
+    };
+
+    let display_value = if settings.show_percentage {
+        if budget > 0.0 {
+            if settings.show_remaining { (remaining_value / budget) * 100.0 }
+            else { (usage_value / budget) * 100.0 }
+        } else { 0.0 }
+    } else {
+        if settings.show_remaining { remaining_value } else { usage_value }
+    };
+
+    let final_value = if settings.decimal_places > 0 {
+        let f = 10.0f64.powi(settings.decimal_places as i32);
+        (display_value * f).round() / f
+    } else {
+        display_value.floor()
+    };
+
+    generate_hybrid_menubar_icon(
+        final_value, settings.show_percentage, has_data,
+        settings.show_unit, &settings, &balance, is_dark
+    ).ok()
+}
+
+/// Start the mood blink loop — alternates every 1s between normal icon and MOOD text.
+/// Stops automatically when is_blinking is set to false.
+/// NOTE: Only calls tray.set_icon() — never set_icon_as_template() — safe from background thread.
+fn start_mood_blink(app: AppHandle, blink_state: Arc<MoodBlinkState>) {
+    let is_blinking = blink_state.is_blinking.clone();
+    tokio::spawn(async move {
+        let mut show_mood_text = false;
+        loop {
+            if !*is_blinking.lock().unwrap() {
+                break;
+            }
+            // Read cached dark mode — safe from background thread
+            let is_dark = app.try_state::<MenubarState>()
+                .and_then(|s| s.is_dark.lock().ok().map(|g| *g))
+                .unwrap_or(false);
+            let icon = if show_mood_text {
+                generate_mood_text_icon(is_dark).ok()
+            } else {
+                generate_normal_icon_from_state(&app)
+            };
+            if let (Some(icon), Some(tray)) = (icon, app.tray_by_id("main-tray")) {
+                let _ = tray.set_icon(Some(icon));
+            }
+            show_mood_text = !show_mood_text;
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+        // Restore normal icon when blink stops
+        if let Some(icon) = generate_normal_icon_from_state(&app) {
+            if let Some(tray) = app.tray_by_id("main-tray") {
+                let _ = tray.set_icon(Some(icon));
+            }
+        }
+    });
+}
+
+/// Called by JS after a successful mood save — re-checks sheet to stop blinking if resolved.
+#[tauri::command]
+async fn notify_mood_entered(app: AppHandle) -> Result<(), String> {
+    // Re-evaluate immediately; if all weeks are now covered, blink stops
+    check_and_update_mood_blink(app);
+    Ok(())
+}
+
+/// Check blink condition and start/stop as needed. Spawns async task — safe to call from sync ctx.
+fn check_and_update_mood_blink(app: AppHandle) {
+    tokio::spawn(async move {
+        let Ok(settings) = read_settings() else { return };
+        let Some(blink_state) = app.try_state::<MoodBlinkState>() else { return };
+
+        // If not configured, ensure blink is off
+        if !mood_configured(&settings) {
+            *blink_state.is_blinking.lock().unwrap() = false;
+            return;
+        }
+
+        let currently_blinking = *blink_state.is_blinking.lock().unwrap_or_else(|e| e.into_inner());
+
+        let should_blink = has_missing_mood_entry(&settings).await;
+
+        if should_blink && !currently_blinking {
+            *blink_state.is_blinking.lock().unwrap() = true;
+            let state_arc = Arc::new(MoodBlinkState {
+                is_blinking: blink_state.is_blinking.clone(),
+            });
+            start_mood_blink(app, state_arc);
+        } else if !should_blink && currently_blinking {
+            *blink_state.is_blinking.lock().unwrap() = false;
+        }
+    });
+}
+
 fn main() {
   let mut builder = tauri::Builder::default()
     .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--quiet"])))
@@ -1711,6 +2352,7 @@ fn main() {
   builder
     .manage(AutoRefreshState::new())
     .manage(MenubarState::default())
+    .manage(MoodBlinkState::default())
     .setup(|app| {
       #[cfg(target_os = "macos")]
       {
@@ -1724,6 +2366,13 @@ fn main() {
         if let Some(state) = app_handle.try_state::<AutoRefreshState>() {
           let _ = start_auto_refresh_timer(app_clone, state).await;
         }
+      });
+
+      // Startup mood blink check (delayed slightly to let tray settle)
+      let app_handle2 = app.app_handle().clone();
+      tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        check_and_update_mood_blink(app_handle2);
       });
       
       // Create tray menu
@@ -1864,7 +2513,11 @@ fn main() {
         notify_api_key_valid,
         notify_api_key_invalid,
         restart_auto_refresh,
-        set_window_height
+        set_window_height,
+        fetch_mood_data,
+        write_mood_entry,
+        test_mood_connection,
+        notify_mood_entered
     ])
 
 

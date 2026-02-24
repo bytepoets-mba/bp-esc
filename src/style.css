@@ -1220,6 +1220,9 @@ input[type="text"] {
   word-break: break-word;
   overflow-wrap: anywhere;
   animation: toast-in 0.22s ease-out;
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
 }
 
 .error-message.toast-success {
@@ -1520,4 +1523,216 @@ input[type="text"] {
 
 .settings-sub-content.hidden {
   display: none;
+}
+
+/* ============================================================================
+   MOOD TAB
+   ============================================================================ */
+
+.mood-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0 0.75rem;
+}
+
+.mood-year-label {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0.75;
+  min-width: 3rem;
+}
+
+.mood-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.mood-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+
+.mood-nav-btn .material-symbols-rounded {
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mood-kw-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  min-width: 3.5rem;
+  text-align: center;
+}
+
+/* Team table */
+.mood-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 0.75rem;
+}
+
+.mood-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: background 0.15s;
+}
+
+.mood-row-me {
+  background: rgba(0, 100, 151, 0.18);
+  border-color: rgba(0, 100, 151, 0.35);
+}
+
+.mood-row-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  min-width: 32px;
+}
+
+.mood-row-emoji {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.mood-row-comment {
+  font-size: 0.8rem;
+  opacity: 0.6;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mood-loading,
+.mood-empty,
+.mood-error {
+  text-align: center;
+  padding: 1.5rem 0;
+  font-size: 0.85rem;
+  opacity: 0.5;
+}
+
+.mood-error {
+  opacity: 0.8;
+  color: #ef4444;
+}
+
+/* Comment textarea */
+#moodComment {
+  padding: 4px;
+}
+
+/* Editor */
+.mood-editor {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mood-editor-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.45;
+}
+
+.mood-picker {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.mood-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  font-size: 1.5rem;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  -webkit-app-region: no-drag;
+}
+
+.mood-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(1.1);
+}
+
+.mood-btn.selected {
+  background: rgba(0, 100, 151, 0.35);
+  border-color: rgba(0, 100, 151, 0.7);
+  transform: scale(1.15);
+}
+
+/* Connection status bar in settings */
+.mood-connection-status {
+  font-size: 0.78rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  min-height: 1.5rem;
+  transition: background 0.2s, color 0.2s;
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}
+
+.mood-conn-ok {
+  background: rgba(15, 81, 50, 0.12);
+  color: #0f5132;
+}
+
+.mood-conn-error {
+  background: rgba(143, 29, 26, 0.1);
+  color: #8f1d1a;
+}
+
+/* Extracted sheet ID label next to Sheet input label */
+.mood-extracted-id {
+  font-size: 0.7rem;
+  font-family: 'SF Mono', monospace;
+  opacity: 0.5;
+  margin-left: 0.4rem;
+  display: none;
+}
+
+/* Not-configured notice */
+.mood-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  opacity: 0.5;
+  font-size: 0.85rem;
+  text-align: center;
 }
