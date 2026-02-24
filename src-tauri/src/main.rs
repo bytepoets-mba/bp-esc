@@ -15,7 +15,7 @@ use serde_json::Value;
 use chrono::{Datelike, Local, TimeZone, Timelike};
 use tauri::{
     AppHandle, Manager, WindowEvent, ActivationPolicy, PhysicalPosition, Emitter, State,
-    menu::{Menu, MenuItemBuilder},
+    menu::{Menu, MenuItemBuilder, CheckMenuItem, PredefinedMenuItem},
     tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
     image::Image
 };
@@ -221,6 +221,11 @@ pub struct AppSettings {
     pub mood_service_account_private_key: String,
     #[serde(default)]
     pub mood_my_name: String,  // 3-char identifier e.g. "mba"
+
+    /// Runtime-only: true after key+tag validated against Keys sheet.
+    /// Not persisted — re-validated on app start and on test/save.
+    #[serde(default)]
+    pub mood_auth_validated: bool,
 }
 
 fn default_refresh_interval() -> u32 { 5 }
@@ -259,6 +264,7 @@ impl Default for AppSettings {
             mood_service_account_email: String::new(),
             mood_service_account_private_key: String::new(),
             mood_my_name: String::new(),
+            mood_auth_validated: false,
         }
     }
 }
@@ -1580,7 +1586,7 @@ fn generate_hybrid_menubar_icon(value: f64, is_percentage: bool, has_data: bool,
 
     // Rasterize Hexagon
     for y in 0..canvas_height {
-        for x in 0..(hex_width as u32) {
+        for x in 0..=hex_width as u32 {
             if is_inside_hexagon(x as f32, y as f32, &points) {
                 let dist = distance_to_hexagon_border(x as f32, y as f32, &points);
                 
@@ -1715,6 +1721,49 @@ fn toggle_window(app: &AppHandle) {
             let tab = if is_blinking { "mood" } else { "balance" };
             let _ = window.emit("navigate-tab", tab);
         }
+    }
+}
+
+fn update_tray_menu(app: &AppHandle) {
+    let current_tf = read_settings()
+        .map(|s| s.menubar_timeframe)
+        .unwrap_or_else(|_| "monthly".to_string());
+
+    let is_visible = app.get_webview_window("main")
+        .map(|w| w.is_visible().unwrap_or(false))
+        .unwrap_or(false);
+    let show_hide_label = if is_visible { "Hide Window" } else { "Show Window" };
+
+    let show_hide = match MenuItemBuilder::with_id("show_hide", show_hide_label).build(app) {
+        Ok(i) => i, Err(_) => return,
+    };
+    let sep1 = match PredefinedMenuItem::separator(app) {
+        Ok(i) => i, Err(_) => return,
+    };
+    let daily = match CheckMenuItem::with_id(app, "daily", "Daily", true, current_tf == "daily", None::<&str>) {
+        Ok(i) => i, Err(_) => return,
+    };
+    let weekly = match CheckMenuItem::with_id(app, "weekly", "Weekly", true, current_tf == "weekly", None::<&str>) {
+        Ok(i) => i, Err(_) => return,
+    };
+    let monthly = match CheckMenuItem::with_id(app, "monthly", "Monthly", true, current_tf == "monthly", None::<&str>) {
+        Ok(i) => i, Err(_) => return,
+    };
+    let sep2 = match PredefinedMenuItem::separator(app) {
+        Ok(i) => i, Err(_) => return,
+    };
+    let quit = match MenuItemBuilder::with_id("quit", "Quit").build(app) {
+        Ok(i) => i, Err(_) => return,
+    };
+
+    let menu = match Menu::with_items(app, &[
+        &show_hide, &sep1, &daily, &weekly, &monthly, &sep2, &quit
+    ]) {
+        Ok(m) => m, Err(_) => return,
+    };
+
+    if let Some(tray) = app.tray_by_id("main-tray") {
+        let _ = tray.set_menu(Some(menu));
     }
 }
 
@@ -1904,21 +1953,26 @@ async fn fetch_mood_rows(
 }
 
 /// Tauri command — thin wrapper around fetch_mood_rows.
+/// Requires valid auth (key+tag must be in Keys sheet).
 #[tauri::command]
 async fn fetch_mood_data(
     sheet_id: String,
     sa_email: String,
     sa_key: String,
     week: Option<String>,
+    or_key: String,
+    tag: String,
 ) -> Result<Vec<MoodRow>, String> {
     if sheet_id.is_empty() || sa_email.is_empty() || sa_key.is_empty() {
         return Err("Mood not configured. Set Sheet ID and service account in Settings.".to_string());
     }
+    verify_mood_auth(&sheet_id, &sa_email, &sa_key, &or_key, &tag).await?;
     fetch_mood_rows(&sheet_id, &sa_email, &sa_key, week).await
 }
 
 /// Write (append or update) a mood entry for the current week.
 /// If a row with matching kw+name exists, update it. Otherwise append.
+/// Requires valid auth (key+tag must be in Keys sheet).
 #[tauri::command]
 async fn write_mood_entry(
     sheet_id: String,
@@ -1928,7 +1982,7 @@ async fn write_mood_entry(
     mood: u8,
     comment: String,
     week: Option<String>,
-    or_key: Option<String>,
+    or_key: String,
 ) -> Result<(), String> {
     if sheet_id.is_empty() || sa_email.is_empty() || sa_key.is_empty() {
         return Err("Mood not configured. Set Sheet ID and service account in Settings.".to_string());
@@ -1936,6 +1990,8 @@ async fn write_mood_entry(
     if name.is_empty() {
         return Err("Your 3-char name is not set. Check Settings → Mood.".to_string());
     }
+    // Auth check: key must match tag in Keys sheet
+    verify_mood_auth(&sheet_id, &sa_email, &sa_key, &or_key, &name).await?;
     if mood < 1 || mood > 6 {
         return Err(format!("Invalid mood value: {}. Must be 1-6.", mood));
     }
@@ -1955,12 +2011,11 @@ async fn write_mood_entry(
         r.kw == kw && r.name.to_lowercase() == name.to_lowercase()
     });
 
-    let key_marker = match or_key.as_deref() {
-        Some(k) if !k.is_empty() => {
-            let suffix = if k.len() > 8 { &k[k.len() - 8..] } else { k };
-            format!("...{}", suffix)
-        },
-        _ => "missing!".to_string(),
+    let key_marker = if !or_key.is_empty() {
+        let suffix = if or_key.len() > 8 { &or_key[or_key.len() - 8..] } else { &or_key };
+        format!("...{}", suffix)
+    } else {
+        "missing!".to_string()
     };
     let row_values = serde_json::json!({
         "values": [[kw, name, mood.to_string(), comment, timestamp_serial, key_marker]]
@@ -2011,16 +2066,85 @@ async fn write_mood_entry(
     Ok(())
 }
 
-/// Test connectivity: get a token and do a lightweight metadata read.
+/// Verify that the given OpenRouter key + tag pair exists in the Keys sheet.
+/// Keys tab layout: col A = key, col B = tag (header row assumed in row 1).
+/// Returns Ok(()) if valid, Err with human-readable message if not.
+async fn verify_mood_auth(
+    sheet_id: &str,
+    sa_email: &str,
+    sa_key: &str,
+    or_key: &str,
+    tag: &str,
+) -> Result<(), String> {
+    if or_key.is_empty() {
+        return Err("No OpenRouter API key configured. Set one in Settings → OpenRouter.".to_string());
+    }
+    if tag.is_empty() {
+        return Err("No tag configured. Set your tag in Settings → Mood.".to_string());
+    }
+
+    let token = get_google_access_token(sa_email, sa_key).await?;
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let url = format!(
+        "https://sheets.googleapis.com/v4/spreadsheets/{}/values/Keys!A2:B1000",
+        sheet_id
+    );
+
+    let resp = client
+        .get(&url)
+        .bearer_auth(&token)
+        .send()
+        .await
+        .map_err(|e| format!("Auth check request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("Auth check failed ({}): {}", status, body));
+    }
+
+    let body: Value = resp.json().await
+        .map_err(|e| format!("Auth response parse error: {}", e))?;
+
+    let rows = body["values"].as_array().ok_or_else(|| {
+        "Keys sheet is empty or missing. Contact your administrator.".to_string()
+    })?;
+
+    let or_key_norm = or_key.trim();
+    let tag_norm = tag.trim().to_lowercase();
+
+    for row in rows {
+        let cols = row.as_array().map(|a| a.as_slice()).unwrap_or(&[]);
+        let row_key = cols.get(0).and_then(|v| v.as_str()).unwrap_or("").trim();
+        let row_tag = cols.get(1).and_then(|v| v.as_str()).unwrap_or("").trim().to_lowercase();
+        if row_key == or_key_norm && row_tag == tag_norm {
+            return Ok(());
+        }
+    }
+
+    Err("Access denied: key and tag combination not found. Check your OpenRouter key and tag in Settings.".to_string())
+}
+
+/// Test connectivity + auth: verifies SA token, auth key/tag pair, then reads sheet header.
 #[tauri::command]
 async fn test_mood_connection(
     sheet_id: String,
     sa_email: String,
     sa_key: String,
+    or_key: String,
+    tag: String,
 ) -> Result<String, String> {
     if sheet_id.is_empty() || sa_email.is_empty() || sa_key.is_empty() {
         return Err("Sheet ID, service account email, and private key are all required.".to_string());
     }
+
+    // Auth check first
+    verify_mood_auth(&sheet_id, &sa_email, &sa_key, &or_key, &tag).await?;
 
     let token = get_google_access_token(&sa_email, &sa_key).await?;
 
@@ -2029,7 +2153,7 @@ async fn test_mood_connection(
         .build()
         .map_err(|e| e.to_string())?;
 
-    // Read just the header row as a lightweight check
+    // Read just the header row as a lightweight connectivity check
     let url = format!(
         "https://sheets.googleapis.com/v4/spreadsheets/{}/values/Mood!A1:E1",
         sheet_id
@@ -2058,7 +2182,7 @@ async fn test_mood_connection(
         .map(|cols| cols.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(", "))
         .unwrap_or_else(|| "(empty sheet — add a header row)".to_string());
 
-    Ok(format!("Connected. Sheet header: {}", header))
+    Ok(format!("Auth OK. Sheet header: {}", header))
 }
 
 // ============================================================================
@@ -2080,6 +2204,18 @@ async fn has_missing_mood_entry(settings: &AppSettings) -> bool {
     let now = Local::now();
     let current_week = now.date_naive().iso_week().week(); // 1-based
     let current_year = now.year();
+
+    // Auth check — if key+tag don't match, silently skip blink
+    let or_key = settings.api_keys.first().map(|k| k.key.as_str()).unwrap_or("");
+    if verify_mood_auth(
+        &settings.mood_sheet_id,
+        &settings.mood_service_account_email,
+        &settings.mood_service_account_private_key,
+        or_key,
+        &settings.mood_my_name,
+    ).await.is_err() {
+        return false;
+    }
 
     // Fetch ALL rows from the sheet (no week filter — pass a sentinel that won't match)
     // We re-use get_google_access_token + a direct read of all rows.
@@ -2375,10 +2511,10 @@ fn main() {
         check_and_update_mood_blink(app_handle2);
       });
       
-      // Create tray menu
-      let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-      let show_hide = MenuItemBuilder::with_id("show_hide", "Show/Hide").build(app)?;
-      let menu = Menu::with_items(app, &[&show_hide, &quit])?;
+      // Create a minimal placeholder menu (will be replaced after tray is built)
+      let quit_placeholder = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+      let show_placeholder = MenuItemBuilder::with_id("show_hide", "Show").build(app)?;
+      let menu = Menu::with_items(app, &[&show_placeholder, &quit_placeholder])?;
       
       // Create tray icon
   let is_dark = is_macos_dark_mode();
@@ -2411,6 +2547,31 @@ fn main() {
             }
             "show_hide" => {
               toggle_window(app);
+              update_tray_menu(app.app_handle());
+            }
+            "daily" | "weekly" | "monthly" => {
+              let timeframe = event.id().as_ref().to_string();
+              if let Ok(mut settings) = read_settings() {
+                settings.menubar_timeframe = timeframe;
+                if let Err(e) = save_settings_internal(&settings) {
+                  eprintln!("[Menu] Failed to save timeframe: {}", e);
+                } else {
+                  // Emit event to refresh UI
+                  if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.emit("settings-updated", &settings);
+                    let _ = window.emit("refresh-balance", ());
+                  }
+                  // Re-render menubar icon using cached balance from MenubarState
+                  if let Some(state) = app.try_state::<MenubarState>() {
+                    let balance = state.balance.lock().ok()
+                      .and_then(|b| b.clone());
+                    if let Some(balance) = balance {
+                      let _ = update_menubar_display(app.app_handle().clone(), balance, settings);
+                    }
+                  }
+                }
+              }
+              update_tray_menu(app.app_handle());
             }
             _ => {}
           }
@@ -2423,9 +2584,13 @@ fn main() {
           } = event
           {
             toggle_window(tray.app_handle());
+            update_tray_menu(tray.app_handle());
           }
         })
         .build(app)?;
+
+      // Now replace placeholder menu with fully configured menu (icons, checkmarks, separators)
+      update_tray_menu(app.app_handle());
       
       // Set up KVO observation for menubar appearance changes (wallpaper-driven tint)
       #[cfg(target_os = "macos")]
