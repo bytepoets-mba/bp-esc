@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/v2/schema/v2.json",
   "productName": "BP-ESC",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "identifier": "com.bytepoets.bp-esc",
   "plugins": {
     "global-shortcut": null
