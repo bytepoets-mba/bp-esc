@@ -1930,14 +1930,26 @@ async fn fetch_mood_rows(
     if let Some(sheet_rows) = body["values"].as_array() {
         for (i, row) in sheet_rows.iter().enumerate() {
             let cols = row.as_array().map(|a| a.as_slice()).unwrap_or(&[]);
-            let kw = cols.get(0).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            // KW may come as string or number depending on sheet cell format
+            let kw = cols.get(0).and_then(|v| {
+                v.as_str().map(|s| s.to_string())
+                    .or_else(|| v.as_u64().map(|n| n.to_string()))
+                    .or_else(|| v.as_f64().map(|n| (n as u64).to_string()))
+            }).unwrap_or_default();
             if kw != filter_kw {
                 continue;
             }
             let name = cols.get(1).and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let mood: u8 = cols.get(2).and_then(|v| v.as_str()).unwrap_or("0").parse().unwrap_or(0);
+            let mood: u8 = cols.get(2).and_then(|v| {
+                v.as_str().and_then(|s| s.parse().ok())
+                    .or_else(|| v.as_u64().map(|n| n as u8))
+                    .or_else(|| v.as_f64().map(|n| n as u8))
+            }).unwrap_or(0);
             let comment = cols.get(3).and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let timestamp = cols.get(4).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let timestamp = cols.get(4).and_then(|v| {
+                v.as_str().map(|s| s.to_string())
+                    .or_else(|| v.as_f64().map(|n| n.to_string()))
+            }).unwrap_or_default();
             rows.push(MoodRow {
                 kw,
                 name,
@@ -2203,7 +2215,6 @@ fn mood_configured(settings: &AppSettings) -> bool {
 async fn has_missing_mood_entry(settings: &AppSettings) -> bool {
     let now = Local::now();
     let current_week = now.date_naive().iso_week().week(); // 1-based
-    let current_year = now.year();
 
     // Auth check — if key+tag don't match, silently skip blink
     let or_key = settings.api_keys.first().map(|k| k.key.as_str()).unwrap_or("");
@@ -2250,15 +2261,10 @@ async fn has_missing_mood_entry(settings: &AppSettings) -> bool {
         Err(_) => return false,
     };
 
-    // Collect all week numbers this user has entries for (current year only).
-    // Use the timestamp serial (col E) to distinguish current-year entries from prior years.
+    // Collect all week numbers this user has entries for.
+    // Sheet is replaced yearly — no need to filter by timestamp.
     let my_name = settings.mood_my_name.to_lowercase();
     let mut entered_weeks: std::collections::HashSet<u32> = std::collections::HashSet::new();
-
-    // Sheets serial for Jan 1 of current year
-    let epoch = chrono::NaiveDate::from_ymd_opt(1899, 12, 30).unwrap();
-    let jan1_serial = (chrono::NaiveDate::from_ymd_opt(current_year, 1, 1).unwrap() - epoch).num_days() as f64;
-    let dec31_serial = (chrono::NaiveDate::from_ymd_opt(current_year, 12, 31).unwrap() - epoch).num_days() as f64 + 1.0;
 
     if let Some(rows) = body["values"].as_array() {
         for row in rows {
@@ -2267,18 +2273,16 @@ async fn has_missing_mood_entry(settings: &AppSettings) -> bool {
             if name != my_name {
                 continue;
             }
-            // Verify timestamp (col E) is within current year
-            let ts_serial: f64 = cols.get(4)
-                .and_then(|v| v.as_str().and_then(|s| s.parse().ok())
-                    .or_else(|| v.as_f64()))
-                .unwrap_or(0.0);
-            if ts_serial < jan1_serial || ts_serial >= dec31_serial {
-                continue; // entry is from a different year
-            }
-            let kw_str = cols.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            if let Ok(week_num) = kw_str.trim().parse::<u32>() {
-                if week_num >= 1 && week_num <= 53 {
-                    entered_weeks.insert(week_num);
+            // KW column may be a JSON string or number depending on sheet formatting
+            let week_num: Option<u32> = cols.get(0).and_then(|v| {
+                v.as_str()
+                    .and_then(|s| s.trim().parse::<u32>().ok())
+                    .or_else(|| v.as_u64().map(|n| n as u32))
+                    .or_else(|| v.as_f64().map(|n| n as u32))
+            });
+            if let Some(wn) = week_num {
+                if wn >= 1 && wn <= 53 {
+                    entered_weeks.insert(wn);
                 }
             }
         }
